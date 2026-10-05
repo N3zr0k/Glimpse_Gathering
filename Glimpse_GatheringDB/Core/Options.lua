@@ -13,6 +13,15 @@ function DB:BuildSourceOptions()
         },
     }
 
+    args.separate = {
+        type = "toggle", order = 0.5, width = "full",
+        name = L["List sources with outside locations separately"],
+        desc = L["On: sources that only have locations from other addons come after your own. Off: those locations count like your own when sorting."],
+        disabled = function() return not self.db.profile.useExternalSpots or not self:HasAvailableProvider() end,
+        get = function() return self.db.profile.externalSeparate end,
+        set = function(_, value) self.db.profile.externalSeparate = value end,
+    }
+
     for index, info in ipairs(self:GetProviders()) do
         local name = info.name
         args[name] = {

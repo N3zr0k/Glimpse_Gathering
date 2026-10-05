@@ -3,7 +3,7 @@ local stub = require("wowstub")
 
 -- Nachbau der Schnittstelle von GatherMate2 (Aufbau wie im Quelltext: coord = x * 1e6 + y * 100 in 1/10000)
 local NODE_IDS = {
-    ["Herb Gathering"] = { Silberblatt = 1 },
+    ["Herb Gathering"] = { Silberblatt = 1, Friedensblume = 4 },
     ["Mining"] = { Kupfervorkommen = 2 },
     ["Treasure"] = { Truhe = 3 },
     ["Extract Gas"] = {},
@@ -59,6 +59,7 @@ local function setup(points, withHBD)
     stub.load("Glimpse_GatheringDB/Data/Migrate.lua", "Glimpse_GatheringDB")
     stub.load("Glimpse_GatheringDB/Data/Providers.lua", "Glimpse_GatheringDB")
     stub.load("Glimpse_GatheringDB/Data/GatherMate2.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Data/Sources.lua", "Glimpse_GatheringDB")
     DB:RecordNode(10, { name = "Silberblatt", category = "herb" }, { [100] = 1 }, { map = 37, x = 0.40, y = 0.50 })
     return DB
 end
@@ -416,5 +417,102 @@ test("Entfernung: ohne Kartengröße nur Anteil der Karte", function()
     -- Fehler in der Spielfunktion werden abgefangen
     DB.api = { GetMapWorldSize = function() error("kaputt") end }
     eq(DB:GetMapSize(37), nil, "Fehler abgefangen")
+    teardown()
+end)
+
+
+-- Quellen eines Materials (Item 100) in vier Gruppen:
+--   10 Silberblatt     eigener Ort auf Karte 37 (hier), 50 %
+--   11 Kupfer          eigener Ort auf Karte 38 (woanders), 100 %
+--   12 Friedensblume   kein eigener Ort, GatherMate2-Ort auf Karte 37, 100 %
+--   13 Unbekannt       gar kein Ort, 100 %
+local function SourcesSetup()
+    local points = { ["Herb Gathering"] = { [37] = {
+        { 0.70, 0.30, 4 },   -- Friedensblume, auf der Karte des Spielers
+        { 0.20, 0.20, 1 },   -- Silberblatt
+    } } }
+    local DB = setup(points)
+    DB.api = { GetMapInfo = function(map) return { name = "Karte" .. map } end }
+    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    DB.data.nodes[10] = nil
+    DB:RecordNode(10, { name = "Silberblatt", category = "herb" }, {}, { map = 37, x = 0.40, y = 0.50 })
+    DB:RecordNode(10, nil, { [100] = 1 }, { map = 37, x = 0.40, y = 0.50 })
+    DB:RecordNode(11, { name = "Kupfer", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.5, y = 0.5 })
+    DB:RecordNode(12, { name = "Friedensblume", category = "herb" }, { [100] = 1 })
+    DB:RecordNode(13, { name = "Unbekannt", category = "other" }, { [100] = 1 })
+    return DB
+end
+
+local function Ids(list)
+    local ids = {}
+    for _, source in ipairs(list) do tinsert(ids, source.id) end
+    return table.concat(ids, ",")
+end
+
+test("Quellen nach Gebiet: eigenes Gebiet, andere Gebiete, externe, ohne Ort", function()
+    local DB = SourcesSetup()
+    local list = DB:GetLocatedItemSources(100)
+
+    eq(Ids(list), "10,11,12,13", "Reihenfolge")
+    eq(list[1].area, "here", "eigenes Gebiet")
+    eq(list[2].area, "elsewhere", "anderes Gebiet")
+    eq(list[3].area, "external", "nur externe Orte")
+    eq(list[4].area, "none", "ohne Ort")
+    eq(list[3].spots[1].source, "GatherMate2", "Orte der Quelle")
+    eq(#DB:GetItemSources(100), 4, "GetItemSources bleibt unverändert")
+    eq(DB:GetItemSources(100)[1].area, nil, "und ohne Zusatzfelder")
+    teardown()
+end)
+
+test("Quellen nach Gebiet: innerhalb einer Gruppe die höchste Chance zuerst", function()
+    local DB = SourcesSetup()
+    DB:RecordNode(14, { name = "Zweite", category = "other" }, { [100] = 1 }, { map = 37, x = 0.9, y = 0.9 })
+    DB:RecordNode(14, nil, {}, { map = 37, x = 0.9, y = 0.9 }) -- 1 von 2 = 50 %
+    DB:RecordNode(15, { name = "Dritte", category = "other" }, { [100] = 1 }, { map = 37, x = 0.8, y = 0.8 }) -- 100 %
+    local list = DB:GetLocatedItemSources(100)
+    eq(Ids(list), "15,10,14,11,12,13", "hier: 100 % vor 50 %, dann der Rest")
+    teardown()
+end)
+
+test("Quellen nach Gebiet: zusammengefasst zählen externe Orte wie eigene", function()
+    local DB = SourcesSetup()
+    DB.db = { profile = { useExternalSpots = true, externalSeparate = false, externalSources = {} } }
+    local list = DB:GetLocatedItemSources(100)
+
+    eq(Ids(list), "12,10,11,13", "Friedensblume (100 %, GatherMate2-Ort hier) vor Silberblatt (50 %)")
+    eq(list[1].area, "here", "externer Ort im eigenen Gebiet")
+    eq(list[4].area, "none", "ohne Ort")
+    for _, source in ipairs(list) do eq(source.area ~= "external", true, "keine externe Gruppe") end
+
+    DB.db.profile.externalSeparate = true
+    eq(Ids(DB:GetLocatedItemSources(100)), "10,11,12,13", "getrennt wie vorher")
+    teardown()
+end)
+
+test("Quellen nach Gebiet: ohne Position gibt es kein eigenes Gebiet", function()
+    local DB = SourcesSetup()
+    DB.GetPlayerPosition = function() return nil end
+    local list = DB:GetLocatedItemSources(100)
+    eq(Ids(list), "11,10,12,13", "alles mit Ort steht in 'woanders', nach Chance")
+    eq(list[1].area, "elsewhere", "Gruppe")
+    teardown()
+end)
+
+test("Quellen nach Gebiet: Option und Debug-Zeilen für ein Material", function()
+    local DB = SourcesSetup()
+    stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
+
+    local lines = DB:DebugItemLines(100)
+    eq(lines[1][1], "Sources: 4  (outside separate)", "Kopfzeile")
+    eq(lines[2][1], "Silberblatt (node 10, gather)", "erste Quelle")
+    eq(lines[2][2]:find("[here]", 1, true) ~= nil, true, "Gebiet")
+    eq(lines[2][2]:find("50.0%", 1, true) ~= nil, true, "Chance")
+    eq(lines[3][1], "  Karte37 (37)  40.0 / 50.0", "Ort darunter")
+    eq(#DB:DebugItemLines(4711), 0, "Item ohne Quelle: nichts")
+
+    -- höchstens 5 Quellen, 2 Orte je Quelle
+    for id = 20, 30 do DB:RecordNode(id, { name = "N" .. id, category = "other" }, { [100] = 1 }) end
+    local many = DB:DebugItemLines(100)
+    eq(many[#many][1], "... 10 more", "Rest der Quellen")
     teardown()
 end)

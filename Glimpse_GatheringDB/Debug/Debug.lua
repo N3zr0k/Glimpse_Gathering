@@ -73,6 +73,24 @@ local function SpotOrder(a, b)
     return a.y < b.y
 end
 
+-- Eine Zeile je Fundort: Karte, Koordinaten (Prozent) links, Funde bzw. Punkte, Entfernung und Quelle rechts
+local function SpotLine(spot)
+    local right
+    if spot.source == "own" then
+        right = format(L["%d finds"], spot.count)
+    else
+        right = format(L["%d points"], spot.density or 0)
+    end
+    if spot.distance then
+        right = right .. ", " .. format(L["%d yards away"], math.floor(spot.distance + 0.5))
+    elseif spot.mapDistance then
+        right = right .. ", " .. format(L["%s%% of the map away"], Percent(spot.mapDistance))
+    end
+
+    return Line("  " .. MapLabel(spot.map) .. "  " .. Percent(spot.x) .. " / " .. Percent(spot.y),
+        right .. "  [" .. spot.source .. "]")
+end
+
 --- Zeilen zu Fundorten und Koordinaten einer oder mehrerer Quellen derselben Art (kind = "node" oder
 -- "npc", ids = Liste): Zahl der Orte (eigene und aus anderen Addons), die Position des Spielers und die
 -- ersten Orte mit Karte, Koordinaten (in Prozent), Funden bzw. Punkten, Entfernung und Quelle.
@@ -98,25 +116,47 @@ function DB:DebugSpotLines(kind, ids)
         tinsert(lines, Line(L["Position"] .. ": " .. L["unknown"]))
     end
 
-    for index = 1, math.min(#spots, MAX_SPOTS) do
-        local spot = spots[index]
-        local right
-        if spot.source == "own" then
-            right = format(L["%d finds"], spot.count)
-        else
-            right = format(L["%d points"], spot.density or 0)
-        end
-        if spot.distance then
-            right = right .. ", " .. format(L["%d yards away"], math.floor(spot.distance + 0.5))
-        elseif spot.mapDistance then
-            right = right .. ", " .. format(L["%s%% of the map away"], Percent(spot.mapDistance))
-        end
-
-        tinsert(lines, Line("  " .. MapLabel(spot.map) .. "  " .. Percent(spot.x) .. " / " .. Percent(spot.y),
-            right .. "  [" .. spot.source .. "]"))
-    end
+    for index = 1, math.min(#spots, MAX_SPOTS) do tinsert(lines, SpotLine(spots[index])) end
     if #spots > MAX_SPOTS then
         tinsert(lines, Line("  " .. format(L["... %d more"], #spots - MAX_SPOTS)))
+    end
+    return lines
+end
+
+-- Höchstzahl der Quellen und der Orte je Quelle in der Anzeige eines Materials
+local MAX_SOURCES = 5
+local MAX_SOURCE_SPOTS = 2
+
+local AREA_LABELS = {
+    here = "here", elsewhere = "elsewhere", external = "outside locations only", none = "no location",
+}
+
+--- Zeilen für ein Material: seine Quellen in der Reihenfolge von GetLocatedItemSources (eigenes Gebiet,
+-- andere Gebiete, nur fremde Orte, ohne Ort), je Quelle Chance und die nächsten Fundorte. Leer, wenn es
+-- keine Quelle gibt.
+function DB:DebugItemLines(itemID)
+    local sources = self:GetLocatedItemSources(itemID, 1)
+    if #sources == 0 then return {} end
+
+    local lines = {}
+    tinsert(lines, Line(L["Sources"] .. ": " .. #sources .. "  (" ..
+        (self:ExternalSeparate() and L["outside separate"] or L["outside combined"]) .. ")"))
+
+    for index = 1, math.min(#sources, MAX_SOURCES) do
+        local source = sources[index]
+        local name = tostring(source.name or "?") .. " (" .. source.kind .. " " .. source.id .. ", " .. source.mode .. ")"
+        tinsert(lines, Line(name, format("%d/%d = %.1f%%  [%s]", source.hits, source.attempts, source.chance * 100,
+            L[AREA_LABELS[source.area]])))
+
+        for spotIndex = 1, math.min(#source.spots, MAX_SOURCE_SPOTS) do
+            tinsert(lines, SpotLine(source.spots[spotIndex]))
+        end
+        if #source.spots > MAX_SOURCE_SPOTS then
+            tinsert(lines, Line("  " .. format(L["... %d more"], #source.spots - MAX_SOURCE_SPOTS)))
+        end
+    end
+    if #sources > MAX_SOURCES then
+        tinsert(lines, Line(format(L["... %d more"], #sources - MAX_SOURCES)))
     end
     return lines
 end
@@ -232,9 +272,26 @@ local function SourceLines(module, data, hidden, isObject, tooltip)
     if isObject then return NodeNameLines(module, DB:GetTooltipName(tooltip), data, hidden) end
 end
 
+-- Handwerksmaterial: seine Quellen mit Fundorten. Nur wenn Debug an ist und es Quellen gibt, sonst bleibt der
+-- Tooltip unverändert.
+local function ItemLines(module, data)
+    if not Glimpse:IsDebug() then return nil end
+
+    local itemID = tonumber(data.id)
+    if not itemID then return nil end
+
+    local sources = DB:DebugItemLines(itemID)
+    if #sources == 0 then return nil end
+
+    local lines = { Header(module), Line(L["ID"] .. ": " .. itemID) }
+    for _, line in ipairs(sources) do tinsert(lines, line) end
+    return lines
+end
+
 function DB:RegisterDebugTooltips()
     local types = Enum.TooltipDataType
 
+    self:RegisterTooltipLine(types.Item, ItemLines)
     self:RegisterTooltipLine(types.Object, function(module, data, tooltip, hidden)
         return SourceLines(module, data, hidden, true, tooltip)
     end)

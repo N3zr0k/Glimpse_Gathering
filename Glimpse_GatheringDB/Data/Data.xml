@@ -5,4 +5,5 @@
     <Script file="TransferUI.lua"/>
     <Script file="Providers.lua"/>
     <Script file="GatherMate2.lua"/>
+    <Script file="Sources.lua"/>
 </Ui>
