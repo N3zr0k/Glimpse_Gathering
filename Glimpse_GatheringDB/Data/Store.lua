@@ -55,19 +55,64 @@ function DB:MergeSpot(list, map, x, y, n, limit)
     end
 end
 
+--- Führt eine Instanz als Fundort in eine Liste ein: { inst = instanceID, n = Zahl der Funde }.
+function DB:MergeInstanceSpot(list, instance, n, limit)
+    for _, spot in ipairs(list) do
+        if spot.inst == instance then
+            spot.n = math.min(spot.n + n, COUNT_MAX)
+            return
+        end
+    end
+
+    tinsert(list, { inst = instance, n = math.min(n, COUNT_MAX) })
+
+    if #list > limit then
+        local weakest = 1
+        for index = 2, #list do
+            if list[index].n < list[weakest].n then weakest = index end
+        end
+        tremove(list, weakest)
+    end
+end
+
+local MAX_INSTANCE_NAME = 100
+
 --- Merkt einen Fundort für einen Knoten- oder Kreatureneintrag. pos = { map, x, y } mit x und y von
--- 0 bis 1 (wie C_Map.GetPlayerMapPosition). Ungültige Orte werden ignoriert.
+-- 0 bis 1 (wie C_Map.GetPlayerMapPosition) oder { instance, name } für Beute in einer Instanz (dann
+-- gibt es keine Koordinaten, die Instanz allein ist der Fundort). Ungültige Orte werden ignoriert.
 function DB:AddSpot(entry, kind, pos)
-    if type(pos) ~= "table" or type(pos.map) ~= "number" or type(pos.x) ~= "number" or type(pos.y) ~= "number" then
+    if type(pos) ~= "table" then return end
+    local limit = kind == "node" and self.MAX_SPOTS_NODE or self.MAX_SPOTS_NPC
+
+    if pos.instance ~= nil then
+        local id = pos.instance
+        if type(id) ~= "number" or id < 1 or id >= 1e6 or id ~= math.floor(id) then return end
+
+        entry.spots = entry.spots or {}
+        self:MergeInstanceSpot(entry.spots, id, 1, limit)
+
+        -- Name der Instanz einmal je ID merken (der aktuelle gilt)
+        if type(pos.name) == "string" and pos.name ~= "" then
+            self.data.instances = self.data.instances or {}
+            self.data.instances[id] = pos.name:sub(1, MAX_INSTANCE_NAME)
+        end
         return
     end
+
+    if type(pos.map) ~= "number" or type(pos.x) ~= "number" or type(pos.y) ~= "number" then return end
 
     local x = math.floor(pos.x * SPOT_MAX + 0.5)
     local y = math.floor(pos.y * SPOT_MAX + 0.5)
     if pos.map < 1 or x < 1 or y < 1 or x > SPOT_MAX or y > SPOT_MAX then return end
 
     entry.spots = entry.spots or {}
-    self:MergeSpot(entry.spots, pos.map, x, y, 1, kind == "node" and self.MAX_SPOTS_NODE or self.MAX_SPOTS_NPC)
+    self:MergeSpot(entry.spots, pos.map, x, y, 1, limit)
+end
+
+--- Name einer Instanz (aus gelooteter Beute) oder nil.
+function DB:GetInstanceName(instance)
+    local names = self.data.instances
+    return names and names[instance] or nil
 end
 
 -- Ein Beutefenster zu einem Abschnitt { attempts, items } zählen.
@@ -208,6 +253,7 @@ function DB:ResetData()
     wipe(self.data.nodes)
     wipe(self.data.npcs)
     if self.data.imports then wipe(self.data.imports) end
+    if self.data.instances then wipe(self.data.instances) end
     self.itemIndex, self.nameIndex = nil, nil
     self:SendMessage(self.MESSAGE_UPDATED, "reset")
 end
@@ -269,24 +315,41 @@ function DB:GetItemSources(itemID, minAttempts)
     return result
 end
 
+--- Wo der Spieler gerade ist, als Fundort für die Beute und zum Vergleichen: { instance, name } in einer
+-- Instanz, sonst { map, x, y } (siehe GetPlayerPosition), oder nil, wenn sich beides nicht bestimmen lässt.
+function DB:GetPlayerArea()
+    local instance = self.GetPlayerInstance and self:GetPlayerInstance()
+    if instance then return instance end
+    return self.GetPlayerPosition and self:GetPlayerPosition() or nil
+end
+
 -- ---------------------------------------------------------------------------
 -- Fundorte abfragen
 -- ---------------------------------------------------------------------------
 
 --- Nur die eigenen Fundorte einer Quelle, kind = "node" oder "npc". Jeder Eintrag: { map (uiMapID),
 -- x, y (0 bis 1), count (Beutefenster an diesem Ort), source = "own" }, die häufigsten zuerst. Das sind
--- genau die Werte für TomTom: TomTom:AddWaypoint(map, x, y, { title = ... }).
+-- genau die Werte für TomTom: TomTom:AddWaypoint(map, x, y, { title = ... }). Beute aus einer Instanz hat
+-- stattdessen { instance (instanceID), name (kann fehlen), count, source = "own" } ohne map, x und y,
+-- dafür gibt es keinen Wegpunkt.
 function DB:GetOwnSpots(kind, id)
     local entry
     if kind == "node" then entry = self:GetNode(id) elseif kind == "npc" then entry = self:GetNPC(id) end
 
     local list = {}
     for _, spot in ipairs(entry and entry.spots or {}) do
-        tinsert(list, { map = spot.map, x = spot.x / SPOT_MAX, y = spot.y / SPOT_MAX, count = spot.n, source = "own" })
+        if spot.inst then
+            tinsert(list, { instance = spot.inst, name = self:GetInstanceName(spot.inst), count = spot.n, source = "own" })
+        else
+            tinsert(list, { map = spot.map, x = spot.x / SPOT_MAX, y = spot.y / SPOT_MAX, count = spot.n, source = "own" })
+        end
     end
 
     table.sort(list, function(a, b)
         if a.count ~= b.count then return a.count > b.count end
+        -- Orte auf Karten vor Instanzen, sonst nach Nummer und Lage
+        if (a.instance ~= nil) ~= (b.instance ~= nil) then return a.instance == nil end
+        if a.instance then return a.instance < b.instance end
         if a.map ~= b.map then return a.map < b.map end
         if a.x ~= b.x then return a.x < b.x end
         return a.y < b.y

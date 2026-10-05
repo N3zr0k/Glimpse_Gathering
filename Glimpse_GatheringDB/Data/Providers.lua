@@ -165,23 +165,37 @@ function DB:AddExternalSpots(list, kind, id)
     end
 end
 
+--- Liegt der Fundort im Gebiet des Spielers? area = Ergebnis von GetPlayerArea: dieselbe Karte oder
+-- dieselbe Instanz.
+function DB:IsSpotHere(spot, area)
+    if not area then return false end
+    if spot.instance then return area.instance == spot.instance end
+    return area.map ~= nil and spot.map == area.map
+end
+
 --- Die nächsten Fundorte einer Quelle. Orte auf der Karte, auf der der Spieler steht, kommen zuerst und
 -- sind nach Entfernung sortiert. Sie haben distance (Yards, nur wenn die Kartengröße bekannt ist) und
 -- mapDistance (Bruchteil der Kartenbreite, immer). Orte auf anderen Karten folgen in der gewohnten
--- Reihenfolge (ohne Entfernung), oder fehlen, wenn currentMapOnly gesetzt ist. Ohne bekannte Position
--- wie GetSpots.
+-- Reihenfolge (ohne Entfernung), oder fehlen, wenn currentMapOnly gesetzt ist. Steht der Spieler in einer
+-- Instanz, kommt zuerst deren Fundort (ohne Entfernung). Ohne bekannte Position wie GetSpots.
 function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
     local spots = self:GetSpots(kind, id)
-    local position = self.GetPlayerPosition and self:GetPlayerPosition()
+    local position = self:GetPlayerArea()
     if not position then
         if currentMapOnly then return {} end
         if limit then while #spots > limit do tremove(spots) end end
         return spots
     end
 
-    local near, far = {}, {}
+    local inside, near, far = {}, {}, {}
     for _, spot in ipairs(spots) do
-        if spot.map == position.map then
+        if spot.instance then
+            -- eine Instanz hat keine Koordinaten, also auch keine Entfernung
+            if self:IsSpotHere(spot, position) then
+                spot.here = true
+                tinsert(inside, spot)
+            elseif not currentMapOnly then tinsert(far, spot) end
+        elseif position.map and spot.map == position.map then
             local dx, dy = spot.x - position.x, spot.y - position.y
             spot.mapDistance = math.sqrt(dx * dx + dy * dy)
             spot.distance = self:GetMapDistance(spot.map, spot.x, spot.y, position.x, position.y)
@@ -196,6 +210,8 @@ function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
         if da ~= db then return da < db end
         return a.count > b.count
     end)
+    -- in der Instanz, in der man steht, kommt sie vor allem anderen
+    for index, spot in ipairs(inside) do tinsert(near, index, spot) end
     for _, spot in ipairs(far) do tinsert(near, spot) end
 
     if limit then while #near > limit do tremove(near) end end

@@ -18,7 +18,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --                              alle Quellen eines Items, die wahrscheinlichste zuerst
 --   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster und Fundorte
 --   :GetSpots(kind, id, includeExternal)
---                              Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count, source },
+--                              Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count, source };
+--                              in Instanzen gelootet: { instance, name, count, source } ohne map, x und y,
 --                              eigene zuerst, danach die aus anderen Addons (source = "GatherMate2", count = 0);
 --                              includeExternal = false liefert nur die eigenen
 --   :GetOwnSpots(kind, id)     nur die eigenen Fundorte
@@ -50,13 +51,15 @@ Glimpse.GatheringDB = DB
 -- Änderungen am Format (Umstellung älterer Daten in Data/Migrate.lua).
 --   1: Knoten und Kreaturen mit Beute
 --   2: dazu Fundorte (spots) und die Liste schon importierter Exporte (imports)
-local DATA_VERSION = 2
+--   3: Fundorte können auch eine Instanz sein ({ inst, n } statt { map, x, y, n }), instances = Namen der Instanzen
+local DATA_VERSION = 3
 DB.DATA_VERSION = DATA_VERSION
 local dataDefaults = {
     global = {
         version = DATA_VERSION,
         nodes = {}, -- [objectID] = { name, category, attempts, items = { [itemID] = { hits, amount } }, spots }
         npcs = {},  -- [npcID] = { name, level, loot = { attempts, items }, skinning = { attempts, items }, spots }
+        instances = {}, -- [instanceID] = Name der Instanz, für Fundorte in Instanzen
         imports = {}, -- [Export-ID] = Zeitpunkt, damit derselbe Export nicht zweimal zusammengeführt wird
     },
 }

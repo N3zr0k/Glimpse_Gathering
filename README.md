@@ -10,7 +10,7 @@ materials come from while you play.
 | **Glimpse: GatheringDB** | Records gathering nodes and creature loot (crafting materials and gems, every attempt counts) account-wide and offers the data to other addons through a small API. Shows nothing by itself, except raw numbers in debug mode. |
 | **Glimpse: GatheringTooltip** | Shows drop chances and average amounts in the tooltips of nodes, creatures and crafting materials, including the best source of an item. Requires GatheringDB. |
 
-GatheringDB also remembers **where** you looted (zone and coordinates, clustered, optional) and can **export / import**
+GatheringDB also remembers **where** you looted (zone and coordinates, clustered, optional; in dungeons and raids the instance itself) and can **export / import**
 its data (`/gli gatheringdb export`, `/gli gatheringdb import`, or the buttons in its options). Imports of
 older data versions are migrated automatically; data from a newer version is refused.
 

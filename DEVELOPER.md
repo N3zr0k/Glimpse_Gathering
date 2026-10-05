@@ -47,12 +47,12 @@ Tabellen sind nur zum Lesen gedacht.
 | `:FindNodeIDs(name)` / `:GetTooltipName(tooltip)` | Namenssuche für Weltobjekte ohne ID |
 | `:GetItemSources(itemID, minAttempts)` | alle Quellen eines Items, wahrscheinlichste zuerst |
 | `:GetStats()` | Knoten, Kreaturen, erfasste Beutefenster, Fundorte |
-| `:GetSpots(kind, id, includeExternal)` | Fundorte einer Quelle: Liste `{ map, x, y, count, source }` (x, y = 0..1). Erst die eigenen (`source = "own"`, häufigste zuerst), dann fremde (`source = "GatherMate2"`, `count = 0`, `density` = Punkte dort); `includeExternal = false` liefert nur eigene |
+| `:GetSpots(kind, id, includeExternal)` | Fundorte einer Quelle: Liste `{ map, x, y, count, source }` (x, y = 0..1); Beute aus Instanzen: `{ instance, name, count, source }` ohne `map`, `x`, `y` (kein Wegpunkt möglich). Erst die eigenen (`source = "own"`, häufigste zuerst), dann fremde (`source = "GatherMate2"`, `count = 0`, `density` = Punkte dort); `includeExternal = false` liefert nur eigene |
 | `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
 | `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung: `distance` in Yards (nur wenn die Kartengröße bekannt ist), `mapDistance` als Bruchteil der Kartenbreite |
 | `:GetMapSize(map)` / `:GetMapDistance(map, x1, y1, x2, y2)` | Kartengröße (Breite, Höhe) und Strecke in Yards, aus `C_Map.GetMapWorldSize` bzw. `GetWorldPosFromMapPos`, ohne andere Addons; nil, wenn unbekannt |
 | `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
-| `:GetLocatedItemSources(itemID, minAttempts, externalSeparate)` | Quellen eines Items (Kopien der Einträge von `GetItemSources`) nach Fundort geordnet, mit `area` und `spots`. Reihenfolge, jeweils höchste Chance zuerst: `"here"` (Orte auf der Karte des Spielers), `"elsewhere"` (Orte auf anderen Karten), `"external"` (nur Orte aus anderen Addons), `"none"`. `externalSeparate = false`: fremde Orte zählen wie eigene, `"external"` entfällt (Standard `true`; die Option dafür liegt in GatheringTooltip, Tab Handwerksmaterial) |
+| `:GetLocatedItemSources(itemID, minAttempts, externalSeparate)` | Quellen eines Items (Kopien der Einträge von `GetItemSources`) nach Fundort geordnet, mit `area` und `spots`. Reihenfolge, jeweils höchste Chance zuerst: `"here"` (Orte auf der Karte des Spielers oder in seiner Instanz), `"elsewhere"` (Orte auf anderen Karten), `"external"` (nur Orte aus anderen Addons), `"none"`. `externalSeparate = false`: fremde Orte zählen wie eigene, `"external"` entfällt (Standard `true`; die Option dafür liegt in GatheringTooltip, Tab Handwerksmaterial) |
 | `:GetProviders()` / `:RegisterProvider(name, provider)` | Anbieter fremder Fundorte abfragen (`{ name, available, enabled }`) bzw. anmelden |
 | `:GetMapName(map)` | Name der Karte (uiMapID) oder nil |
 | `:ExportData()` | Exporttext, `{ nodes, npcs, chars }` |
@@ -76,15 +76,21 @@ Eigene SavedVariable `GlimpseGatheringDB` (AceDB, `global`, account-weit):
 ```
 nodes[objectID] = { name, category ("herb"|"ore"|"other"), attempts, items = { [itemID] = { hits, amount } } }
 npcs[npcID]     = { name, level, loot = { attempts, items }, skinning = { attempts, items }, spots }
-spots           = { { map = uiMapID, x, y (ganze Zahlen 1..10000 = 1/10000 der Karte), n = Funde } }
+spots           = { { map = uiMapID, x, y (ganze Zahlen 1..10000 = 1/10000 der Karte), n = Funde },
+                    { inst = instanceID, n = Funde } }   -- Beute in einer Instanz: ohne Karte und Koordinaten
+instances[id]   = Name der Instanz (zuletzt gesehen, nur für vorhandene Fundorte)
 imports[id]     = Zeitpunkt (bereits zusammengeführte Exporte, höchstens 50)
-version         = Datenformat (DATA_VERSION = 2 in Core/GatheringDB.lua)
+version         = Datenformat (DATA_VERSION = 3 in Core/GatheringDB.lua)
 ```
 
 * Fundorte (`spots`, auch bei Knoten) werden beim Öffnen des Beutefensters gelesen (Option `trackLocations`).
   Orte näher als `DB.SPOT_RADIUS` (1 % der Karte) werden gewichtet zusammengefasst, je Quelle höchstens
   `MAX_SPOTS_NODE` (40) bzw. `MAX_SPOTS_NPC` (12); der schwächste Ort fällt zuerst weg.
-* Version 1 hatte noch keine `spots` und `imports`; `migrations[1]` ergänzt `imports`.
+* Version 1 hatte noch keine `spots` und `imports`; `migrations[1]` ergänzt `imports`. Version 2 kannte keine
+  Instanzen als Fundort; `migrations[2]` ergänzt `instances`.
+* Instanzen: In einer Instanz (`IsInInstance`, Art nicht `none`) gibt es keine brauchbaren Koordinaten. Die Beute
+  bekommt dann als Fundort die Instanz (`DB:GetPlayerInstance()`, instanceID aus `GetInstanceInfo`), nie Karte
+  und Koordinaten. `DB:GetPlayerArea()` liefert `{ instance, name }` oder `{ map, x, y }`.
 * `hits` = in wie vielen Versuchen das Item vorkam (daraus die Chance), `amount` = Gesamtmenge.
 * Ändert sich das Format: `DATA_VERSION` erhöhen und in `Data/Migrate.lua` unter `migrations[alteVersion]`
   die Umstellung eintragen. Daten einer **neueren** Version rührt das Addon nicht an und zeichnet nicht auf.

@@ -7,7 +7,7 @@ local DB = Glimpse:GetModule("GatheringDB")
 -- Aufbau eines Exporttexts:   GGDB<Format>:<Methode>:<Daten>
 --   Format   Version dieses Textformats (FORMAT), nicht zu verwechseln mit der Version der Daten
 --   Methode  "D" = Deflate-komprimiert und druckbar kodiert (LibDeflate), "R" = unkomprimierter Text
---   Daten    die Tabelle { format, version, created, id, nodes, npcs } in einer eigenen, einfachen
+--   Daten    die Tabelle { format, version, created, id, nodes, npcs, instances } in einer eigenen, einfachen
 --            Textform (unten). Es wird nie Code geladen oder ausgeführt, nur gelesen und geprüft.
 --
 -- Beim Import wird die Datenversion (version) mit DATA_VERSION verglichen: ältere Daten werden mit
@@ -160,6 +160,7 @@ function DB:ExportData()
         id = NewExportID(),
         nodes = self.data.nodes,
         npcs = self.data.npcs,
+        instances = self.data.instances,
     }
     local text = self.Serialize(payload)
 
@@ -247,7 +248,11 @@ local function MergeSpots(self, target, source, kind)
     target.spots = target.spots or {}
     local limit = kind == "node" and self.MAX_SPOTS_NODE or self.MAX_SPOTS_NPC
     for _, spot in ipairs(source.spots) do
-        self:MergeSpot(target.spots, spot.map, spot.x, spot.y, spot.n, limit)
+        if spot.inst then
+            self:MergeInstanceSpot(target.spots, spot.inst, spot.n, limit)
+        else
+            self:MergeSpot(target.spots, spot.map, spot.x, spot.y, spot.n, limit)
+        end
     end
 end
 
@@ -255,6 +260,12 @@ end
 -- Kategorie nur ergänzt, Fundorte zusammengefasst.
 local function MergeData(self, incoming)
     local data = self.data
+
+    -- Namen von Instanzen: vorhandene bleiben, neue kommen dazu
+    data.instances = data.instances or {}
+    for id, name in pairs(incoming.instances or {}) do
+        data.instances[id] = data.instances[id] or name
+    end
 
     for id, node in pairs(incoming.nodes) do
         local target = data.nodes[id]
@@ -318,7 +329,9 @@ function DB:ImportData(text, mode)
     if not payload then return false, err end
 
     -- Dieselbe Umstellung und Prüfung wie bei den eigenen Daten, nur auf einer Kopie
-    local incoming = { version = payload.version, nodes = payload.nodes, npcs = payload.npcs }
+    local incoming = {
+        version = payload.version, nodes = payload.nodes, npcs = payload.npcs, instances = payload.instances,
+    }
     if not self:UpgradeData(incoming, self.DATA_VERSION) then return false, "dataNewer" end
     local removed = self:SanitizeData(incoming)
 
@@ -330,6 +343,9 @@ function DB:ImportData(text, mode)
     if mode == "replace" then
         wipe(data.nodes)
         wipe(data.npcs)
+        data.instances = data.instances or {}
+        wipe(data.instances)
+        for id, name in pairs(incoming.instances) do data.instances[id] = name end
         for id, node in pairs(incoming.nodes) do data.nodes[id] = node end
         for id, npc in pairs(incoming.npcs) do data.npcs[id] = npc end
     else

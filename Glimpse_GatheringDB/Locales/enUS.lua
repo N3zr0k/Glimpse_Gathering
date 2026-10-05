@@ -30,6 +30,7 @@ L["%d attempts"] = true
 L["%d hits, %d total"] = true
 L["... %d more"] = true
 L["Locations: %d own, %d from other addons"] = true
+L["Instance"] = true
 L["Position"] = true
 L["unknown"] = true
 L["%d finds"] = true

@@ -56,7 +56,17 @@ local function Percent(value)
     return format("%.1f", value * 100)
 end
 
+-- Ort eines Fundorts für die Anzeige: Karte mit Koordinaten oder Instanz ohne Koordinaten
+local function PlaceLabel(spot)
+    if spot.instance then
+        return L["Instance"] .. ": " .. tostring(spot.name or "?") .. " (" .. spot.instance .. ")"
+    end
+    return MapLabel(spot.map) .. "  " .. Percent(spot.x) .. " / " .. Percent(spot.y)
+end
+
 local function SpotOrder(a, b)
+    -- die Instanz, in der man steht, vor allem anderen
+    if (a.here == true) ~= (b.here == true) then return a.here == true end
     -- erst die Orte auf der Karte des Spielers, nach Entfernung
     if a.mapDistance or b.mapDistance then
         if not a.mapDistance then return false end
@@ -87,8 +97,9 @@ local function SpotLine(spot)
         right = right .. ", " .. format(L["%s%% of the map away"], Percent(spot.mapDistance))
     end
 
-    return Line("  " .. MapLabel(spot.map) .. "  " .. Percent(spot.x) .. " / " .. Percent(spot.y),
-        right .. "  [" .. spot.source .. "]")
+    if spot.here then right = right .. ", " .. L["here"] end
+
+    return Line("  " .. PlaceLabel(spot), right .. "  [" .. spot.source .. "]")
 end
 
 --- Zeilen zu Fundorten und Koordinaten einer oder mehrerer Quellen derselben Art (kind = "node" oder
@@ -108,8 +119,11 @@ function DB:DebugSpotLines(kind, ids)
 
     tinsert(lines, Line(format(L["Locations: %d own, %d from other addons"], own, external)))
 
-    local position = self.GetPlayerPosition and self:GetPlayerPosition()
-    if position then
+    local position = self:GetPlayerArea()
+    if position and position.instance then
+        -- in einer Instanz gibt es keine Koordinaten
+        tinsert(lines, Line(L["Position"] .. ": " .. PlaceLabel(position)))
+    elseif position then
         tinsert(lines, Line(L["Position"] .. ": " .. MapLabel(position.map),
             Percent(position.x) .. " / " .. Percent(position.y)))
     else

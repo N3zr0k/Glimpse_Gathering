@@ -129,12 +129,32 @@ local function UnitInfo(guid)
     end
 end
 
---- Position des Spielers: { map (uiMapID), x, y (0 bis 1) } oder nil, wenn sie sich nicht bestimmen lässt
--- (Instanzen, keine Kartenfunktionen, geschützte Werte). Der Spieler steht beim Looten in der Nähe der
--- Quelle, das ist für den Fundort genau genug.
+--- Die Instanz, in der der Spieler ist: { instance (instanceID), name } oder nil in der offenen Welt (oder
+-- wenn sie sich nicht bestimmen lässt). Dort gibt es keine brauchbaren Koordinaten, die Instanz selbst
+-- ist der Fundort.
+function DB:GetPlayerInstance()
+    local isInside, getInfo = api.IsInInstance, api.GetInstanceInfo
+    if not isInside or not getInfo then return nil end
+
+    local inside, kind = isInside()
+    inside, kind = Clean(inside), Clean(kind)
+    if not inside or kind == "none" then return nil end
+
+    -- GetInstanceInfo: Name, Art, Schwierigkeit, Schwierigkeitsname, Größe, dynamisch, ?, Instanz-ID ...
+    local name, _, _, _, _, _, _, instanceID = getInfo()
+    name, instanceID = Clean(name), Clean(instanceID)
+    if type(instanceID) ~= "number" or instanceID < 1 then return nil end
+
+    return { instance = instanceID, name = type(name) == "string" and name or nil }
+end
+
+--- Position des Spielers in der offenen Welt: { map (uiMapID), x, y (0 bis 1) } oder nil, wenn sie sich
+-- nicht bestimmen lässt (Instanzen, keine Kartenfunktionen, geschützte Werte). Der Spieler steht beim
+-- Looten in der Nähe der Quelle, das ist für den Fundort genau genug. Siehe auch DB:GetPlayerArea.
 function DB:GetPlayerPosition()
     local get, best = api.GetPlayerMapPosition, api.GetBestMapForUnit
     if not get or not best then return nil end
+    if self:GetPlayerInstance() then return nil end
 
     local map = Clean(best("player"))
     if type(map) ~= "number" or map < 1 then return nil end
@@ -181,8 +201,8 @@ function DB:OnLootOpened()
     -- Wo der Spieler jetzt steht, nicht erst nach der Verzögerung
     local position
     if self.db.profile.trackLocations then
-        local found, result = pcall(self.GetPlayerPosition, self)
-        if found then position = result else self:ReportError("GetPlayerPosition", result) end
+        local found, result = pcall(self.GetPlayerArea, self)
+        if found then position = result else self:ReportError("GetPlayerArea", result) end
     end
 
     C_Timer.After(EVALUATE_DELAY, function()

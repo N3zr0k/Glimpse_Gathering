@@ -18,6 +18,10 @@ local migrations = {
     [1] = function(data)
         data.imports = data.imports or {}
     end,
+    -- 2 -> 3: Fundorte in Instanzen ({ inst, n }) und die Namen der Instanzen (instances) kommen dazu.
+    [2] = function(data)
+        data.instances = data.instances or {}
+    end,
 }
 
 local function IsCount(value)
@@ -40,7 +44,7 @@ local function CleanSection(section)
     return true
 end
 
--- Fundorte { map, x, y, n } prüfen: x und y in 1/10000 der Karte, n = Zahl der Beutefenster dort.
+-- Fundorte { map, x, y, n } oder { inst, n } prüfen: x und y in 1/10000 der Karte, n = Zahl der Beutefenster dort.
 -- Die Liste wird auf limit Einträge gekürzt (die mit den wenigsten Funden fallen weg).
 local function CleanSpots(entry, limit)
     if entry.spots == nil then return end
@@ -51,14 +55,20 @@ local function CleanSpots(entry, limit)
 
     local clean = {}
     for _, spot in ipairs(entry.spots) do
-        if type(spot) == "table" and type(spot.map) == "number" and spot.map >= 1 and spot.map == math.floor(spot.map)
-            and spot.map < 1e6 and type(spot.x) == "number" and spot.x > 0 and spot.x <= 10000
-            and type(spot.y) == "number" and spot.y > 0 and spot.y <= 10000
-            and IsCount(spot.n) and spot.n >= 1 then
-            tinsert(clean, {
-                map = spot.map, n = math.floor(spot.n),
-                x = math.floor(spot.x + 0.5), y = math.floor(spot.y + 0.5),
-            })
+        if type(spot) == "table" and IsCount(spot.n) and spot.n >= 1 then
+            if spot.inst ~= nil then
+                -- Instanz: nur die Nummer
+                if type(spot.inst) == "number" and spot.inst >= 1 and spot.inst < 1e6 and spot.inst == math.floor(spot.inst) then
+                    tinsert(clean, { inst = spot.inst, n = math.floor(spot.n) })
+                end
+            elseif type(spot.map) == "number" and spot.map >= 1 and spot.map == math.floor(spot.map)
+                and spot.map < 1e6 and type(spot.x) == "number" and spot.x > 0 and spot.x <= 10000
+                and type(spot.y) == "number" and spot.y > 0 and spot.y <= 10000 then
+                tinsert(clean, {
+                    map = spot.map, n = math.floor(spot.n),
+                    x = math.floor(spot.x + 0.5), y = math.floor(spot.y + 0.5),
+                })
+            end
         end
     end
 
@@ -81,6 +91,35 @@ local function CleanNPC(npc)
     end
     CleanSpots(npc, DB.MAX_SPOTS_NPC)
     return npc.loot ~= nil or npc.skinning ~= nil
+end
+
+-- Namen der Instanzen prüfen: Nummer als Schlüssel, Text als Wert
+local MAX_INSTANCE_NAME = 100
+
+local function CleanInstances(data)
+    if type(data.instances) ~= "table" then data.instances = {} end
+
+    for id, name in pairs(data.instances) do
+        if type(id) ~= "number" or id < 1 or id >= 1e6 or id ~= math.floor(id)
+            or type(name) ~= "string" or name == "" or #name > MAX_INSTANCE_NAME then
+            data.instances[id] = nil
+        end
+    end
+end
+
+-- Namen von Instanzen, zu denen kein Fundort mehr gehört, fallen weg
+local function DropUnusedInstances(data)
+    local used = {}
+    for _, group in ipairs({ data.nodes, data.npcs }) do
+        for _, entry in pairs(group) do
+            for _, spot in ipairs(entry.spots or {}) do
+                if spot.inst then used[spot.inst] = true end
+            end
+        end
+    end
+    for id in pairs(data.instances or {}) do
+        if not used[id] then data.instances[id] = nil end
+    end
 end
 
 local function Total(entry, isNode)
@@ -122,12 +161,13 @@ function DB:UpgradeData(data, currentVersion)
     return true
 end
 
---- Entfernt defekte Einträge und stellt sicher, dass nodes, npcs und imports Tabellen sind.
+--- Entfernt defekte Einträge und stellt sicher, dass nodes, npcs, imports und instances Tabellen sind.
 -- Gibt die Zahl der entfernten Einträge zurück.
 function DB:SanitizeData(data)
     if type(data.nodes) ~= "table" then data.nodes = {} end
     if type(data.npcs) ~= "table" then data.npcs = {} end
     if type(data.imports) ~= "table" then data.imports = {} end
+    CleanInstances(data)
 
     local removed = 0
     for id, node in pairs(data.nodes) do
@@ -147,7 +187,9 @@ end
 
 --- Hält die Zahl der Einträge unter den Obergrenzen. Gibt die Zahl der entfernten Einträge zurück.
 function DB:PruneData()
-    return Prune(self.data.nodes, self.MAX_NODES, true) + Prune(self.data.npcs, self.MAX_NPCS, false)
+    local removed = Prune(self.data.nodes, self.MAX_NODES, true) + Prune(self.data.npcs, self.MAX_NPCS, false)
+    DropUnusedInstances(self.data)
+    return removed
 end
 
 --- Prüft und pflegt die gespeicherten Daten beim Start. Gibt false zurück, wenn sie von einer neueren

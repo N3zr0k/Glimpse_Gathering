@@ -4,7 +4,7 @@ local DB = Glimpse:GetModule("GatheringDB")
 -- Quellen eines Materials nach Fundort geordnet (für Anzeigen, die zeigen sollen, wo man etwas findet).
 --
 -- Reihenfolge, jeweils mit der höchsten Chance zuerst:
---   1. "here"      Quellen mit Fundorten im eigenen Gebiet (die Karte, auf der der Spieler steht)
+--   1. "here"      Quellen mit Fundorten im eigenen Gebiet (die Karte oder Instanz, in der der Spieler ist)
 --   2. "elsewhere" Quellen mit Fundorten in anderen Gebieten
 --   3. "external"  Quellen, deren Fundorte nur von anderen Addons kommen (z. B. GatherMate2)
 --   4. "none"      Quellen ohne bekannten Fundort
@@ -20,8 +20,7 @@ local ORDER = { here = 1, elsewhere = 2, external = 3, none = 4 }
 --   spots   alle Fundorte der Quelle (eigene und fremde), die nächsten zuerst (siehe GetNearestSpots)
 -- externalSeparate: siehe oben (nil = true). Die Einträge sind Kopien, die Daten von GetItemSources bleiben unberührt.
 function DB:GetLocatedItemSources(itemID, minAttempts, externalSeparate)
-    local position = self.GetPlayerPosition and self:GetPlayerPosition()
-    local here = position and position.map
+    local area = self:GetPlayerArea()
     local separate = externalSeparate ~= false
 
     local result = {}
@@ -33,9 +32,9 @@ function DB:GetLocatedItemSources(itemID, minAttempts, externalSeparate)
         local ownHere, ownElse, extHere, extElse = 0, 0, 0, 0
         for _, spot in ipairs(spots) do
             if spot.source == "own" then
-                if spot.map == here then ownHere = ownHere + 1 else ownElse = ownElse + 1 end
+                if self:IsSpotHere(spot, area) then ownHere = ownHere + 1 else ownElse = ownElse + 1 end
             else
-                if spot.map == here then extHere = extHere + 1 else extElse = extElse + 1 end
+                if self:IsSpotHere(spot, area) then extHere = extHere + 1 else extElse = extElse + 1 end
             end
         end
 

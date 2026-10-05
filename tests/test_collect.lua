@@ -287,3 +287,74 @@ test("Collect: unbrauchbare Positionen werden verworfen", function()
     eq(e2.DB:GetNode(1731).attempts, 1, "Beute gezählt")
     eq(#e2.DB:GetSpots("node", 1731), 0, "keine Kartenfunktionen")
 end)
+
+-- ---------------------------------------------------------------------------
+-- Instanzen
+-- ---------------------------------------------------------------------------
+
+local function inInstance(e, kind, id, name)
+    e.DB.api.IsInInstance = function() return kind ~= "none", kind end
+    e.DB.api.GetInstanceInfo = function() return name, kind, 1, "Normal", 5, 0, false, id end
+end
+
+test("Collect: in einer Instanz ist die Instanz der Fundort, ohne Koordinaten", function()
+    local e = setup()
+    withPosition(e, { map = 37, x = 0.25, y = 0.75 }) -- selbst wenn die Karte Koordinaten liefern würde
+    inInstance(e, "party", 36, "Die Todesminen")
+    stub.now = 5
+    e.loot({ { 100, WOLF } })
+
+    local spots = e.DB:GetSpots("npc", 179891)
+    eq(#spots, 1, "ein Ort")
+    eq(spots[1].instance, 36, "Instanz")
+    eq(spots[1].name, "Die Todesminen", "Name")
+    eq(spots[1].map, nil, "keine Karte")
+    eq(spots[1].x, nil, "keine Koordinaten")
+    eq(e.DB.data.instances[36], "Die Todesminen", "Name gemerkt")
+    eq(e.DB:GetPlayerPosition(), nil, "in der Instanz keine Position")
+end)
+
+test("Collect: gleiche Instanz zählt zusammen, andere Instanz und offene Welt getrennt", function()
+    local e = setup()
+    withPosition(e, { map = 37, x = 0.25, y = 0.75 })
+    inInstance(e, "raid", 409, "Geschmolzener Kern")
+    stub.now = 5
+    e.loot({ { 100, "Creature-0-3131-2552-14367-179891-0000A5C2B1" } })
+    e.DB.itemIndex = nil
+    stub.now = 20
+    e.loot({ { 100, "Creature-0-3131-2552-14367-179891-0000A5C2B2" } })
+    inInstance(e, "party", 36, "Die Todesminen")
+    stub.now = 40
+    e.loot({ { 100, "Creature-0-3131-2552-14367-179891-0000A5C2B3" } })
+    inInstance(e, "none", 0, "Azeroth")
+    stub.now = 60
+    e.loot({ { 100, "Creature-0-3131-2552-14367-179891-0000A5C2B4" } })
+
+    local spots = e.DB:GetSpots("npc", 179891)
+    eq(#spots, 3, "Kern, Todesminen und Karte")
+    eq(spots[1].instance, 409, "häufigster Ort zuerst")
+    eq(spots[1].count, 2, "zweimal im Kern")
+    local sawMap = false
+    for _, spot in ipairs(spots) do if spot.map == 37 then sawMap = true end end
+    eq(sawMap, true, "offene Welt als Karte gespeichert")
+end)
+
+test("Collect: unbrauchbare Instanzangaben ergeben keinen Fundort", function()
+    local e = setup()
+    e.DB.db.profile.trackLocations = true
+    e.DB.api.IsInInstance = function() return true, "party" end
+    e.DB.api.GetInstanceInfo = function() return "Etwas", "party", 1, "", 5, 0, false, nil end
+    eq(e.DB:GetPlayerInstance(), nil, "ohne Instanz-ID")
+
+    -- ohne die Funktionen
+    e.DB.api.IsInInstance, e.DB.api.GetInstanceInfo = nil, nil
+    eq(e.DB:GetPlayerInstance(), nil, "ohne Spielfunktionen")
+
+    -- Option aus: auch in Instanzen kein Ort
+    inInstance(e, "party", 36, "Die Todesminen")
+    e.DB.db.profile.trackLocations = false
+    stub.now = 5
+    e.loot({ { 100, WOLF } })
+    eq(#e.DB:GetSpots("npc", 179891), 0, "Option aus")
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "Beute trotzdem gezählt")
+end)
