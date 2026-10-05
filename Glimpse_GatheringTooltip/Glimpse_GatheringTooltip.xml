@@ -1,0 +1,11 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+
+    <!-- 1. Texte -->
+    <Include file="Locales\Locales.xml"/>
+
+    <!-- 2. Modul, Optionen -->
+    <Include file="Core\Core.xml"/>
+
+    <!-- 3. Tooltip-Anzeige -->
+    <Include file="Tooltip\Tooltip.xml"/>
+</Ui>

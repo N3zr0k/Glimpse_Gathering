@@ -1,0 +1,17 @@
+## Interface: 120100, 16001
+## Title: Glimpse: GatheringDB
+## Notes: Collects gathering nodes and creature loot while you play and provides the data to other addons.
+## Notes-deDE: Sammelt Sammelknoten und Kreaturen-Beute beim Spielen und stellt die Daten anderen Addons zur Verfügung.
+
+## Version: 0.1.0
+## Author: N3zr0k
+## X-License: MIT
+## X-Website: https://github.com/N3zr0k/Glimpse_Gathering
+## X-Repo: https://github.com/N3zr0k/Glimpse_Gathering
+
+## Category: Tooltip
+## IconTexture: Interface\Icons\Trade_Herbalism
+## Dependencies: Glimpse
+## SavedVariables: GlimpseGatheringDB
+
+Glimpse_GatheringDB.xml

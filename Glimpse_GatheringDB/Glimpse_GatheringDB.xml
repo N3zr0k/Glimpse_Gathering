@@ -1,0 +1,20 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+
+    <!-- 1. Texte -->
+    <Include file="Locales\Locales.xml"/>
+
+    <!-- 2. Modul, Datenbank, Optionen -->
+    <Include file="Core\Core.xml"/>
+
+    <!-- 3. Daten speichern und abfragen (öffentliche Schnittstelle) -->
+    <Include file="Data\Data.xml"/>
+
+    <!-- 4. Beute erfassen -->
+    <Include file="Loot\Loot.xml"/>
+
+    <!-- 5. Debug-Anzeige im Tooltip -->
+    <Include file="Debug\Debug.xml"/>
+
+    <!-- 6. Slash-Befehl -->
+    <Include file="Commands\Commands.xml"/>
+</Ui>

@@ -1,0 +1,32 @@
+name: Release
+
+# Ein Tag wie v0.2.0 baut das Paket und legt ein GitHub-Release an. Das Tag muss zur Version in
+# der TOC und zu einem Abschnitt im CHANGELOG passen (prüft tools/check.py).
+# CurseForge, Wago und WoWInterface werden nur bedient, wenn das jeweilige Secret gesetzt ist
+# (siehe README, Abschnitt Veröffentlichen).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
+      WOWI_API_TOKEN: ${{ secrets.WOWI_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag, TOC-Version und CHANGELOG prüfen
+        run: python3 tools/check.py --tag "$GITHUB_REF_NAME"
+
+      - name: Paket bauen und veröffentlichen
+        uses: BigWigsMods/packager@v2

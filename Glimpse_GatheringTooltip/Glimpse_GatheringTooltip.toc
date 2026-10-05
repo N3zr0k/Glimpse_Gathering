@@ -1,0 +1,17 @@
+## Interface: 120100, 16001
+## Title: Glimpse: GatheringTooltip
+## Notes: Shows what gathering nodes and creatures dropped so far, with drop chances, in their tooltips.
+## Notes-deDE: Zeigt in den Tooltips von Sammelknoten und Kreaturen, was dort bisher gefunden wurde, mit Drop-Chancen.
+
+## Version: 0.1.0
+## Author: N3zr0k
+## X-License: MIT
+## X-Website: https://github.com/N3zr0k/Glimpse_Gathering
+## X-Repo: https://github.com/N3zr0k/Glimpse_Gathering
+
+## Category: Tooltip
+## IconTexture: Interface\Icons\Trade_Mining
+## X-Glimpse-MinVersion: 0.1.0
+## Dependencies: Glimpse, Glimpse_GatheringDB
+
+Glimpse_GatheringTooltip.xml

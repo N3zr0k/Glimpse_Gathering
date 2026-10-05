@@ -1,0 +1,25 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Struktur prüfen (TOC, XML, Dateien)
+        run: python3 tools/check.py
+
+      - name: luacheck
+        uses: lunarmodules/luacheck@v1
+
+      - uses: leafo/gh-actions-lua@v10
+        with:
+          luaVersion: "5.4"
+
+      - name: Tests
+        run: lua tests/run.lua

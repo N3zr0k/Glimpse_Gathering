@@ -1,0 +1,70 @@
+local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
+local GT = Glimpse:GetModule("GatheringTooltip")
+local L = GT.L
+
+-- Die Optionsseite hat drei Tabs (RegisterAddonOptions mit tabs = true):
+--   Allgemein:         gilt für beides
+--   Handwerksmaterial: Tooltip eines Materials im Inventar, mit den Quellen
+--   Ziel:              Tooltip des Ziels (Sammelknoten, Kreatur)
+
+local function Toggle(self, key, order, name, desc)
+    return {
+        type = "toggle", order = order, width = "full",
+        name = L[name], desc = L[desc],
+        get = function() return self.db.profile[key] end,
+        set = function(_, value)
+            self.db.profile[key] = value
+            self:RefreshTooltip()
+        end,
+    }
+end
+
+local function Range(self, key, order, name, desc, min, max)
+    return {
+        type = "range", order = order, width = "full",
+        name = L[name], desc = L[desc],
+        min = min, max = max, step = 1,
+        get = function() return self.db.profile[key] end,
+        set = function(_, value)
+            self.db.profile[key] = value
+            self:RefreshTooltip()
+        end,
+    }
+end
+
+function GT:BuildOptions()
+    return {
+        items = {
+            type = "group", order = 2, name = L["Crafting materials"],
+            args = {
+                showItemSource = Toggle(self, "showItemSource", 1, "Show sources on items",
+                    "Show where a crafting material comes from in its tooltip."),
+                maxSources = Range(self, "maxSources", 2, "Number of sources",
+                    "How many sources are shown, the most likely first.", 1, 10),
+            },
+        },
+        target = {
+            type = "group", order = 3, name = L["Target"],
+            args = {
+                showNodes = Toggle(self, "showNodes", 1, "Show gathering nodes",
+                    "Show herb and ore nodes in their tooltips."),
+                showLoot = Toggle(self, "showLoot", 2, "Show creature loot",
+                    "Show the loot of creatures in their tooltips."),
+                showSkinning = Toggle(self, "showSkinning", 3, "Show skinning loot",
+                    "Show the skinning loot of creatures in their tooltips."),
+                maxItems = Range(self, "maxItems", 4, "Items per list",
+                    "Maximum number of items shown per list.", 1, 20),
+            },
+        },
+        general = {
+            type = "group", order = 1, name = L["General"],
+            args = {
+                onlyLearned = Toggle(self, "onlyLearned", 1, "Only learned professions",
+                    "Only show nodes, skinning loot and sources for professions you have learned."),
+                minAttempts = Range(self, "minAttempts", 2, "Minimum attempts",
+                    "Lists are only shown after this many recorded attempts.", 1, 20),
+                modifiers = Glimpse:BuildModifierOptions(self.db.profile, function() self:RefreshTooltip() end, 3),
+            },
+        },
+    }
+end

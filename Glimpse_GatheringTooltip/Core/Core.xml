@@ -1,0 +1,6 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <!-- GatheringTooltip.lua legt das Modul an, die anderen Dateien erweitern es nur. -->
+    <Script file="GatheringTooltip.lua"/>
+    <Script file="Professions.lua"/>
+    <Script file="Options.lua"/>
+</Ui>
