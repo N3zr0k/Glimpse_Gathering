@@ -10,7 +10,7 @@
 ## X-Repo: https://github.com/N3zr0k/Glimpse_Gathering
 
 ## Category: Tooltip
-## IconTexture: Interface\Icons\Trade_Mining
+## IconTexture: Interface\AddOns\Glimpse_GatheringTooltip\Media\Icon
 ## X-Glimpse-MinVersion: 0.1.0
 ## Dependencies: Glimpse, Glimpse_GatheringDB
 
