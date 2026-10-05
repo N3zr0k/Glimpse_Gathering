@@ -3,6 +3,39 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local L = DB.L
 
+-- Für jeden Anbieter fremder Fundorte (z. B. GatherMate2) ein eigener Schalter. Er ist nur bedienbar, wenn das
+-- Addon da ist und der allgemeine Schalter an ist.
+function DB:BuildSourceOptions()
+    local args = {
+        hint = {
+            type = "description", order = 0,
+            name = L["Choose which addons the locations are read from."],
+        },
+    }
+
+    for index, info in ipairs(self:GetProviders()) do
+        local name = info.name
+        args[name] = {
+            type = "toggle", order = index, width = "full",
+            name = name,
+            desc = function()
+                if self:GetProviderAvailable(name) then
+                    return format(L["Reads the node locations saved by %s. They are not copied or exported."], name)
+                end
+                return format(L["%s was not found or is not loaded."], name)
+            end,
+            disabled = function() return not self.db.profile.useExternalSpots or not self:GetProviderAvailable(name) end,
+            get = function() return self:IsProviderEnabled(name) end,
+            set = function(_, value) self.db.profile.externalSources[name] = value end,
+        }
+    end
+
+    return {
+        type = "group", inline = true, order = 2.6, name = L["Sources for locations"],
+        args = args,
+    }
+end
+
 -- Inhalt des Rahmens "Optionen" auf der einheitlichen Erweiterungsseite (siehe Glimpse)
 function DB:BuildOptions()
     return {
@@ -28,6 +61,7 @@ function DB:BuildOptions()
             get = function() return self.db.profile.useExternalSpots end,
             set = function(_, value) self.db.profile.useExternalSpots = value end,
         },
+        externalSources = self:BuildSourceOptions(),
         statistics = {
             type = "group", inline = true, order = 3, name = L["Statistics"],
             args = {

@@ -52,6 +52,10 @@ L["Locations: %d"] = "Fundorte: %d"
 L["Use locations from other addons"] = "Fundorte aus anderen Addons verwenden"
 L["Also lists locations from other addons (GatherMate2) after your own. They are not saved or exported."] = "Zeigt zusätzlich Fundorte aus anderen Addons (GatherMate2) hinter deinen eigenen. Sie werden weder gespeichert noch exportiert."
 L["No supported addon found. Install GatherMate2 to use its locations."] = "Kein unterstütztes Addon gefunden. Installiere GatherMate2, um dessen Fundorte zu nutzen."
+L["Sources for locations"] = "Quellen für Fundorte"
+L["Choose which addons the locations are read from."] = "Wähle, aus welchen Addons Fundorte gelesen werden."
+L["Reads the node locations saved by %s. They are not copied or exported."] = "Liest die von %s gespeicherten Knoten-Fundorte. Sie werden weder kopiert noch exportiert."
+L["%s was not found or is not loaded."] = "%s wurde nicht gefunden oder ist nicht geladen."
 L["%s: %d locations"] = "%s: %d Fundorte"
 
 -- Export und Import

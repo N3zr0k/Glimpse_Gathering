@@ -51,7 +51,7 @@ Tabellen sind nur zum Lesen gedacht.
 | `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
 | `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung (`distance`, ungefähr) |
 | `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
-| `:GetProviders()` / `:RegisterProvider(name, provider)` | Anbieter fremder Fundorte abfragen bzw. anmelden |
+| `:GetProviders()` / `:RegisterProvider(name, provider)` | Anbieter fremder Fundorte abfragen (`{ name, available, enabled }`) bzw. anmelden |
 | `:GetMapName(map)` | Name der Karte (uiMapID) oder nil |
 | `:ExportData()` | Exporttext, `{ nodes, npcs, chars }` |
 | `:ImportData(text, mode)` | `true, Ergebnis` oder `false, Fehlerschlüssel`; `mode` = `"merge"` (Standard) oder `"replace"` |
@@ -112,7 +112,9 @@ automatisch beim Import umgestellt; ein Test in `tests/test_transfer.lua` für d
 gespeichert und nie exportiert. Ein Anbieter ist `{ IsAvailable(), GetSpots(kind, id, entry), GetInfo()? }`
 und meldet sich mit `DB:RegisterProvider(name, provider)` an. Fehler im Anbieter werden mit `pcall` abgefangen
 (`DB:ReportError`), die eigenen Orte bleiben. Fremde Orte nahe an einem eigenen (`SPOT_RADIUS`) fallen weg, je Quelle
-gibt es höchstens `DB.EXTERNAL_LIMIT` (60). Die Option `useExternalSpots` (Standard an) schaltet alles ab.
+gibt es höchstens `DB.EXTERNAL_LIMIT` (60). Die Option `useExternalSpots` (Standard an) schaltet alles ab, `externalSources[Name] = false` nur einen Anbieter
+(für jeden angemeldeten Anbieter gibt es in den Optionen einen Schalter; beim Aufbau der Optionen bereits angemeldete
+Anbieter erscheinen dort, später angemeldete nicht).
 
 `Data/GatherMate2.lua` ist der Anbieter für GatherMate2 (nur Knoten, keine Kreaturen). Benutzt wird nur dessen
 Schnittstelle: `GetNodesForZone`, `DecodeLoc`, `GetIDForNode`, `HBD:GetAllMapIDs` (ohne HBD die Speicher in `gmdbs`).

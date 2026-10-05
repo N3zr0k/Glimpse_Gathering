@@ -51,6 +51,10 @@ L["Locations: %d"] = true
 L["Use locations from other addons"] = true
 L["Also lists locations from other addons (GatherMate2) after your own. They are not saved or exported."] = true
 L["No supported addon found. Install GatherMate2 to use its locations."] = true
+L["Sources for locations"] = true
+L["Choose which addons the locations are read from."] = true
+L["Reads the node locations saved by %s. They are not copied or exported."] = true
+L["%s was not found or is not loaded."] = true
 L["%s: %d locations"] = true
 
 -- Export und Import

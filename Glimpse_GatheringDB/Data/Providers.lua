@@ -35,11 +35,25 @@ local function Available(provider)
     return ok and result and true or false
 end
 
---- Liste der Anbieter: { name, available }.
+--- Hat der Spieler diesen Anbieter in den Optionen zugelassen? (Standard: ja, auch ohne Einstellungen.)
+function DB:IsProviderEnabled(name)
+    local profile = self.db and self.db.profile
+    local chosen = profile and profile.externalSources
+    return not chosen or chosen[name] ~= false
+end
+
+--- Ist das Addon dieses Anbieters da und benutzbar?
+function DB:GetProviderAvailable(name)
+    return byName[name] ~= nil and Available(byName[name])
+end
+
+--- Liste der Anbieter: { name, available (Addon da), enabled (in den Optionen zugelassen) }.
 function DB:GetProviders()
     local list = {}
     for _, entry in ipairs(providers) do
-        tinsert(list, { name = entry.name, available = Available(entry.provider) })
+        tinsert(list, {
+            name = entry.name, available = Available(entry.provider), enabled = self:IsProviderEnabled(entry.name),
+        })
     end
     return list
 end
@@ -54,8 +68,10 @@ end
 function DB:GetProviderInfo()
     local list = {}
     for _, entry in ipairs(providers) do
-        local item = { name = entry.name, available = Available(entry.provider), points = 0 }
-        if item.available and entry.provider.GetInfo then
+        local item = {
+            name = entry.name, available = Available(entry.provider), enabled = self:IsProviderEnabled(entry.name), points = 0,
+        }
+        if item.available and item.enabled and entry.provider.GetInfo then
             local ok, info = pcall(entry.provider.GetInfo)
             if ok and type(info) == "table" then item.points = tonumber(info.points) or 0 else self:ReportError(entry.name, info) end
         end
@@ -80,7 +96,7 @@ function DB:ProviderStatistics()
     local L = self.L
     local lines = {}
     for _, info in ipairs(self:GetProviderInfo()) do
-        if info.available then tinsert(lines, format(L["%s: %d locations"], info.name, info.points)) end
+        if info.available and info.enabled then tinsert(lines, format(L["%s: %d locations"], info.name, info.points)) end
     end
     return table.concat(lines, "\n")
 end
@@ -120,7 +136,7 @@ function DB:AddExternalSpots(list, kind, id)
     for index = 1, own do ownSpots[index] = list[index] end
 
     for _, item in ipairs(providers) do
-        if Available(item.provider) then
+        if self:IsProviderEnabled(item.name) and Available(item.provider) then
             local ok, spots = pcall(item.provider.GetSpots, kind, id, entry)
             if not ok then
                 self:ReportError(item.name, spots)

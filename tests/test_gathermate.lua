@@ -305,3 +305,52 @@ test("Debug: Fundort-Zeilen zeigen Karte, Koordinaten, Quelle und Entfernung", f
     eq(DB:DebugSpotLines("node", { 4711 })[1][1], "Locations: 0 own, 0 from other addons", "unbekannte Quelle")
     teardown()
 end)
+
+test("Quellen: einzelne Anbieter lassen sich ausschalten", function()
+    local DB = setup(HERBS)
+    DB:RegisterProvider("Zweit", {
+        IsAvailable = function() return true end,
+        GetSpots = function() return { { map = 5, x = 0.9, y = 0.9, density = 1 } } end,
+    })
+    DB.db = { profile = { useExternalSpots = true, externalSources = {} } }
+    eq(#DB:GetSpots("node", 10), 4, "beide Anbieter")
+
+    DB.db.profile.externalSources.GatherMate2 = false
+    local spots = DB:GetSpots("node", 10)
+    eq(#spots, 2, "nur noch der zweite")
+    eq(spots[2].source, "Zweit", "Quelle")
+
+    local info = DB:GetProviders()
+    eq(info[1].name, "GatherMate2", "Name")
+    eq(info[1].enabled, false, "ausgeschaltet gemeldet")
+    eq(info[1].available, true, "trotzdem vorhanden")
+    eq(DB:ProviderStatistics():find("GatherMate2", 1, true), nil, "nicht in der Statistik")
+
+    DB.db.profile.externalSources.GatherMate2 = true
+    eq(#DB:GetSpots("node", 10), 4, "wieder an")
+    teardown()
+end)
+
+test("Quellen: Optionen haben je Anbieter einen Schalter", function()
+    local DB = setup(HERBS)
+    DB.db = { profile = { useExternalSpots = true, externalSources = {} } }
+    stub.load("Glimpse_GatheringDB/Core/Options.lua", "Glimpse_GatheringDB")
+
+    local group = DB:BuildSourceOptions()
+    local toggle = group.args.GatherMate2
+    eq(toggle ~= nil, true, "Schalter vorhanden")
+    eq(toggle.get(), true, "Standard an")
+    eq(toggle.disabled(), false, "bedienbar")
+
+    toggle.set(nil, false)
+    eq(DB.db.profile.externalSources.GatherMate2, false, "gespeichert")
+    eq(toggle.get(), false, "gelesen")
+
+    DB.db.profile.useExternalSpots = false
+    eq(toggle.disabled(), true, "bei ausgeschaltetem Hauptschalter nicht bedienbar")
+    DB.db.profile.useExternalSpots = true
+    teardown()
+
+    eq(toggle.disabled(), true, "ohne das Addon nicht bedienbar")
+    eq(toggle.desc():find("not found", 1, true) ~= nil, true, "Hinweis")
+end)
