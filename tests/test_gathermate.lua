@@ -279,3 +279,29 @@ test("GatherMate2: Prüfausgabe nennt Punkte und Treffer", function()
 
     eq(DB:DiagnoseGatherMate2()[1], "GatherMate2 is not loaded.", "ohne Addon")
 end)
+
+test("Debug: Fundort-Zeilen zeigen Karte, Koordinaten, Quelle und Entfernung", function()
+    local DB = setup(HERBS)
+    DB.api = { GetMapInfo = function(map) return map == 37 and { name = "Elwynn" } or nil end }
+    stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
+
+    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    local lines = DB:DebugSpotLines("node", { 10 })
+    eq(lines[1][1], "Locations: 1 own, 2 from other addons", "Zahlen")
+    eq(lines[2][1], "Position: Elwynn (37)", "Position")
+    eq(lines[2][2], "68.0 / 30.0", "Koordinaten des Spielers in Prozent")
+    eq(lines[3][1], "  Elwynn (37)  70.2 / 30.2", "nächster Ort zuerst")
+    eq(lines[3][2]:find("3 points", 1, true) ~= nil and lines[3][2]:find("[GatherMate2]", 1, true) ~= nil, true, "Punkte und Quelle")
+    eq(lines[3][2]:find("away", 1, true) ~= nil, true, "Entfernung")
+    eq(lines[4][1], "  Elwynn (37)  40.0 / 50.0", "eigener Ort")
+    eq(lines[4][2]:find("1 finds", 1, true) ~= nil, true, "Funde")
+    eq(#lines, 5, "alle Orte")
+
+    DB.GetPlayerPosition = function() return nil end
+    lines = DB:DebugSpotLines("node", { 10 })
+    eq(lines[2][1], "Position: unknown", "ohne Position")
+    eq(lines[3][2]:find("[own]", 1, true) ~= nil, true, "eigener Ort zuerst")
+
+    eq(DB:DebugSpotLines("node", { 4711 })[1][1], "Locations: 0 own, 0 from other addons", "unbekannte Quelle")
+    teardown()
+end)

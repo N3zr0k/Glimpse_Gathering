@@ -7,6 +7,7 @@
 - GatheringDB: imports of older data versions are migrated automatically, newer ones are refused
 - GatheringDB: records where loot was found (zone + coordinates, clustered, option "Record locations"); API `GetSpots`, `GetItemSpots`, `GetMapName` (API_VERSION 2)
 - GatheringDB: uses node locations from GatherMate2 when it is installed (option "Use locations from other addons"); API `GetNearestSpots`, `GetOwnSpots`, `GetProviders`, `RegisterProvider`, `GetSpots(..., includeExternal)` (API_VERSION 3)
+- GatheringDB: debug tooltip lists locations (own and from other addons) with map, coordinates, distance and source; `/gli gatheringdb gm2` helps to find problems with the GatherMate2 data
 - GatheringDB: data version 2 (adds `spots` and `imports`), bundled LibDeflate
 
 ## [0.1.0] - 2026-10-05

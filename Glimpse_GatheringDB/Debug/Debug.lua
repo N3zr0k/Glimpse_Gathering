@@ -12,6 +12,10 @@ local L = DB.L
 --   Loot: 7 attempts
 --   Wolfsfell (12345)           3 hits, 4 total
 --   ...
+--   Locations: 2 own, 14 from other addons
+--   Position: Elwynn Forest (37)  41.2 / 56.8
+--   Elwynn Forest (37)  41.0 / 55.0      3 finds, 0.4 away  [own]
+--   Elwynn Forest (37)  70.2 / 30.2      5 points  [GatherMate2]
 
 -- Höchstzahl der Item-Zeilen je Liste
 local MAX_ITEMS = 5
@@ -40,6 +44,82 @@ local function AddItems(lines, drops)
     end
 end
 
+-- Höchstzahl der Fundort-Zeilen
+local MAX_SPOTS = 5
+
+local function MapLabel(map)
+    local name = DB:GetMapName(map)
+    return name and (name .. " (" .. map .. ")") or tostring(map)
+end
+
+local function Percent(value)
+    return format("%.1f", value * 100)
+end
+
+local function SpotOrder(a, b)
+    -- erst die Orte auf der Karte des Spielers, nach Entfernung
+    if a.distance or b.distance then
+        if not a.distance then return false end
+        if not b.distance then return true end
+        if a.distance ~= b.distance then return a.distance < b.distance end
+    end
+    local ownA, ownB = a.source == "own", b.source == "own"
+    if ownA ~= ownB then return ownA end
+    if a.count ~= b.count then return a.count > b.count end
+    if (a.density or 0) ~= (b.density or 0) then return (a.density or 0) > (b.density or 0) end
+    if a.map ~= b.map then return a.map < b.map end
+    if a.x ~= b.x then return a.x < b.x end
+    return a.y < b.y
+end
+
+--- Zeilen zu Fundorten und Koordinaten einer oder mehrerer Quellen derselben Art (kind = "node" oder
+-- "npc", ids = Liste): Zahl der Orte (eigene und aus anderen Addons), die Position des Spielers und die
+-- ersten Orte mit Karte, Koordinaten (in Prozent), Funden bzw. Punkten, Entfernung und Quelle.
+function DB:DebugSpotLines(kind, ids)
+    local lines = {}
+    local spots, own, external = {}, 0, 0
+
+    for _, id in ipairs(ids) do
+        for _, spot in ipairs(self:GetNearestSpots(kind, id)) do
+            tinsert(spots, spot)
+            if spot.source == "own" then own = own + 1 else external = external + 1 end
+        end
+    end
+    table.sort(spots, SpotOrder)
+
+    tinsert(lines, Line(format(L["Locations: %d own, %d from other addons"], own, external)))
+
+    local position = self.GetPlayerPosition and self:GetPlayerPosition()
+    if position then
+        tinsert(lines, Line(L["Position"] .. ": " .. MapLabel(position.map),
+            Percent(position.x) .. " / " .. Percent(position.y)))
+    else
+        tinsert(lines, Line(L["Position"] .. ": " .. L["unknown"]))
+    end
+
+    for index = 1, math.min(#spots, MAX_SPOTS) do
+        local spot = spots[index]
+        local right
+        if spot.source == "own" then
+            right = format(L["%d finds"], spot.count)
+        else
+            right = format(L["%d points"], spot.density or 0)
+        end
+        if spot.distance then right = right .. ", " .. format(L["%s away"], Percent(spot.distance)) end
+
+        tinsert(lines, Line("  " .. MapLabel(spot.map) .. "  " .. Percent(spot.x) .. " / " .. Percent(spot.y),
+            right .. "  [" .. spot.source .. "]"))
+    end
+    if #spots > MAX_SPOTS then
+        tinsert(lines, Line("  " .. format(L["... %d more"], #spots - MAX_SPOTS)))
+    end
+    return lines
+end
+
+local function AddSpotLines(lines, kind, ids)
+    for _, line in ipairs(DB:DebugSpotLines(kind, ids)) do tinsert(lines, line) end
+end
+
 local function Header(module)
     return Line(format("|cff9d9d9d[DEBUG]|r %s(%s)", Glimpse.name, module:GetName()))
 end
@@ -59,6 +139,7 @@ local function NodeLines(module, id)
     local drops, attempts = DB:GetNodeDrops(id)
     tinsert(lines, Line(format(L["%d attempts"], attempts)))
     AddItems(lines, drops)
+    AddSpotLines(lines, "node", { id })
     return lines
 end
 
@@ -81,6 +162,7 @@ local function UnitLines(module, id)
             AddItems(lines, drops)
         end
     end
+    AddSpotLines(lines, "npc", { id })
     return lines
 end
 
@@ -131,6 +213,7 @@ local function NodeNameLines(module, name, data, hidden)
     local drops, attempts = DB:GetNodeDropsByName(name)
     tinsert(lines, Line(format(L["%d attempts"], attempts)))
     AddItems(lines, drops)
+    AddSpotLines(lines, "node", ids)
     return lines
 end
 
