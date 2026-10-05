@@ -250,3 +250,32 @@ test("GatherMate2: nächste Fundorte nach Entfernung", function()
     eq(#DB:GetNearestSpots("node", 10, nil, true), 0, "ohne Position, nur aktuelle")
     teardown()
 end)
+
+test("GatherMate2: Karten, die HereBeDragons nicht kennt, werden trotzdem gelesen", function()
+    local DB = setup({ ["Herb Gathering"] = { [5555] = { { 0.3, 0.3, 1 } } } })
+    local spots = DB:GetSpots("node", 10)
+    eq(#spots, 2, "eigener + Ort auf unbekannter Karte")
+    eq(spots[2].map, 5555, "Karte aus dem Speicher")
+    teardown()
+end)
+
+test("GatherMate2: leerer Index wird nach der Wartezeit erneut gelesen", function()
+    local DB = setup({ ["Herb Gathering"] = {} })
+    eq(#DB:GetSpots("node", 10), 1, "noch keine Daten")
+    local gm = _G.GatherMate2
+    gm.gmdbs["Herb Gathering"].__gm2_base_storage[37] = { [Encode(0.2, 0.2)] = 1 }
+    eq(#DB:GetSpots("node", 10), 1, "gleich danach noch der alte Stand")
+    stub.now = stub.now + 31
+    eq(#DB:GetSpots("node", 10), 2, "später gefunden")
+    teardown()
+end)
+
+test("GatherMate2: Prüfausgabe nennt Punkte und Treffer", function()
+    local DB = setup(HERBS)
+    local text = table.concat(DB:DiagnoseGatherMate2(), "\n")
+    eq(text:find("Herb Gathering: 6 points on 1 maps in storage, 6 points of 2 node kinds read", 1, true) ~= nil, true, "Punkte")
+    eq(text:find("Own nodes with a match in GatherMate2: 1 of 1", 1, true) ~= nil, true, "Treffer")
+    teardown()
+
+    eq(DB:DiagnoseGatherMate2()[1], "GatherMate2 is not loaded.", "ohne Addon")
+end)

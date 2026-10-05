@@ -120,7 +120,7 @@ Ablauf: Knotenname und Kategorie (`herb` → Herb Gathering, `ore` → Mining, s
 die GatherMate2-Knoten-ID. Beim ersten Zugriff wird ein Typ einmal gelesen und je Knoten in Rasterzellen von 1 % der
 Karte zusammengefasst (`density` = Punkte je Zelle). Der Index wird nach den Nachrichten `GatherMate2NodeAdded`,
 `GatherMate2NodeDeleted` und `GatherMate2Cleanup` frühestens nach 30 Sekunden erneuert. Ändert GatherMate2 seine
-Schnittstelle, meldet sich der Anbieter als nicht verfügbar; die Tests (`tests/test_gathermate.lua`) bilden die
+Schnittstelle, meldet sich der Anbieter als nicht verfügbar; `/gli gatheringdb gm2` zeigt, wie viele Punkte GatherMate2 hat und wie viele davon ankommen (Fehlersuche); die Tests (`tests/test_gathermate.lua`) bilden die
 Struktur nach.
 
 ## Wie die Beute erkannt wird

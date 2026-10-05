@@ -17,6 +17,8 @@ local function OnCommand(_, args)
         if DB.errorCount then
             Glimpse:Print(format(L["Errors while recording: %d (last: %s)"], DB.errorCount, DB.lastError))
         end
+    elseif args == "gm2" then
+        for _, line in ipairs(DB:DiagnoseGatherMate2()) do Glimpse:Print(line) end
     elseif args == "export" then
         DB:ShowExport()
     elseif args == "import" then
