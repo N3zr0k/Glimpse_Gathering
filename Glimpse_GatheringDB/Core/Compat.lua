@@ -20,6 +20,9 @@ DB.api = {
 DB.api.GetBestMapForUnit = C_Map and C_Map.GetBestMapForUnit
 DB.api.GetPlayerMapPosition = C_Map and C_Map.GetPlayerMapPosition
 DB.api.GetMapInfo = C_Map and C_Map.GetMapInfo
+-- Optional: Größe einer Karte in Yards (für Entfernungen). Fehlen sie, gibt es nur Prozentwerte.
+DB.api.GetMapWorldSize = C_Map and C_Map.GetMapWorldSize
+DB.api.GetWorldPosFromMapPos = C_Map and C_Map.GetWorldPosFromMapPos
 
 --- Prüft, ob alle benötigten Funktionen vorhanden sind. Gibt true zurück oder false und die
 -- Liste der fehlenden Namen.

@@ -14,7 +14,7 @@ local L = DB.L
 --   ...
 --   Locations: 2 own, 14 from other addons
 --   Position: Elwynn Forest (37)  41.2 / 56.8
---   Elwynn Forest (37)  41.0 / 55.0      3 finds, 0.4 away  [own]
+--   Elwynn Forest (37)  41.0 / 55.0      3 finds, 25 yards away  [own]
 --   Elwynn Forest (37)  70.2 / 30.2      5 points  [GatherMate2]
 
 -- Höchstzahl der Item-Zeilen je Liste
@@ -58,10 +58,11 @@ end
 
 local function SpotOrder(a, b)
     -- erst die Orte auf der Karte des Spielers, nach Entfernung
-    if a.distance or b.distance then
-        if not a.distance then return false end
-        if not b.distance then return true end
-        if a.distance ~= b.distance then return a.distance < b.distance end
+    if a.mapDistance or b.mapDistance then
+        if not a.mapDistance then return false end
+        if not b.mapDistance then return true end
+        local da, db = a.distance or a.mapDistance, b.distance or b.mapDistance
+        if da ~= db then return da < db end
     end
     local ownA, ownB = a.source == "own", b.source == "own"
     if ownA ~= ownB then return ownA end
@@ -105,7 +106,11 @@ function DB:DebugSpotLines(kind, ids)
         else
             right = format(L["%d points"], spot.density or 0)
         end
-        if spot.distance then right = right .. ", " .. format(L["%s away"], Percent(spot.distance)) end
+        if spot.distance then
+            right = right .. ", " .. format(L["%d yards away"], math.floor(spot.distance + 0.5))
+        elseif spot.mapDistance then
+            right = right .. ", " .. format(L["%s%% of the map away"], Percent(spot.mapDistance))
+        end
 
         tinsert(lines, Line("  " .. MapLabel(spot.map) .. "  " .. Percent(spot.x) .. " / " .. Percent(spot.y),
             right .. "  [" .. spot.source .. "]"))

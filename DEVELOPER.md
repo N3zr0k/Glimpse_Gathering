@@ -49,7 +49,8 @@ Tabellen sind nur zum Lesen gedacht.
 | `:GetStats()` | Knoten, Kreaturen, erfasste Beutefenster, Fundorte |
 | `:GetSpots(kind, id, includeExternal)` | Fundorte einer Quelle: Liste `{ map, x, y, count, source }` (x, y = 0..1). Erst die eigenen (`source = "own"`, häufigste zuerst), dann fremde (`source = "GatherMate2"`, `count = 0`, `density` = Punkte dort); `includeExternal = false` liefert nur eigene |
 | `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
-| `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung (`distance`, ungefähr) |
+| `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung: `distance` in Yards (nur wenn die Kartengröße bekannt ist), `mapDistance` als Bruchteil der Kartenbreite |
+| `:GetMapSize(map)` / `:GetMapDistance(map, x1, y1, x2, y2)` | Kartengröße (Breite, Höhe) und Strecke in Yards, aus `C_Map.GetMapWorldSize` bzw. `GetWorldPosFromMapPos`, ohne andere Addons; nil, wenn unbekannt |
 | `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
 | `:GetProviders()` / `:RegisterProvider(name, provider)` | Anbieter fremder Fundorte abfragen (`{ name, available, enabled }`) bzw. anmelden |
 | `:GetMapName(map)` | Name der Karte (uiMapID) oder nil |

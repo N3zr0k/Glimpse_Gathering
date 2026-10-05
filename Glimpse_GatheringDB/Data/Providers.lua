@@ -166,9 +166,10 @@ function DB:AddExternalSpots(list, kind, id)
 end
 
 --- Die nächsten Fundorte einer Quelle. Orte auf der Karte, auf der der Spieler steht, kommen zuerst und
--- sind nach Entfernung sortiert (distance in Bruchteilen der Kartenbreite, nur ungefähr, weil die Form
--- der Karte nicht einfließt). Orte auf anderen Karten folgen in der gewohnten Reihenfolge (distance
--- = nil), oder fehlen, wenn currentMapOnly gesetzt ist. Ohne bekannte Position wie GetSpots.
+-- sind nach Entfernung sortiert. Sie haben distance (Yards, nur wenn die Kartengröße bekannt ist) und
+-- mapDistance (Bruchteil der Kartenbreite, immer). Orte auf anderen Karten folgen in der gewohnten
+-- Reihenfolge (ohne Entfernung), oder fehlen, wenn currentMapOnly gesetzt ist. Ohne bekannte Position
+-- wie GetSpots.
 function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
     local spots = self:GetSpots(kind, id)
     local position = self.GetPlayerPosition and self:GetPlayerPosition()
@@ -182,13 +183,19 @@ function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
     for _, spot in ipairs(spots) do
         if spot.map == position.map then
             local dx, dy = spot.x - position.x, spot.y - position.y
-            spot.distance = math.sqrt(dx * dx + dy * dy)
+            spot.mapDistance = math.sqrt(dx * dx + dy * dy)
+            spot.distance = self:GetMapDistance(spot.map, spot.x, spot.y, position.x, position.y)
             tinsert(near, spot)
         elseif not currentMapOnly then
             tinsert(far, spot)
         end
     end
-    table.sort(near, function(a, b) return a.distance < b.distance end)
+    -- auf einer Karte haben alle Orte Yards oder keiner, die Karte selbst ist also immer vergleichbar
+    table.sort(near, function(a, b)
+        local da, db = a.distance or a.mapDistance, b.distance or b.mapDistance
+        if da ~= db then return da < db end
+        return a.count > b.count
+    end)
     for _, spot in ipairs(far) do tinsert(near, spot) end
 
     if limit then while #near > limit do tremove(near) end end

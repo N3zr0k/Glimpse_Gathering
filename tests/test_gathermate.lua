@@ -236,7 +236,7 @@ test("GatherMate2: nächste Fundorte nach Entfernung", function()
 
     local spots = DB:GetNearestSpots("node", 10)
     eq(spots[1].density, 3, "Haufen in der Nähe zuerst")
-    eq(spots[1].distance < 0.05, true, "Entfernung")
+    eq(spots[1].mapDistance < 0.05, true, "Entfernung")
     eq(#spots, 3, "alle")
     eq(#DB:GetNearestSpots("node", 10, 1), 1, "limit")
 
@@ -353,4 +353,68 @@ test("Quellen: Optionen haben je Anbieter einen Schalter", function()
 
     eq(toggle.disabled(), true, "ohne das Addon nicht bedienbar")
     eq(toggle.desc():find("not found", 1, true) ~= nil, true, "Hinweis")
+end)
+
+local function Vector(x, y) return { GetXY = function() return x, y end } end
+
+test("Entfernung: Yards aus der Kartengröße der Spielfunktion", function()
+    local DB = setup(HERBS)
+    DB.api = { GetMapWorldSize = function(map) if map == 37 then return 5000, 3000 end end }
+    DB:ResetMapSizes()
+    stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
+    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+
+    local w, h = DB:GetMapSize(37)
+    eq(w, 5000, "Breite")
+    eq(h, 3000, "Höhe")
+    eq(DB:GetMapSize(99), nil, "unbekannte Karte")
+
+    -- 0.022 * 5000 = 110, 0.002 * 3000 = 6
+    near(DB:GetMapDistance(37, 0.702, 0.302, 0.68, 0.30), math.sqrt(110 * 110 + 6 * 6), "Strecke in Yards")
+
+    local spots = DB:GetNearestSpots("node", 10)
+    eq(spots[1].distance ~= nil, true, "Yards am Ort")
+    eq(spots[1].mapDistance ~= nil, true, "und Anteil der Karte")
+    eq(spots[1].distance < spots[2].distance, true, "nach Yards sortiert")
+
+    local lines = DB:DebugSpotLines("node", { 10 })
+    eq(lines[3][2]:find("110 yards away", 1, true) ~= nil, true, "Anzeige in Yards")
+    teardown()
+end)
+
+test("Entfernung: Größe aus Weltpositionen, wenn GetMapWorldSize fehlt", function()
+    local DB = setup(HERBS)
+    _G.CreateVector2D = function(x, y) return { x = x, y = y } end
+    DB.api = {
+        GetWorldPosFromMapPos = function(_, v)
+            -- Welt: Karte ist 4000 breit (zweite Zahl) und 2000 hoch (erste Zahl), Ecke bei (1000, 2000)
+            return 0, Vector(1000 - v.y * 2000, 2000 - v.x * 4000)
+        end,
+    }
+    DB:ResetMapSizes()
+    local w, h = DB:GetMapSize(37)
+    eq(w, 4000, "Breite")
+    eq(h, 2000, "Höhe")
+    _G.CreateVector2D = nil
+    teardown()
+end)
+
+test("Entfernung: ohne Kartengröße nur Anteil der Karte", function()
+    local DB = setup(HERBS)
+    DB.api = {}
+    DB:ResetMapSizes()
+    stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
+    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    eq(DB:GetMapDistance(37, 0.1, 0.1, 0.2, 0.2), nil, "keine Yards")
+
+    local spots = DB:GetNearestSpots("node", 10)
+    eq(spots[1].distance, nil, "kein Yards-Wert")
+    eq(spots[1].mapDistance ~= nil, true, "Anteil vorhanden")
+    local lines = DB:DebugSpotLines("node", { 10 })
+    eq(lines[3][2]:find("% of the map away", 1, true) ~= nil, true, "Anzeige in Prozent")
+
+    -- Fehler in der Spielfunktion werden abgefangen
+    DB.api = { GetMapWorldSize = function() error("kaputt") end }
+    eq(DB:GetMapSize(37), nil, "Fehler abgefangen")
+    teardown()
 end)
