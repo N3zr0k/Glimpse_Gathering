@@ -40,7 +40,19 @@ function GT:BuildOptions()
                 showItemSource = Toggle(self, "showItemSource", 1, "Show sources on items",
                     "Show where a crafting material comes from in its tooltip."),
                 maxSources = Range(self, "maxSources", 2, "Number of sources",
-                    "How many sources are shown, the most likely first.", 1, 10),
+                    "How many sources are shown: your area first, then other areas, each the most likely first.", 1, 10),
+                externalSeparate = {
+                    type = "toggle", order = 3, width = "full",
+                    name = L["List sources with outside locations separately"],
+                    desc = L["On: sources that only have locations from other addons (GatherMate2) come after those with your own. Off: those locations count like your own when sorting."],
+                    -- nur sinnvoll, wenn GatheringDB ein Addon mit Fundorten gefunden hat
+                    disabled = function() return not (self.data.HasAvailableProvider and self.data:HasAvailableProvider()) end,
+                    get = function() return self.db.profile.externalSeparate end,
+                    set = function(_, value)
+                        self.db.profile.externalSeparate = value
+                        self:RefreshTooltip()
+                    end,
+                },
             },
         },
         target = {

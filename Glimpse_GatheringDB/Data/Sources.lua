@@ -9,25 +9,20 @@ local DB = Glimpse:GetModule("GatheringDB")
 --   3. "external"  Quellen, deren Fundorte nur von anderen Addons kommen (z. B. GatherMate2)
 --   4. "none"      Quellen ohne bekannten Fundort
 --
--- Option externalSeparate (Standard an): Fundorte anderer Addons zählen nur für Gruppe 3. Ist sie aus, zählen sie wie
--- eigene Orte: sie ordnen eine Quelle in "here" oder "elsewhere" ein, Gruppe 3 entfällt.
-
---- Sollen Quellen, die nur durch andere Addons einen Fundort haben, getrennt hinten stehen?
-function DB:ExternalSeparate()
-    local profile = self.db and self.db.profile
-    return not profile or profile.externalSeparate ~= false
-end
+-- Parameter externalSeparate (Standard true, ob getrennt, entscheidet die anzeigende Seite, z. B. GatheringTooltip):
+-- Fundorte anderer Addons zählen nur für Gruppe 3. Bei false zählen sie wie eigene Orte: sie ordnen eine Quelle
+-- in "here" oder "elsewhere" ein, Gruppe 3 entfällt.
 
 local ORDER = { here = 1, elsewhere = 2, external = 3, none = 4 }
 
 --- Wie GetItemSources (gleiche Einträge, nicht verändern), aber nach Fundort geordnet und mit zusätzlichen Feldern:
 --   area    "here" | "elsewhere" | "external" | "none"
 --   spots   alle Fundorte der Quelle (eigene und fremde), die nächsten zuerst (siehe GetNearestSpots)
--- Die Einträge sind Kopien, die Daten von GetItemSources bleiben unberührt.
-function DB:GetLocatedItemSources(itemID, minAttempts)
+-- externalSeparate: siehe oben (nil = true). Die Einträge sind Kopien, die Daten von GetItemSources bleiben unberührt.
+function DB:GetLocatedItemSources(itemID, minAttempts, externalSeparate)
     local position = self.GetPlayerPosition and self:GetPlayerPosition()
     local here = position and position.map
-    local separate = self:ExternalSeparate()
+    local separate = externalSeparate ~= false
 
     local result = {}
     for _, source in ipairs(self:GetItemSources(itemID, minAttempts)) do

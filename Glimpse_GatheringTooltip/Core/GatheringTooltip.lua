@@ -18,6 +18,7 @@ local defaults = {
         showSkinning = true,
         showItemSource = true,
         maxSources = 1,
+        externalSeparate = true, -- Quellen, die nur Fundorte aus anderen Addons haben, getrennt hinten aufführen
         onlyLearned = false,
         maxItems = 8,
         minAttempts = 1,
@@ -37,7 +38,7 @@ end
 function GT:OnEnable()
     -- Die Datenbank ist Pflicht (## Dependencies), die Prüfung fängt nur eine zu alte Version ab
     self.data = Glimpse:GetModule("GatheringDB")
-    if (self.data.API_VERSION or 0) < 1 then
+    if (self.data.API_VERSION or 0) < 3 then
         self:Debug("GatheringDB ist zu alt")
         return
     end

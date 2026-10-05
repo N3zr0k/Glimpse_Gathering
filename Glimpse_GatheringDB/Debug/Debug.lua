@@ -134,13 +134,13 @@ local AREA_LABELS = {
 --- Zeilen für ein Material: seine Quellen in der Reihenfolge von GetLocatedItemSources (eigenes Gebiet,
 -- andere Gebiete, nur fremde Orte, ohne Ort), je Quelle Chance und die nächsten Fundorte. Leer, wenn es
 -- keine Quelle gibt.
-function DB:DebugItemLines(itemID)
-    local sources = self:GetLocatedItemSources(itemID, 1)
+function DB:DebugItemLines(itemID, externalSeparate)
+    local sources = self:GetLocatedItemSources(itemID, 1, externalSeparate)
     if #sources == 0 then return {} end
 
     local lines = {}
     tinsert(lines, Line(L["Sources"] .. ": " .. #sources .. "  (" ..
-        (self:ExternalSeparate() and L["outside separate"] or L["outside combined"]) .. ")"))
+        (externalSeparate ~= false and L["outside separate"] or L["outside combined"]) .. ")"))
 
     for index = 1, math.min(#sources, MAX_SOURCES) do
         local source = sources[index]
@@ -280,7 +280,10 @@ local function ItemLines(module, data)
     local itemID = tonumber(data.id)
     if not itemID then return nil end
 
-    local sources = DB:DebugItemLines(itemID)
+    -- Wie GatheringTooltip sortiert, wenn es da ist (nur gelesen, keine Abhängigkeit); sonst getrennt
+    local tooltip = Glimpse:GetModule("GatheringTooltip", true)
+    local profile = tooltip and tooltip.db and tooltip.db.profile
+    local sources = DB:DebugItemLines(itemID, not profile or profile.externalSeparate ~= false)
     if #sources == 0 then return nil end
 
     local lines = { Header(module), Line(L["ID"] .. ": " .. itemID) }

@@ -62,8 +62,6 @@ L["Also lists locations from other addons (GatherMate2) after your own. They are
 L["No supported addon found. Install GatherMate2 to use its locations."] = "Kein unterstütztes Addon gefunden. Installiere GatherMate2, um dessen Fundorte zu nutzen."
 L["Sources for locations"] = "Quellen für Fundorte"
 L["Choose which addons the locations are read from."] = "Wähle, aus welchen Addons Fundorte gelesen werden."
-L["List sources with outside locations separately"] = "Quellen mit externen Fundorten getrennt aufführen"
-L["On: sources that only have locations from other addons come after your own. Off: those locations count like your own when sorting."] = "An: Quellen, die nur Fundorte aus anderen Addons haben, stehen hinter deinen eigenen. Aus: Diese Fundorte zählen beim Sortieren wie deine eigenen."
 L["Reads the node locations saved by %s. They are not copied or exported."] = "Liest die von %s gespeicherten Knoten-Fundorte. Sie werden weder kopiert noch exportiert."
 L["%s was not found or is not loaded."] = "%s wurde nicht gefunden oder ist nicht geladen."
 L["%s: %d locations"] = "%s: %d Fundorte"

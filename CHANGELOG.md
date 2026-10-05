@@ -7,7 +7,8 @@
 - GatheringDB: imports of older data versions are migrated automatically, newer ones are refused
 - GatheringDB: records where loot was found (zone + coordinates, clustered, option "Record locations"); API `GetSpots`, `GetItemSpots`, `GetMapName` (API_VERSION 2)
 - GatheringDB: uses node locations from GatherMate2 when it is installed (option "Use locations from other addons"); API `GetNearestSpots`, `GetOwnSpots`, `GetProviders`, `RegisterProvider`, `GetSpots(..., includeExternal)` (API_VERSION 3)
-- GatheringDB: crafting materials show their sources with locations in the debug tooltip; sources are ordered by area (own area, other areas, outside locations only) with an option to list outside locations separately or count them like your own; API `GetLocatedItemSources`
+- GatheringDB: crafting materials show their sources with locations in the debug tooltip; API `GetLocatedItemSources`
+- GatheringTooltip: sources of a crafting material are ordered by area (your area, other areas, outside locations only, each the most likely first); option "List sources with outside locations separately" in the Crafting materials tab (off: outside locations count like your own)
 - GatheringDB: each source for outside locations (GatherMate2) has its own switch in the options, next to the general one
 - GatheringDB: debug tooltip lists locations (own and from other addons) with map, coordinates, distance in yards (from the game's own map data, no other addon needed) and source; `/gli gatheringdb gm2` helps to find problems with the GatherMate2 data
 - GatheringDB: data version 2 (adds `spots` and `imports`), bundled LibDeflate

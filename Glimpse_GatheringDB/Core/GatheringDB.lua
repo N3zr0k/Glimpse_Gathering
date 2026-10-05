@@ -26,7 +26,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --                              Fundorte, die nächsten auf der Karte des Spielers zuerst (distance)
 --   :GetItemSpots(itemID, minAttempts, limit, includeExternal)
 --                              Fundorte aller Quellen eines Items, wahrscheinlichste Quelle zuerst
---   :GetLocatedItemSources(itemID, minAttempts)
+--   :GetLocatedItemSources(itemID, minAttempts, externalSeparate)
 --                              Quellen eines Items nach Fundort geordnet: eigenes Gebiet, andere Gebiete, nur fremde
 --                              Orte, ohne Ort (jeweils höchste Chance zuerst); Felder area und spots dazu
 --   :GetProviders()            Anbieter fremder Fundorte: { name, available, enabled }
@@ -67,7 +67,6 @@ local settingsDefaults = {
         recording = true,
         trackLocations = true, -- Zone und Koordinaten der Fundorte mitschreiben
         useExternalSpots = true, -- Fundorte aus anderen Addons (GatherMate2) mit anzeigen
-        externalSeparate = true, -- Quellen, die nur fremde Fundorte haben, getrennt hinten aufführen
         externalSources = {},    -- [Name des Anbieters] = false schaltet nur diesen aus (Standard: an)
     },
 }

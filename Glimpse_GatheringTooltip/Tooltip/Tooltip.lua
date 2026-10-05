@@ -168,14 +168,15 @@ local function SourceRow(source)
     return { name, ChanceText(source), 1, 1, 1 }
 end
 
--- Die wahrscheinlichsten Quellen eines Materials aus dem Index von GatheringDB
--- (schon nach Chance sortiert), so viele wie in den Optionen eingestellt
+-- Die besten Quellen eines Materials aus dem Index von GatheringDB
+-- (nach Fundort sortiert: eigenes Gebiet, andere Gebiete, nur fremde Orte; je Gruppe die höchste Chance
+-- zuerst), so viele wie in den Optionen eingestellt
 local function ItemLines(self, data)
     local profile = self.db.profile
     if not profile.showItemSource or not data.id then return nil end
 
     local rows = {}
-    for _, source in ipairs(self.data:GetItemSources(data.id, profile.minAttempts)) do
+    for _, source in ipairs(self.data:GetLocatedItemSources(data.id, profile.minAttempts, profile.externalSeparate)) do
         if IsRelevant(self, source) then
             tinsert(rows, SourceRow(source))
             if #rows >= profile.maxSources then break end

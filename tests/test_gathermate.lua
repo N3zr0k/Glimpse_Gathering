@@ -476,16 +476,15 @@ end)
 
 test("Quellen nach Gebiet: zusammengefasst zählen externe Orte wie eigene", function()
     local DB = SourcesSetup()
-    DB.db = { profile = { useExternalSpots = true, externalSeparate = false, externalSources = {} } }
-    local list = DB:GetLocatedItemSources(100)
+    local list = DB:GetLocatedItemSources(100, nil, false)
 
     eq(Ids(list), "12,10,11,13", "Friedensblume (100 %, GatherMate2-Ort hier) vor Silberblatt (50 %)")
     eq(list[1].area, "here", "externer Ort im eigenen Gebiet")
     eq(list[4].area, "none", "ohne Ort")
     for _, source in ipairs(list) do eq(source.area ~= "external", true, "keine externe Gruppe") end
 
-    DB.db.profile.externalSeparate = true
-    eq(Ids(DB:GetLocatedItemSources(100)), "10,11,12,13", "getrennt wie vorher")
+    eq(Ids(DB:GetLocatedItemSources(100, nil, true)), "10,11,12,13", "ausdrücklich getrennt")
+    eq(Ids(DB:GetLocatedItemSources(100)), "10,11,12,13", "ohne Angabe getrennt")
     teardown()
 end)
 
@@ -498,7 +497,7 @@ test("Quellen nach Gebiet: ohne Position gibt es kein eigenes Gebiet", function(
     teardown()
 end)
 
-test("Quellen nach Gebiet: Option und Debug-Zeilen für ein Material", function()
+test("Quellen nach Gebiet: Debug-Zeilen für ein Material", function()
     local DB = SourcesSetup()
     stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
 
@@ -509,6 +508,10 @@ test("Quellen nach Gebiet: Option und Debug-Zeilen für ein Material", function(
     eq(lines[2][2]:find("50.0%", 1, true) ~= nil, true, "Chance")
     eq(lines[3][1], "  Karte37 (37)  40.0 / 50.0", "Ort darunter")
     eq(#DB:DebugItemLines(4711), 0, "Item ohne Quelle: nichts")
+
+    local combined = DB:DebugItemLines(100, false)
+    eq(combined[1][1], "Sources: 4  (outside combined)", "zusammengefasst")
+    eq(combined[2][1], "Friedensblume (node 12, gather)", "andere Reihenfolge")
 
     -- höchstens 5 Quellen, 2 Orte je Quelle
     for id = 20, 30 do DB:RecordNode(id, { name = "N" .. id, category = "other" }, { [100] = 1 }) end
