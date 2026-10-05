@@ -22,7 +22,7 @@ Not recorded: chests, fishing (no loot source), anything that is not a crafting 
 ## Options (GatheringTooltip)
 
 * General: only learned professions, minimum number of attempts, only while Shift/Ctrl/Alt is held
-* Crafting materials: show sources on items, number of sources (your area first, then other areas, each the most likely first), list sources with outside locations (GatherMate2) separately or count them like your own
+* Crafting materials: show sources on items, number of sources (your area first, then other areas, each the most likely first), list sources with outside locations (GatherMate2) separately or count them like your own, icons in front of the sources (bag for loot, profession icons, `?` for other nodes), the location of each source in brackets behind its name (nearest, or up to three different zones in separate lines; coordinates and distance), headings for loot and professions when the icons are off
 * Target: nodes, creature loot, skinning loot, items per list
 
 ## Installation

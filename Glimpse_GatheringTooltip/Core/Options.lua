@@ -53,6 +53,29 @@ function GT:BuildOptions()
                         self:RefreshTooltip()
                     end,
                 },
+                showSourceIcons = Toggle(self, "showSourceIcons", 4, "Show source icons",
+                    "Show a bag for loot and the profession icon for skinning, herbalism and mining in front of each source. Off: a heading for loot or the profession is shown above its sources."),
+                locationLines = {
+                    type = "select", order = 5, width = "full",
+                    name = L["Locations per source"],
+                    desc = L["Shows the location in brackets behind each source: coordinates and distance in your area, the zone or instance elsewhere."],
+                    values = function()
+                        return {
+                            off = L["Off"],
+                            nearest = L["Nearest location"],
+                            several = L["Up to three zones"],
+                        }
+                    end,
+                    get = function() return self.db.profile.locationLines end,
+                    set = function(_, value)
+                        self.db.profile.locationLines = value
+                        self:RefreshTooltip()
+                    end,
+                },
+                showCoords = Toggle(self, "showCoords", 6, "Show coordinates",
+                    "Show the coordinates of locations in your area."),
+                showDistance = Toggle(self, "showDistance", 7, "Show distance",
+                    "Show the distance in yards to locations in your area."),
             },
         },
         target = {

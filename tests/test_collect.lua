@@ -396,3 +396,31 @@ test("Collect: Debug-Ausgabe erklärt fehlende Orte", function()
     e.loot({ { 100, "Creature-0-3131-2552-14367-179892-0000A5C2B1" } })
     eq(table.concat(e.DB.debugLines, "\n"):find("Aufzeichnung der Fundorte ist aus", 1, true) ~= nil, true, "Option aus")
 end)
+
+test("Collect: Debug-Ausgabe beim Gebietswechsel nennt Ort und Rohwerte", function()
+    local e = setup()
+    e.DB.db.profile.trackLocations = true
+    inInstance(e, "party", 36, "Die Todesminen")
+    stub.now = 5
+    e.DB:OnAreaChanged("PLAYER_ENTERING_WORLD")
+    e.DB:OnAreaChanged("ZONE_CHANGED_NEW_AREA") -- zusammengefasst
+    eq(#e.DB.debugLines, 0, "erst nach der Verzögerung")
+    stub.now = 7
+    stub.flush()
+
+    local text = table.concat(e.DB.debugLines, "\n")
+    eq(text:find("Gebiet (PLAYER_ENTERING_WORLD): Instanz Die Todesminen (36)", 1, true) ~= nil, true, "Gebiet")
+    eq(text:find("IsInInstance: true, party", 1, true) ~= nil, true, "IsInInstance roh")
+    eq(text:find("GetInstanceInfo: Die Todesminen, party, 1, Normal, 5, 0, false, 36", 1, true) ~= nil, true, "GetInstanceInfo roh")
+    eq(text:find("ZONE_CHANGED", 1, true), nil, "nur einmal ausgegeben")
+
+    -- ohne Spielfunktionen oder mit Fehler
+    e.DB.debugLines = {}
+    e.DB.api.IsInInstance = nil
+    e.DB.api.GetInstanceInfo = function() error("kaputt") end
+    e.DB:OnAreaChanged("ZONE_CHANGED_NEW_AREA")
+    stub.flush()
+    text = table.concat(e.DB.debugLines, "\n")
+    eq(text:find("IsInInstance: nicht vorhanden", 1, true) ~= nil, true, "fehlende Funktion")
+    eq(text:find("GetInstanceInfo: Fehler:", 1, true) ~= nil, true, "Fehler abgefangen")
+end)

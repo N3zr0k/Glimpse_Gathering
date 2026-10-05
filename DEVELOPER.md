@@ -120,7 +120,7 @@ automatisch beim Import umgestellt; ein Test in `tests/test_transfer.lua` für d
 gespeichert und nie exportiert. Ein Anbieter ist `{ IsAvailable(), GetSpots(kind, id, entry), GetInfo()? }`
 und meldet sich mit `DB:RegisterProvider(name, provider)` an. Fehler im Anbieter werden mit `pcall` abgefangen
 (`DB:ReportError`), die eigenen Orte bleiben. Fremde Orte nahe an einem eigenen (`SPOT_RADIUS`) fallen weg, je Quelle
-gibt es höchstens `DB.EXTERNAL_LIMIT` (60). Die Option `useExternalSpots` (Standard an) schaltet alles ab, `externalSources[Name] = false` nur einen Anbieter
+gibt es höchstens `DB.EXTERNAL_LIMIT` (60), dabei kommt der beste Ort jeder Karte zuerst, damit keine Zone verloren geht. Die Option `useExternalSpots` (Standard an) schaltet alles ab, `externalSources[Name] = false` nur einen Anbieter
 (für jeden angemeldeten Anbieter gibt es in den Optionen einen Schalter; beim Aufbau der Optionen bereits angemeldete
 Anbieter erscheinen dort, später angemeldete nicht).
 

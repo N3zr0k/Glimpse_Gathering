@@ -222,6 +222,44 @@ function DB:OnLootOpened()
     end)
 end
 
+-- Beim Betreten oder Wechseln eines Gebiets (Ladebildschirm, Instanz, neue Zone) zeigt der Debug-Modus,
+-- was das Addon über den Ort weiß. So lässt sich die Erkennung prüfen, ohne in der Instanz zu farmen.
+-- Kurz warten, weil die Instanzdaten direkt nach dem Event noch nicht immer stimmen, und mehrere
+-- Events kurz hintereinander zusammenfassen.
+local AREA_DELAY = 1
+local areaPending = false
+
+local function RawValues(func)
+    if not func then return "nicht vorhanden" end
+
+    local values = { pcall(func) }
+    if not values[1] then return "Fehler: " .. tostring(values[2]) end
+
+    local parts = {}
+    for i = 2, math.max(#values, 9) do parts[#parts + 1] = tostring(Clean(values[i])) end
+    return table.concat(parts, ", ")
+end
+
+function DB:DebugArea(event)
+    self:Debug("Gebiet (" .. tostring(event) .. "):", self:DescribeArea(self:GetPlayerArea()) or "nicht bestimmbar (keine Karte, Koordinaten oder Instanz)")
+    self:Debug("IsInInstance:", RawValues(api.IsInInstance))
+    self:Debug("GetInstanceInfo:", RawValues(api.GetInstanceInfo))
+    self:Debug("Aufzeichnung der Fundorte:", self.db.profile.trackLocations and "an" or "aus")
+end
+
+function DB:OnAreaChanged(event)
+    if areaPending or not DebugOn() then return end
+
+    areaPending = true
+    C_Timer.After(AREA_DELAY, function()
+        areaPending = false
+        if not DebugOn() then return end
+
+        local ok, err = pcall(self.DebugArea, self, event)
+        if not ok then self:ReportError("DebugArea", err) end
+    end)
+end
+
 --- Merkt sich den letzten Fehler (sichtbar in /gli gatheringdb stats) und zeigt ihn im Debug-Modus.
 function DB:ReportError(where, err)
     self.errorCount = (self.errorCount or 0) + 1
@@ -285,11 +323,15 @@ end)
 
 function DB:StartCollecting()
     self:RegisterEvent("LOOT_OPENED", "OnLootOpened")
+    self:RegisterEvent("PLAYER_ENTERING_WORLD", "OnAreaChanged")
+    self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "OnAreaChanged")
     frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
     frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 end
 
 function DB:StopCollecting()
     self:UnregisterEvent("LOOT_OPENED")
+    self:UnregisterEvent("PLAYER_ENTERING_WORLD")
+    self:UnregisterEvent("ZONE_CHANGED_NEW_AREA")
     frame:UnregisterAllEvents()
 end

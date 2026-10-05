@@ -11,7 +11,7 @@ local DB = Glimpse:GetModule("GatheringDB")
 --   GetInfo()  (optional)                { points = Zahl der Punkte, ... } für die Statistik
 -- Fehler in einem Anbieter werden abgefangen und gemeldet, dann fehlen nur dessen Orte.
 
-DB.EXTERNAL_LIMIT = 60 -- höchstens so viele fremde Orte je Quelle
+DB.EXTERNAL_LIMIT = 60 -- höchstens so viele fremde Orte je Quelle (der beste jeder Karte zuerst)
 
 local providers = {}   -- Reihenfolge der Anmeldung
 local byName = {}
@@ -159,7 +159,26 @@ function DB:AddExternalSpots(list, kind, id)
                     if a.x ~= b.x then return a.x < b.x end
                     return a.y < b.y
                 end)
-                for index = 1, math.min(#added, self.EXTERNAL_LIMIT) do tinsert(list, added[index]) end
+
+                -- Erst der beste Ort jeder Karte, dann die übrigen nach Dichte: So bleibt jede Zone, in der es
+                -- die Quelle gibt, erhalten, auch wenn eine andere viel dichter ist. Insgesamt höchstens EXTERNAL_LIMIT.
+                local firsts, rest, seenMap = {}, {}, {}
+                for _, spot in ipairs(added) do
+                    if seenMap[spot.map] then
+                        tinsert(rest, spot)
+                    else
+                        seenMap[spot.map] = true
+                        tinsert(firsts, spot)
+                    end
+                end
+                local taken = 0
+                for _, group in ipairs({ firsts, rest }) do
+                    for _, spot in ipairs(group) do
+                        if taken >= self.EXTERNAL_LIMIT then break end
+                        tinsert(list, spot)
+                        taken = taken + 1
+                    end
+                end
             end
         end
     end

@@ -17,9 +17,11 @@ local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfo
 -- Im Tooltip eines Handwerksmaterials steht die wahrscheinlichste Quelle:
 --
 --   Beste Quelle
---   Waldwolf (Kürschnern)       42 %  Ø 1.4
+--   [Pelz] Waldwolf (Stufe 12) (Dunkelküste)   42 %  Ø 1.4
+--   (ohne Symbole: Überschrift "Kürschnern" über den Quellen dieser Art)
 
 local HEADER_COLOR = { 1.00, 0.82, 0.00 }
+local GROUP_COLOR = { 0.80, 0.80, 0.80 } -- Überschrift einer Gruppe (Beute, Kürschnern ...) ohne Symbole
 local GREY = "|cff999999"
 
 local function Colored(text, r, g, b)
@@ -143,29 +145,32 @@ local function IsRelevant(self, source)
     return true
 end
 
--- Eine Zeile pro Quelle: Name (bei Kreaturen mit Stufe und Art), rechts die Chance
-local function SourceRow(source)
+-- Zeilen einer Quelle: Symbol (Beutel, Beruf), Name (bei Kreaturen mit Stufe), Fundort in Klammern und
+-- eigenen Farben, rechts die Chance. Weitere Zonen stehen in Folgezeilen darunter.
+-- Ohne Symbole (Option) steht die Art der Quelle stattdessen in einer Überschrift über der Gruppe.
+local INDENT = "     "
+
+local function SourceRows(self, source)
     local name = source.name
     if not name then
         name = format(source.kind == "node" and L["Node %d"] or L["Creature %d"], source.id)
     end
 
-    -- Bei Kreaturen steht dahinter die Stufe (-1 = Boss, "??") und ob es Beute oder Kürschnern ist.
-    -- Knoten brauchen keinen Zusatz.
-    local extra = {}
+    local icons = self.db.profile.showSourceIcons
+
+    -- Bei Kreaturen steht dahinter die Stufe (-1 = Boss, "??"). Knoten brauchen keinen Zusatz.
     if source.kind == "npc" and source.level then
-        tinsert(extra, format(L["Level %s"], source.level < 0 and "??" or source.level))
-    end
-    if source.mode == "loot" then
-        tinsert(extra, L["Loot"])
-    elseif source.mode == "skinning" then
-        tinsert(extra, L["Skinning"])
-    end
-    if #extra > 0 then
-        name = name .. " " .. GREY .. "(" .. table.concat(extra, ", ") .. ")|r"
+        name = name .. " " .. GREY .. "(" .. format(L["Level %s"], source.level < 0 and "??" or source.level) .. ")|r"
     end
 
-    return { name, ChanceText(source), 1, 1, 1 }
+    local locations = self:LocationList(source)
+    if locations[1] then name = name .. " " .. self:FormatLocation(locations[1]) end
+
+    local rows = { { name, ChanceText(source), 1, 1, 1, icon = icons and self:SourceIcon(source) or nil } }
+    for index = 2, #locations do
+        tinsert(rows, { INDENT .. self:FormatLocation(locations[index]) })
+    end
+    return rows
 end
 
 -- Die besten Quellen eines Materials aus dem Index von GatheringDB
@@ -175,16 +180,41 @@ local function ItemLines(self, data)
     local profile = self.db.profile
     if not profile.showItemSource or not data.id then return nil end
 
-    local rows = {}
+    -- erst die Quellen wählen (so viele wie eingestellt), dann darstellen
+    local chosen = {}
     for _, source in ipairs(self.data:GetLocatedItemSources(data.id, profile.minAttempts, profile.externalSeparate)) do
         if IsRelevant(self, source) then
-            tinsert(rows, SourceRow(source))
-            if #rows >= profile.maxSources then break end
+            tinsert(chosen, source)
+            if #chosen >= profile.maxSources then break end
         end
     end
-    if #rows == 0 then return nil end
+    if #chosen == 0 then return nil end
 
-    tinsert(rows, 1, { Colored(#rows == 1 and L["Best source"] or L["Sources"], unpack(HEADER_COLOR)) })
+    local rows = {}
+    if profile.showSourceIcons then
+        for _, source in ipairs(chosen) do
+            for _, row in ipairs(SourceRows(self, source)) do tinsert(rows, row) end
+        end
+    else
+        -- Gruppen in der Reihenfolge ihres ersten Auftretens, darin die Quellen in ihrer Reihenfolge
+        local groups, titles, order = {}, {}, {}
+        for _, source in ipairs(chosen) do
+            local key, title = self:SourceGroup(source)
+            if not groups[key] then
+                groups[key], titles[key] = {}, title
+                tinsert(order, key)
+            end
+            tinsert(groups[key], source)
+        end
+        for _, key in ipairs(order) do
+            tinsert(rows, { Colored(titles[key], unpack(GROUP_COLOR)) })
+            for _, source in ipairs(groups[key]) do
+                for _, row in ipairs(SourceRows(self, source)) do tinsert(rows, row) end
+            end
+        end
+    end
+
+    tinsert(rows, 1, { Colored(#chosen == 1 and L["Best source"] or L["Sources"], unpack(HEADER_COLOR)) })
     return rows
 end
 

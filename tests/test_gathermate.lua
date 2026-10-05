@@ -519,3 +519,29 @@ test("Quellen nach Gebiet: Debug-Zeilen für ein Material", function()
     eq(many[#many][1], "... 10 more", "Rest der Quellen")
     teardown()
 end)
+
+test("GatherMate2: jede Zone bleibt trotz Begrenzung erhalten", function()
+    local DB = stub.newGlimpse():NewModule("GatheringDB")
+    DB.data = { version = 3, nodes = { [1] = { name = "Silberblatt", category = "herb", items = {} } }, npcs = {}, instances = {} }
+    DB.db = { profile = { useExternalSpots = true, externalSources = {} } }
+    DB.SPOT_RADIUS = 100
+    DB.GetNode = function(self, id) return self.data.nodes[id] end
+    DB.GetNPC = function() return nil end
+    DB.ReportError = function() end
+    stub.load("Glimpse_GatheringDB/Data/Providers.lua", "Glimpse_GatheringDB")
+
+    -- eine dichte Zone mit vielen Zellen und eine dünne mit einer einzigen
+    local spots = {}
+    for i = 1, DB.EXTERNAL_LIMIT + 20 do spots[#spots + 1] = { map = 10, x = 0.01 * (i % 90 + 1), y = 0.01 * (math.floor(i / 90) + 1), density = 50 } end
+    spots[#spots + 1] = { map = 14, x = 0.5, y = 0.5, density = 1 }
+    DB:RegisterProvider("Fake", { IsAvailable = function() return true end, GetSpots = function() return spots end })
+
+    local list = {}
+    DB:AddExternalSpots(list, "node", 1)
+    eq(#list, DB.EXTERNAL_LIMIT, "Begrenzung gilt")
+    local zones = {}
+    for _, spot in ipairs(list) do zones[spot.map] = true end
+    eq(zones[14], true, "auch die dünne Zone ist dabei")
+    eq(list[1].map, 10, "der dichteste Ort zuerst")
+    eq(list[2].map, 14, "dann der beste Ort jeder weiteren Zone")
+end)

@@ -37,3 +37,22 @@ L["List sources with outside locations separately"] = true
 L["On: sources that only have locations from other addons (GatherMate2) come after those with your own. Off: those locations count like your own when sorting."] = true
 L["Only learned professions"] = true
 L["Only show nodes, skinning loot and sources for professions you have learned."] = true
+
+-- Symbole und Fundorte
+L["Show source icons"] = true
+L["Show a bag for loot and the profession icon for skinning, herbalism and mining in front of each source. Off: a heading for loot or the profession is shown above its sources."] = true
+L["Locations per source"] = true
+L["Shows the location in brackets behind each source: coordinates and distance in your area, the zone or instance elsewhere."] = true
+L["Off"] = true
+L["Nearest location"] = true
+L["Up to three zones"] = true
+L["Show coordinates"] = true
+L["Show the coordinates of locations in your area."] = true
+L["Show distance"] = true
+L["Show the distance in yards to locations in your area."] = true
+L["%d yd"] = true
+L["Instance %d"] = true
+L["Map %d"] = true
+L["Herbalism"] = true
+L["Mining"] = true
+L["Gathering"] = true
