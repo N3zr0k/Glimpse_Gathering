@@ -14,6 +14,9 @@ GatheringDB also remembers **where** you looted (zone and coordinates, clustered
 its data (`/gli gatheringdb export`, `/gli gatheringdb import`, or the buttons in its options). Imports of
 older data versions are migrated automatically; data from a newer version is refused.
 
+If [GatherMate2](https://www.curseforge.com/wow/addons/gathermate2) is installed, its node locations are used as well
+(after your own, never saved or exported; can be switched off in the GatheringDB options).
+
 Not recorded: chests, fishing (no loot source), anything that is not a crafting material.
 
 ## Options (GatheringTooltip)

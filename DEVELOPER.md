@@ -33,7 +33,7 @@ ln -s ~/dev/Glimpse_Gathering/Glimpse_GatheringTooltip "<AddOns>/Glimpse_Gatheri
 
 Änderungen sind dann nach `/reload` im Spiel.
 
-## Öffentliche Schnittstelle von GatheringDB (API_VERSION 2)
+## Öffentliche Schnittstelle von GatheringDB (API_VERSION 3)
 
 Erreichbar über `Glimpse.GatheringDB` (oder `Glimpse:GetModule("GatheringDB")`). Die zurückgegebenen
 Tabellen sind nur zum Lesen gedacht.
@@ -47,8 +47,11 @@ Tabellen sind nur zum Lesen gedacht.
 | `:FindNodeIDs(name)` / `:GetTooltipName(tooltip)` | Namenssuche für Weltobjekte ohne ID |
 | `:GetItemSources(itemID, minAttempts)` | alle Quellen eines Items, wahrscheinlichste zuerst |
 | `:GetStats()` | Knoten, Kreaturen, erfasste Beutefenster, Fundorte |
-| `:GetSpots(kind, id)` | Fundorte einer Quelle: Liste `{ map, x, y, count }`, häufigste zuerst (x, y = 0..1) |
-| `:GetItemSpots(itemID, minAttempts, limit)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, kind, id, mode, name, chance }` |
+| `:GetSpots(kind, id, includeExternal)` | Fundorte einer Quelle: Liste `{ map, x, y, count, source }` (x, y = 0..1). Erst die eigenen (`source = "own"`, häufigste zuerst), dann fremde (`source = "GatherMate2"`, `count = 0`, `density` = Punkte dort); `includeExternal = false` liefert nur eigene |
+| `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
+| `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung (`distance`, ungefähr) |
+| `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
+| `:GetProviders()` / `:RegisterProvider(name, provider)` | Anbieter fremder Fundorte abfragen bzw. anmelden |
 | `:GetMapName(map)` | Name der Karte (uiMapID) oder nil |
 | `:ExportData()` | Exporttext, `{ nodes, npcs, chars }` |
 | `:ImportData(text, mode)` | `true, Ergebnis` oder `false, Fehlerschlüssel`; `mode` = `"merge"` (Standard) oder `"replace"` |
@@ -59,7 +62,7 @@ attempts, hits, amount, chance, average }`.
 
 Nachricht bei jeder Änderung: `GLIMPSE_GATHERING_UPDATED (kind, id)` (`kind` = `"node"`, `"npc"` oder `"reset"`).
 
-Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 2` (Fundorte, Export/Import).
+Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`).
 
 Für TomTom: `GetSpots`/`GetItemSpots` liefern `map` (uiMapID) und `x`, `y` als Bruchteil 0..1, also direkt
 `TomTom:AddWaypoint(spot.map, spot.x, spot.y, { title = ... })`.
@@ -102,6 +105,23 @@ wird abgelehnt (`duplicate`). Fehlerschlüssel: `empty`, `tooLarge`, `notExport`
 
 **Neue Datenversion:** `DATA_VERSION` erhöhen, `migrations[alteVersion]` ergänzen. Alte Exporte werden dann
 automatisch beim Import umgestellt; ein Test in `tests/test_transfer.lua` für die alte Version nicht vergessen.
+
+## Fundorte aus anderen Addons (GatherMate2)
+
+`Data/Providers.lua` hängt beim Abfragen (`DB:GetSpots`) die Orte von Anbietern hinter die eigenen. Sie werden nie
+gespeichert und nie exportiert. Ein Anbieter ist `{ IsAvailable(), GetSpots(kind, id, entry), GetInfo()? }`
+und meldet sich mit `DB:RegisterProvider(name, provider)` an. Fehler im Anbieter werden mit `pcall` abgefangen
+(`DB:ReportError`), die eigenen Orte bleiben. Fremde Orte nahe an einem eigenen (`SPOT_RADIUS`) fallen weg, je Quelle
+gibt es höchstens `DB.EXTERNAL_LIMIT` (60). Die Option `useExternalSpots` (Standard an) schaltet alles ab.
+
+`Data/GatherMate2.lua` ist der Anbieter für GatherMate2 (nur Knoten, keine Kreaturen). Benutzt wird nur dessen
+Schnittstelle: `GetNodesForZone`, `DecodeLoc`, `GetIDForNode`, `HBD:GetAllMapIDs` (ohne HBD die Speicher in `gmdbs`).
+Ablauf: Knotenname und Kategorie (`herb` → Herb Gathering, `ore` → Mining, sonst Extract Gas/Treasure/Logging) ergeben
+die GatherMate2-Knoten-ID. Beim ersten Zugriff wird ein Typ einmal gelesen und je Knoten in Rasterzellen von 1 % der
+Karte zusammengefasst (`density` = Punkte je Zelle). Der Index wird nach den Nachrichten `GatherMate2NodeAdded`,
+`GatherMate2NodeDeleted` und `GatherMate2Cleanup` frühestens nach 30 Sekunden erneuert. Ändert GatherMate2 seine
+Schnittstelle, meldet sich der Anbieter als nicht verfügbar; die Tests (`tests/test_gathermate.lua`) bilden die
+Struktur nach.
 
 ## Wie die Beute erkannt wird
 

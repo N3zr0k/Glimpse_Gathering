@@ -273,16 +273,16 @@ end
 -- Fundorte abfragen
 -- ---------------------------------------------------------------------------
 
---- Fundorte einer Quelle, kind = "node" oder "npc". Jeder Eintrag: { map (uiMapID), x, y (0 bis 1),
--- count (Beutefenster an diesem Ort) }, die häufigsten zuerst. Das sind genau die Werte für
--- TomTom: TomTom:AddWaypoint(map, x, y, { title = ... }).
-function DB:GetSpots(kind, id)
+--- Nur die eigenen Fundorte einer Quelle, kind = "node" oder "npc". Jeder Eintrag: { map (uiMapID),
+-- x, y (0 bis 1), count (Beutefenster an diesem Ort), source = "own" }, die häufigsten zuerst. Das sind
+-- genau die Werte für TomTom: TomTom:AddWaypoint(map, x, y, { title = ... }).
+function DB:GetOwnSpots(kind, id)
     local entry
     if kind == "node" then entry = self:GetNode(id) elseif kind == "npc" then entry = self:GetNPC(id) end
 
     local list = {}
     for _, spot in ipairs(entry and entry.spots or {}) do
-        tinsert(list, { map = spot.map, x = spot.x / SPOT_MAX, y = spot.y / SPOT_MAX, count = spot.n })
+        tinsert(list, { map = spot.map, x = spot.x / SPOT_MAX, y = spot.y / SPOT_MAX, count = spot.n, source = "own" })
     end
 
     table.sort(list, function(a, b)
@@ -294,16 +294,27 @@ function DB:GetSpots(kind, id)
     return list
 end
 
+--- Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count, source }, x und y von 0 bis 1.
+-- Zuerst die eigenen Orte (source = "own", count = Zahl der Funde, häufigste zuerst), danach die von
+-- anderen Addons (source = Name des Anbieters, count = 0, density = Zahl der Punkte dort), sofern
+-- includeExternal nicht false ist und die Option aktiv ist (Data/Providers.lua).
+function DB:GetSpots(kind, id, includeExternal)
+    local list = self:GetOwnSpots(kind, id)
+    if includeExternal ~= false and self.AddExternalSpots then self:AddExternalSpots(list, kind, id) end
+    return list
+end
+
 --- Fundorte aller Quellen eines Items: erst die Orte der wahrscheinlichsten Quelle, dann die der
--- nächsten. Jeder Eintrag: { map, x, y, count, kind, id, mode, name, chance }. minAttempts wie bei
--- GetItemSources, limit (optional) begrenzt die Länge der Liste.
-function DB:GetItemSpots(itemID, minAttempts, limit)
+-- nächsten. Jeder Eintrag: { map, x, y, count, source, density, kind, id, mode, name, chance }.
+-- minAttempts wie bei GetItemSources, limit (optional) begrenzt die Länge der Liste, includeExternal wie
+-- bei GetSpots.
+function DB:GetItemSpots(itemID, minAttempts, limit, includeExternal)
     local result = {}
 
     for _, source in ipairs(self:GetItemSources(itemID, minAttempts)) do
-        for _, spot in ipairs(self:GetSpots(source.kind, source.id)) do
+        for _, spot in ipairs(self:GetSpots(source.kind, source.id, includeExternal)) do
             tinsert(result, {
-                map = spot.map, x = spot.x, y = spot.y, count = spot.count,
+                map = spot.map, x = spot.x, y = spot.y, count = spot.count, source = spot.source, density = spot.density,
                 kind = source.kind, id = source.id, mode = source.mode, name = source.name, chance = source.chance,
             })
             if limit and #result >= limit then return result end

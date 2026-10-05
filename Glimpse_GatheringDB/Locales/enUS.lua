@@ -42,6 +42,10 @@ L["Errors while recording: %d (last: %s)"] = true
 L["Record locations"] = true
 L["Also stores the zone and the coordinates where you looted. Needed to find where something drops."] = true
 L["Locations: %d"] = true
+L["Use locations from other addons"] = true
+L["Also lists locations from other addons (GatherMate2) after your own. They are not saved or exported."] = true
+L["No supported addon found. Install GatherMate2 to use its locations."] = true
+L["%s: %d locations"] = true
 
 -- Export und Import
 L["Export and import"] = true

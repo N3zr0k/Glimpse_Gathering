@@ -20,6 +20,14 @@ function DB:BuildOptions()
             get = function() return self.db.profile.trackLocations end,
             set = function(_, value) self.db.profile.trackLocations = value end,
         },
+        useExternalSpots = {
+            type = "toggle", order = 2.5, width = "full",
+            name = L["Use locations from other addons"],
+            desc = function() return self:ExternalSpotsDescription() end,
+            disabled = function() return not self:HasAvailableProvider() end,
+            get = function() return self.db.profile.useExternalSpots end,
+            set = function(_, value) self.db.profile.useExternalSpots = value end,
+        },
         statistics = {
             type = "group", inline = true, order = 3, name = L["Statistics"],
             args = {
@@ -33,6 +41,7 @@ function DB:BuildOptions()
                             format(L["Creatures: %d"], npcs),
                             format(L["Recorded loot windows: %d"], attempts),
                             format(L["Locations: %d"], spots),
+                            self:ProviderStatistics(),
                         }, "\n")
                     end,
                 },

@@ -12,6 +12,8 @@ local function OnCommand(_, args)
         Glimpse:Print(format(L["Creatures: %d"], npcs))
         Glimpse:Print(format(L["Recorded loot windows: %d"], attempts))
         Glimpse:Print(format(L["Locations: %d"], spots))
+        local text = DB:ProviderStatistics()
+        if text ~= "" then Glimpse:Print(text) end
         if DB.errorCount then
             Glimpse:Print(format(L["Errors while recording: %d (last: %s)"], DB.errorCount, DB.lastError))
         end

@@ -6,7 +6,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- account-weit, und zwar nur Handwerksmaterialien. Angezeigt wird nichts (außer im Debug-Modus),
 -- das übernehmen andere Addons (z. B. GatheringTooltip).
 --
--- Öffentliche Schnittstelle (API_VERSION 1), erreichbar über Glimpse.GatheringDB:
+-- Öffentliche Schnittstelle (API_VERSION 3), erreichbar über Glimpse.GatheringDB:
 --   :GetNode(id)               Eintrag eines Sammelknotens oder nil
 --   :GetNPC(id)                Eintrag einer Kreatur oder nil
 --   :GetNodeDrops(id)          Liste der Beute eines Knotens, dazu die Zahl der Versuche
@@ -17,9 +17,17 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --   :GetItemSources(itemID, minAttempts)
 --                              alle Quellen eines Items, die wahrscheinlichste zuerst
 --   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster und Fundorte
---   :GetSpots(kind, id)        Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count }
---   :GetItemSpots(itemID, minAttempts, limit)
+--   :GetSpots(kind, id, includeExternal)
+--                              Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count, source },
+--                              eigene zuerst, danach die aus anderen Addons (source = "GatherMate2", count = 0);
+--                              includeExternal = false liefert nur die eigenen
+--   :GetOwnSpots(kind, id)     nur die eigenen Fundorte
+--   :GetNearestSpots(kind, id, limit, currentMapOnly)
+--                              Fundorte, die nächsten auf der Karte des Spielers zuerst (distance)
+--   :GetItemSpots(itemID, minAttempts, limit, includeExternal)
 --                              Fundorte aller Quellen eines Items, wahrscheinlichste Quelle zuerst
+--   :GetProviders()            Anbieter fremder Fundorte: { name, available }
+--   :RegisterProvider(name, provider)  weiteren Anbieter anmelden (siehe Data/Providers.lua)
 --   :GetMapName(map)           Name einer Karte (Zone) oder nil
 --   :ExportData()              Exporttext aller Daten (komprimiert), dazu Zahlen
 --   :ImportData(text, mode)    Import, mode = "merge" (Standard) oder "replace"
@@ -29,7 +37,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- Aufbau in Data/Store.lua, Erfassung in Loot/Collect.lua, Debug-Anzeige in Debug/Debug.lua.
 local DB = Glimpse:NewModule("GatheringDB", nil, "AceEvent-3.0")
 DB.L = L
-DB.API_VERSION = 2
+DB.API_VERSION = 3
 DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
 
 -- Damit andere Addons ohne GetModule drankommen
@@ -55,6 +63,7 @@ local settingsDefaults = {
     profile = {
         recording = true,
         trackLocations = true, -- Zone und Koordinaten der Fundorte mitschreiben
+        useExternalSpots = true, -- Fundorte aus anderen Addons (GatherMate2) mit anzeigen
     },
 }
 
@@ -82,6 +91,7 @@ function DB:OnEnable()
         end
     end
     self:RegisterDebugTooltips()
+    self:WatchGatherMate2()
 end
 
 function DB:OnDisable()

@@ -43,6 +43,10 @@ L["Errors while recording: %d (last: %s)"] = "Fehler beim Aufzeichnen: %d (zulet
 L["Record locations"] = "Fundorte aufzeichnen"
 L["Also stores the zone and the coordinates where you looted. Needed to find where something drops."] = "Speichert zusätzlich Zone und Koordinaten, wo du gelootet hast. Nötig, um zu finden, wo etwas herkommt."
 L["Locations: %d"] = "Fundorte: %d"
+L["Use locations from other addons"] = "Fundorte aus anderen Addons verwenden"
+L["Also lists locations from other addons (GatherMate2) after your own. They are not saved or exported."] = "Zeigt zusätzlich Fundorte aus anderen Addons (GatherMate2) hinter deinen eigenen. Sie werden weder gespeichert noch exportiert."
+L["No supported addon found. Install GatherMate2 to use its locations."] = "Kein unterstütztes Addon gefunden. Installiere GatherMate2, um dessen Fundorte zu nutzen."
+L["%s: %d locations"] = "%s: %d Fundorte"
 
 -- Export und Import
 L["Export and import"] = "Export und Import"
