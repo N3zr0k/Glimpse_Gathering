@@ -10,7 +10,7 @@
 ## X-Repo: https://github.com/N3zr0k/Glimpse_Gathering
 
 ## Category: Tooltip
-## IconTexture: Interface\Icons\Trade_Herbalism
+## IconTexture: Interface\AddOns\Glimpse_GatheringDB\Media\Icon
 ## Dependencies: Glimpse
 ## SavedVariables: GlimpseGatheringDB
 

@@ -9,3 +9,4 @@
 - GatheringTooltip: chances and averages for nodes, creatures (loot and skinning) and crafting materials
 - GatheringTooltip: best source(s) in item tooltips, creature level, only-learned-professions filter
 - GatheringTooltip: options in tabs, optional Shift/Ctrl/Alt requirement
+- GatheringDB: addon icon (`Media/Icon.tga`) shown in the addon list

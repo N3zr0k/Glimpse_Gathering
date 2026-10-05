@@ -1,5 +1,7 @@
 # Glimpse: Gathering
 
+<p align="center"><img src="docs/icon_gatheringdb.png" width="128" alt="GatheringDB icon"></p>
+
 Two addons for [Glimpse](https://github.com/N3zr0k/Glimpse) (0.1.0 or newer) that learn where crafting
 materials come from while you play.
 
