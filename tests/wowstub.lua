@@ -23,9 +23,12 @@ function stub.reset()
             parts[#parts + 1] = text:sub(pos, from - 1)
             pos = to + 1
         end
-        return table.unpack(parts)
+        return (table.unpack or unpack)(parts)
     end
     _G.strtrim = function(s) return (s:gsub("^%s+", ""):gsub("%s+$", "")) end
+
+    _G.time = function() return stub.clock end
+    stub.clock = 1700000000
 
     -- Spielzeit und Zeitgeber, vom Test gesteuert
     stub.now = 0
@@ -83,8 +86,28 @@ function stub.newGlimpse()
         return module
     end
 
-    _G.LibStub = function() return { GetAddon = function() return Glimpse end } end
+    -- Mitgelieferte Bibliotheken sind über stub.libs erreichbar (LibStub("LibDeflate", true))
+    _G.LibStub = function(name)
+        if name == "LibDeflate" then return stub.libs.LibDeflate end
+        return { GetAddon = function() return Glimpse end }
+    end
     return Glimpse
+end
+
+stub.libs = {}
+local deflate
+
+--- Lädt LibDeflate (einmal) und macht es über LibStub("LibDeflate", true) verfügbar. Ohne Aufruf
+-- (oder mit stub.libs.LibDeflate = nil) gibt es keine Kompression, dann exportiert das Addon unkomprimiert.
+function stub.useLibDeflate()
+    if not deflate then
+        local savedStub, savedArg = _G.LibStub, _G.arg
+        _G.LibStub, _G.arg = nil, nil -- die Bibliothek läuft dann allein, ohne LibStub und ohne Kommandozeile
+        deflate = stub.load("Glimpse_GatheringDB/Libs/LibDeflate/LibDeflate.lua")
+        _G.LibStub, _G.arg = savedStub, savedArg
+    end
+    stub.libs.LibDeflate = deflate
+    return deflate
 end
 
 -- Lädt eine Addon-Datei, ADDON_NAME wird wie vom Client als erstes Argument übergeben

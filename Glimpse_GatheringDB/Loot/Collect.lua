@@ -129,6 +129,27 @@ local function UnitInfo(guid)
     end
 end
 
+--- Position des Spielers: { map (uiMapID), x, y (0 bis 1) } oder nil, wenn sie sich nicht bestimmen lässt
+-- (Instanzen, keine Kartenfunktionen, geschützte Werte). Der Spieler steht beim Looten in der Nähe der
+-- Quelle, das ist für den Fundort genau genug.
+function DB:GetPlayerPosition()
+    local get, best = api.GetPlayerMapPosition, api.GetBestMapForUnit
+    if not get or not best then return nil end
+
+    local map = Clean(best("player"))
+    if type(map) ~= "number" or map < 1 then return nil end
+
+    local position = get(map, "player")
+    if not position or not position.GetXY then return nil end
+
+    local x, y = position:GetXY()
+    x, y = Clean(x), Clean(y)
+    -- (0, 0) heißt: keine Position bekannt
+    if type(x) ~= "number" or type(y) ~= "number" or x <= 0 or y <= 0 or x > 1 or y > 1 then return nil end
+
+    return { map = map, x = x, y = y }
+end
+
 local function Remember(key)
     if counted[key] then return false end
 
@@ -157,8 +178,15 @@ function DB:OnLootOpened()
     local ok, sources = pcall(ReadLoot)
     if not ok then return self:ReportError("ReadLoot", sources) end
 
+    -- Wo der Spieler jetzt steht, nicht erst nach der Verzögerung
+    local position
+    if self.db.profile.trackLocations then
+        local found, result = pcall(self.GetPlayerPosition, self)
+        if found then position = result else self:ReportError("GetPlayerPosition", result) end
+    end
+
     C_Timer.After(EVALUATE_DELAY, function()
-        local done, err = pcall(self.ProcessLoot, self, sources, opened)
+        local done, err = pcall(self.ProcessLoot, self, sources, opened, position)
         if not done then self:ReportError("ProcessLoot", err) end
     end)
 end
@@ -170,7 +198,7 @@ function DB:ReportError(where, err)
     self:Debug("Fehler in", self.lastError)
 end
 
-function DB:ProcessLoot(sources, opened)
+function DB:ProcessLoot(sources, opened, position)
     if not self.db.profile.recording then return end
 
     -- Zauber erfolgreich im Zeitfenster vor dem Beutefenster (oder kurz danach)
@@ -191,7 +219,7 @@ function DB:ProcessLoot(sources, opened)
                     info.name = lastTarget
                 end
                 info.category = CategoryOf(items)
-                self:RecordNode(id, info, items)
+                self:RecordNode(id, info, items, position)
             end
 
         elseif kind == "Creature" then
@@ -200,7 +228,7 @@ function DB:ProcessLoot(sources, opened)
 
             if Remember(guid .. "|" .. mode) then
                 if mode == "loot" then looted[guid] = true end
-                self:RecordNPC(id, mode, UnitInfo(guid), items)
+                self:RecordNPC(id, mode, UnitInfo(guid), items, position)
             end
         end
     end

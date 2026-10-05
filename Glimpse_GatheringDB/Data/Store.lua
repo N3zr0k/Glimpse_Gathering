@@ -4,6 +4,72 @@ local DB = Glimpse:GetModule("GatheringDB")
 -- Speichern und Abfragen. Alles, was hier ohne lokales "local" steht, ist die öffentliche
 -- Schnittstelle (siehe Kopf von Core/GatheringDB.lua).
 
+-- ---------------------------------------------------------------------------
+-- Fundorte
+-- ---------------------------------------------------------------------------
+
+-- Zu jeder Quelle merken wir, wo der Spieler beim Looten stand: Karte (uiMapID) und Position.
+-- Koordinaten werden als ganze Zahlen von 1 bis 10000 gespeichert (1/10000 der Kartenbreite bzw.
+-- -höhe), das hält die Datei klein. Fundorte, die näher als SPOT_RADIUS beieinander liegen, werden
+-- zu einem zusammengefasst (gewichteter Mittelpunkt, n zählt die Beutefenster dort). Je Quelle gibt
+-- es höchstens MAX_SPOTS_*, darüber fällt der Ort mit den wenigsten Funden weg.
+DB.SPOT_RADIUS = 100 -- 1 % der Karte
+DB.MAX_SPOTS_NODE = 40
+DB.MAX_SPOTS_NPC = 12
+
+local SPOT_MAX = 10000
+local COUNT_MAX = 1e9 - 1
+
+--- Führt einen Ort in eine Liste von Fundorten ein. x und y in 1/10000, n = Zahl der Funde.
+function DB:MergeSpot(list, map, x, y, n, limit)
+    local radius2 = self.SPOT_RADIUS * self.SPOT_RADIUS
+    local best, bestDistance
+
+    for _, spot in ipairs(list) do
+        if spot.map == map then
+            local dx, dy = spot.x - x, spot.y - y
+            local distance = dx * dx + dy * dy
+            if distance <= radius2 and (not bestDistance or distance < bestDistance) then
+                best, bestDistance = spot, distance
+            end
+        end
+    end
+
+    if best then
+        local total = best.n + n
+        best.x = math.floor((best.x * best.n + x * n) / total + 0.5)
+        best.y = math.floor((best.y * best.n + y * n) / total + 0.5)
+        best.n = math.min(total, COUNT_MAX)
+        return
+    end
+
+    tinsert(list, { map = map, x = x, y = y, n = math.min(n, COUNT_MAX) })
+
+    if #list > limit then
+        -- den schwächsten Ort entfernen, bei Gleichstand den ältesten
+        local weakest = 1
+        for index = 2, #list do
+            if list[index].n < list[weakest].n then weakest = index end
+        end
+        tremove(list, weakest)
+    end
+end
+
+--- Merkt einen Fundort für einen Knoten- oder Kreatureneintrag. pos = { map, x, y } mit x und y von
+-- 0 bis 1 (wie C_Map.GetPlayerMapPosition). Ungültige Orte werden ignoriert.
+function DB:AddSpot(entry, kind, pos)
+    if type(pos) ~= "table" or type(pos.map) ~= "number" or type(pos.x) ~= "number" or type(pos.y) ~= "number" then
+        return
+    end
+
+    local x = math.floor(pos.x * SPOT_MAX + 0.5)
+    local y = math.floor(pos.y * SPOT_MAX + 0.5)
+    if pos.map < 1 or x < 1 or y < 1 or x > SPOT_MAX or y > SPOT_MAX then return end
+
+    entry.spots = entry.spots or {}
+    self:MergeSpot(entry.spots, pos.map, x, y, 1, kind == "node" and self.MAX_SPOTS_NODE or self.MAX_SPOTS_NPC)
+end
+
 -- Ein Beutefenster zu einem Abschnitt { attempts, items } zählen.
 -- items ist { [itemID] = Menge } aus genau diesem Fenster. hits zählt, in wie vielen Versuchen
 -- das Item vorkam (daraus ergibt sich die Chance), amount die Gesamtmenge.
@@ -23,7 +89,8 @@ local function CountAttempt(section, items)
 end
 
 --- Zählt ein Beutefenster eines Sammelknotens. info = { name, category }, beides optional.
-function DB:RecordNode(id, info, items)
+-- pos = { map, x, y } ist der Fundort (optional, siehe AddSpot).
+function DB:RecordNode(id, info, items, pos)
     id = tonumber(id)
     if not id then return end
 
@@ -42,13 +109,15 @@ function DB:RecordNode(id, info, items)
     end
 
     CountAttempt(node, items)
+    if pos then self:AddSpot(node, "node", pos) end
     self:EnforceLimits()
     self.itemIndex, self.nameIndex = nil, nil -- Indizes sind veraltet
     self:SendMessage(self.MESSAGE_UPDATED, "node", id)
 end
 
 --- Zählt ein Beutefenster einer Kreatur. kind ist "loot" oder "skinning", info = { name, level }.
-function DB:RecordNPC(id, kind, info, items)
+-- pos = { map, x, y } ist der Fundort (optional, siehe AddSpot).
+function DB:RecordNPC(id, kind, info, items, pos)
     id = tonumber(id)
     if not id then return end
 
@@ -65,6 +134,7 @@ function DB:RecordNPC(id, kind, info, items)
 
     npc[kind] = npc[kind] or {}
     CountAttempt(npc[kind], items)
+    if pos then self:AddSpot(npc, "npc", pos) end
     self:EnforceLimits()
     self.itemIndex = nil
     self:SendMessage(self.MESSAGE_UPDATED, "npc", id)
@@ -115,26 +185,29 @@ function DB:GetNPCDrops(id, kind)
     return BuildDrops(npc and npc[kind or "loot"])
 end
 
---- Anzahl Knoten, Anzahl Kreaturen und Gesamtzahl der erfassten Beutefenster.
+--- Anzahl Knoten, Anzahl Kreaturen, Gesamtzahl der erfassten Beutefenster und Zahl der Fundorte.
 function DB:GetStats()
-    local nodes, npcs, attempts = 0, 0, 0
+    local nodes, npcs, attempts, spots = 0, 0, 0, 0
 
     for _, node in pairs(self.data.nodes) do
         nodes = nodes + 1
         attempts = attempts + (node.attempts or 0)
+        spots = spots + (node.spots and #node.spots or 0)
     end
     for _, npc in pairs(self.data.npcs) do
         npcs = npcs + 1
         attempts = attempts + (npc.loot and npc.loot.attempts or 0) + (npc.skinning and npc.skinning.attempts or 0)
+        spots = spots + (npc.spots and #npc.spots or 0)
     end
 
-    return nodes, npcs, attempts
+    return nodes, npcs, attempts, spots
 end
 
 --- Löscht alle gesammelten Daten. Die Tabellen bleiben dieselben, damit gemerkte Verweise gültig sind.
 function DB:ResetData()
     wipe(self.data.nodes)
     wipe(self.data.npcs)
+    if self.data.imports then wipe(self.data.imports) end
     self.itemIndex, self.nameIndex = nil, nil
     self:SendMessage(self.MESSAGE_UPDATED, "reset")
 end
@@ -194,6 +267,56 @@ function DB:GetItemSources(itemID, minAttempts)
         return a.id < b.id
     end)
     return result
+end
+
+-- ---------------------------------------------------------------------------
+-- Fundorte abfragen
+-- ---------------------------------------------------------------------------
+
+--- Fundorte einer Quelle, kind = "node" oder "npc". Jeder Eintrag: { map (uiMapID), x, y (0 bis 1),
+-- count (Beutefenster an diesem Ort) }, die häufigsten zuerst. Das sind genau die Werte für
+-- TomTom: TomTom:AddWaypoint(map, x, y, { title = ... }).
+function DB:GetSpots(kind, id)
+    local entry
+    if kind == "node" then entry = self:GetNode(id) elseif kind == "npc" then entry = self:GetNPC(id) end
+
+    local list = {}
+    for _, spot in ipairs(entry and entry.spots or {}) do
+        tinsert(list, { map = spot.map, x = spot.x / SPOT_MAX, y = spot.y / SPOT_MAX, count = spot.n })
+    end
+
+    table.sort(list, function(a, b)
+        if a.count ~= b.count then return a.count > b.count end
+        if a.map ~= b.map then return a.map < b.map end
+        if a.x ~= b.x then return a.x < b.x end
+        return a.y < b.y
+    end)
+    return list
+end
+
+--- Fundorte aller Quellen eines Items: erst die Orte der wahrscheinlichsten Quelle, dann die der
+-- nächsten. Jeder Eintrag: { map, x, y, count, kind, id, mode, name, chance }. minAttempts wie bei
+-- GetItemSources, limit (optional) begrenzt die Länge der Liste.
+function DB:GetItemSpots(itemID, minAttempts, limit)
+    local result = {}
+
+    for _, source in ipairs(self:GetItemSources(itemID, minAttempts)) do
+        for _, spot in ipairs(self:GetSpots(source.kind, source.id)) do
+            tinsert(result, {
+                map = spot.map, x = spot.x, y = spot.y, count = spot.count,
+                kind = source.kind, id = source.id, mode = source.mode, name = source.name, chance = source.chance,
+            })
+            if limit and #result >= limit then return result end
+        end
+    end
+
+    return result
+end
+
+--- Name einer Karte (Zone) oder nil.
+function DB:GetMapName(map)
+    local info = self.api.GetMapInfo and self.api.GetMapInfo(map)
+    return info and info.name or nil
 end
 
 -- ---------------------------------------------------------------------------

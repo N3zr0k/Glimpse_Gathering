@@ -193,3 +193,97 @@ test("Collect: Compat meldet fehlende Funktionen", function()
     ok = DB:CheckAPI()
     eq(ok, true, "vollständig")
 end)
+
+-- ---------------------------------------------------------------------------
+-- Fundorte
+-- ---------------------------------------------------------------------------
+
+local function withPosition(e, pos)
+    e.DB.db.profile.trackLocations = true
+    e.pos = pos
+    e.DB.api.GetBestMapForUnit = function() return pos and pos.map end
+    e.DB.api.GetPlayerMapPosition = function()
+        if not e.pos then return nil end
+        return { GetXY = function() return e.pos.x, e.pos.y end }
+    end
+end
+
+test("Collect: Fundort wird mit der Beute gespeichert", function()
+    local e = setup()
+    withPosition(e, { map = 37, x = 0.25, y = 0.75 })
+    stub.now = 5
+    e.cast("Silberblatt")
+    e.loot({ { 100, NODE } })
+
+    local spots = e.DB:GetSpots("node", 1731)
+    eq(#spots, 1, "ein Ort")
+    eq(spots[1].map, 37, "Karte")
+    near(spots[1].x, 0.25, "x")
+    near(spots[1].y, 0.75, "y")
+end)
+
+test("Collect: Position gilt beim Öffnen des Beutefensters, nicht nach der Verzögerung", function()
+    local e = setup()
+    withPosition(e, { map = 37, x = 0.25, y = 0.25 })
+    stub.now = 5
+    e.cast("Silberblatt")
+
+    e.window[1] = { 100, NODE, 1 }
+    e.DB:OnLootOpened()
+    e.pos = { map = 37, x = 0.9, y = 0.9 } -- Spieler läuft weiter, bevor ausgewertet wird
+    stub.now = stub.now + 0.4
+    stub.flush()
+
+    local spots = e.DB:GetSpots("node", 1731)
+    near(spots[1].x, 0.25, "Position vom Öffnen")
+end)
+
+test("Collect: Kreaturen bekommen den Fundort ebenfalls", function()
+    local e = setup()
+    withPosition(e, { map = 10, x = 0.5, y = 0.5 })
+    stub.now = 5
+    e.loot({ { 100, WOLF } })
+    eq(#e.DB:GetSpots("npc", 179891), 1, "Ort der Kreatur")
+end)
+
+test("Collect: ohne Option oder ohne Position wird trotzdem aufgezeichnet", function()
+    local e = setup()
+    withPosition(e, { map = 37, x = 0.25, y = 0.75 })
+    e.DB.db.profile.trackLocations = false
+    stub.now = 5
+    e.cast("Silberblatt")
+    e.loot({ { 100, NODE } })
+    eq(e.DB:GetNode(1731).attempts, 1, "Beute gezählt")
+    eq(#e.DB:GetSpots("node", 1731), 0, "Option aus: kein Ort")
+
+    -- Option an, aber keine Position (z. B. Instanz)
+    e.DB.db.profile.trackLocations = true
+    e.pos = nil
+    stub.now = 20
+    e.cast("Silberblatt")
+    e.DB.itemIndex = nil
+    stub.timers = {}
+    -- dieselbe Quelle zählt pro Sitzung nur einmal, deshalb ein anderer Knoten
+    e.loot({ { 100, "GameObject-0-3131-2552-14367-1732-0000A5C2B1" } })
+    eq(e.DB:GetNode(1732).attempts, 1, "Beute gezählt")
+    eq(#e.DB:GetSpots("node", 1732), 0, "keine Position: kein Ort")
+end)
+
+test("Collect: unbrauchbare Positionen werden verworfen", function()
+    local e = setup()
+    withPosition(e, { map = 37, x = 0, y = 0 }) -- (0, 0) = unbekannt
+    stub.now = 5
+    e.cast("Silberblatt")
+    e.loot({ { 100, NODE } })
+    eq(#e.DB:GetSpots("node", 1731), 0, "(0, 0)")
+
+    -- ohne Kartenfunktionen
+    local e2 = setup()
+    e2.DB.db.profile.trackLocations = true
+    e2.DB.api.GetBestMapForUnit, e2.DB.api.GetPlayerMapPosition = nil, nil
+    stub.now = 5
+    e2.cast("Silberblatt")
+    e2.loot({ { 100, NODE } })
+    eq(e2.DB:GetNode(1731).attempts, 1, "Beute gezählt")
+    eq(#e2.DB:GetSpots("node", 1731), 0, "keine Kartenfunktionen")
+end)

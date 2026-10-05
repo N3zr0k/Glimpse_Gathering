@@ -1,16 +1,24 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 
--- Pflege der gespeicherten Daten beim Start: Versionsprüfung, Umstellung älterer Formate,
--- Aufräumen defekter Einträge und eine Obergrenze für die Größe.
+-- Pflege der gespeicherten Daten: Versionsprüfung, Umstellung älterer Formate, Aufräumen defekter
+-- Einträge und eine Obergrenze für die Größe. Dieselben Schritte gelten für importierte Daten
+-- (Data/Transfer.lua): UpgradeData und SanitizeData arbeiten auf einer beliebigen Datentabelle.
 
 -- Obergrenzen. Knoten gibt es nur wenige hundert, Kreaturen können sich über die Zeit anhäufen.
 -- Über der Grenze fallen die Einträge mit den wenigsten Versuchen zuerst weg.
 DB.MAX_NODES = 2000
 DB.MAX_NPCS = 6000
 
--- Umstellungen: [n] hebt Daten von Version n auf n + 1. Aktuell gibt es nur Version 1.
-local migrations = {}
+-- Umstellungen: [n] hebt Daten von Version n auf n + 1 (in der Tabelle selbst, ohne Rückgabe).
+-- Neue Version: DATA_VERSION in Core/GatheringDB.lua erhöhen und hier den Schritt ergänzen.
+local migrations = {
+    -- 1 -> 2: Fundorte (spots) und Liste der importierten Exporte kommen dazu. Beides ist optional,
+    -- alte Einträge bleiben, wie sie sind.
+    [1] = function(data)
+        data.imports = data.imports or {}
+    end,
+}
 
 local function IsCount(value)
     return type(value) == "number" and value >= 0 and value == value and value < 1e9
@@ -32,8 +40,37 @@ local function CleanSection(section)
     return true
 end
 
+-- Fundorte { map, x, y, n } prüfen: x und y in 1/10000 der Karte, n = Zahl der Beutefenster dort.
+-- Die Liste wird auf limit Einträge gekürzt (die mit den wenigsten Funden fallen weg).
+local function CleanSpots(entry, limit)
+    if entry.spots == nil then return end
+    if type(entry.spots) ~= "table" then
+        entry.spots = nil
+        return
+    end
+
+    local clean = {}
+    for _, spot in ipairs(entry.spots) do
+        if type(spot) == "table" and type(spot.map) == "number" and spot.map >= 1 and spot.map == math.floor(spot.map)
+            and spot.map < 1e6 and type(spot.x) == "number" and spot.x > 0 and spot.x <= 10000
+            and type(spot.y) == "number" and spot.y > 0 and spot.y <= 10000
+            and IsCount(spot.n) and spot.n >= 1 then
+            tinsert(clean, {
+                map = spot.map, n = math.floor(spot.n),
+                x = math.floor(spot.x + 0.5), y = math.floor(spot.y + 0.5),
+            })
+        end
+    end
+
+    table.sort(clean, function(a, b) return a.n > b.n end)
+    while #clean > limit do tremove(clean) end
+    entry.spots = #clean > 0 and clean or nil
+end
+
 local function CleanNode(node)
-    return CleanSection(node)
+    if not CleanSection(node) then return false end
+    CleanSpots(node, DB.MAX_SPOTS_NODE)
+    return true
 end
 
 local function CleanNPC(npc)
@@ -42,6 +79,7 @@ local function CleanNPC(npc)
     for _, kind in ipairs({ "loot", "skinning" }) do
         if npc[kind] and not CleanSection(npc[kind]) then npc[kind] = nil end
     end
+    CleanSpots(npc, DB.MAX_SPOTS_NPC)
     return npc.loot ~= nil or npc.skinning ~= nil
 end
 
@@ -69,12 +107,11 @@ local function Prune(entries, limit, isNode)
     return #ids - keep
 end
 
---- Prüft und pflegt die Daten. Gibt false zurück, wenn sie von einer neueren Version stammen:
--- dann bleiben sie unverändert und es wird nichts aufgezeichnet.
-function DB:PrepareData(currentVersion)
-    local data = self.data
-
+--- Hebt eine Datentabelle auf die aktuelle Version. Gibt false zurück, wenn sie von einer neueren
+-- Version stammt (oder die Versionsnummer unbrauchbar ist): dann bleibt sie unverändert.
+function DB:UpgradeData(data, currentVersion)
     if type(data.version) ~= "number" then data.version = 1 end
+    if data.version < 1 or data.version ~= math.floor(data.version) then return false end
     if data.version > currentVersion then return false end
 
     while data.version < currentVersion do
@@ -82,6 +119,15 @@ function DB:PrepareData(currentVersion)
         if step then step(data) end
         data.version = data.version + 1
     end
+    return true
+end
+
+--- Entfernt defekte Einträge und stellt sicher, dass nodes, npcs und imports Tabellen sind.
+-- Gibt die Zahl der entfernten Einträge zurück.
+function DB:SanitizeData(data)
+    if type(data.nodes) ~= "table" then data.nodes = {} end
+    if type(data.npcs) ~= "table" then data.npcs = {} end
+    if type(data.imports) ~= "table" then data.imports = {} end
 
     local removed = 0
     for id, node in pairs(data.nodes) do
@@ -96,8 +142,20 @@ function DB:PrepareData(currentVersion)
             removed = removed + 1
         end
     end
+    return removed
+end
 
-    removed = removed + Prune(data.nodes, self.MAX_NODES, true) + Prune(data.npcs, self.MAX_NPCS, false)
+--- Hält die Zahl der Einträge unter den Obergrenzen. Gibt die Zahl der entfernten Einträge zurück.
+function DB:PruneData()
+    return Prune(self.data.nodes, self.MAX_NODES, true) + Prune(self.data.npcs, self.MAX_NPCS, false)
+end
+
+--- Prüft und pflegt die gespeicherten Daten beim Start. Gibt false zurück, wenn sie von einer neueren
+-- Version stammen: dann bleiben sie unverändert und es wird nichts aufgezeichnet.
+function DB:PrepareData(currentVersion)
+    if not self:UpgradeData(self.data, currentVersion) then return false end
+
+    local removed = self:SanitizeData(self.data) + self:PruneData()
     if removed > 0 then self:Debug("Daten bereinigt, entfernte Einträge:", removed) end
 
     return true
@@ -112,6 +170,5 @@ function DB:EnforceLimits()
     if self.recordsSinceCheck < CHECK_EVERY then return end
     self.recordsSinceCheck = 0
 
-    Prune(self.data.nodes, self.MAX_NODES, true)
-    Prune(self.data.npcs, self.MAX_NPCS, false)
+    self:PruneData()
 end

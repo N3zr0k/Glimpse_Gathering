@@ -16,6 +16,11 @@ DB.api = {
     GetLootSourceInfo = (C_Loot and C_Loot.GetLootSourceInfo) or GetLootSourceInfo,
 }
 
+-- Optional: Kartenfunktionen für die Fundorte. Fehlen sie, wird nur ohne Orte aufgezeichnet.
+DB.api.GetBestMapForUnit = C_Map and C_Map.GetBestMapForUnit
+DB.api.GetPlayerMapPosition = C_Map and C_Map.GetPlayerMapPosition
+DB.api.GetMapInfo = C_Map and C_Map.GetMapInfo
+
 --- Prüft, ob alle benötigten Funktionen vorhanden sind. Gibt true zurück oder false und die
 -- Liste der fehlenden Namen.
 function DB:CheckAPI()

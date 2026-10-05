@@ -1,4 +1,6 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
     <Script file="Store.lua"/>
     <Script file="Migrate.lua"/>
+    <Script file="Transfer.lua"/>
+    <Script file="TransferUI.lua"/>
 </Ui>

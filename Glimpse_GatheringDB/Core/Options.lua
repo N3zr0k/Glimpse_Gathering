@@ -13,25 +13,50 @@ function DB:BuildOptions()
             get = function() return self.db.profile.recording end,
             set = function(_, value) self.db.profile.recording = value end,
         },
+        trackLocations = {
+            type = "toggle", order = 2, width = "full",
+            name = L["Record locations"],
+            desc = L["Also stores the zone and the coordinates where you looted. Needed to find where something drops."],
+            get = function() return self.db.profile.trackLocations end,
+            set = function(_, value) self.db.profile.trackLocations = value end,
+        },
         statistics = {
-            type = "group", inline = true, order = 2, name = L["Statistics"],
+            type = "group", inline = true, order = 3, name = L["Statistics"],
             args = {
                 text = {
                     type = "description", order = 1, fontSize = "medium",
                     -- als Funktion, damit die Zahlen beim Anzeigen aktuell sind
                     name = function()
-                        local nodes, npcs, attempts = self:GetStats()
+                        local nodes, npcs, attempts, spots = self:GetStats()
                         return table.concat({
                             format(L["Gathering nodes: %d"], nodes),
                             format(L["Creatures: %d"], npcs),
                             format(L["Recorded loot windows: %d"], attempts),
+                            format(L["Locations: %d"], spots),
                         }, "\n")
                     end,
                 },
             },
         },
+        transfer = {
+            type = "group", inline = true, order = 4, name = L["Export and import"],
+            args = {
+                export = {
+                    type = "execute", order = 1,
+                    name = L["Export"],
+                    desc = L["Shows all collected data as text to copy, for a backup or another account."],
+                    func = function() self:ShowExport() end,
+                },
+                import = {
+                    type = "execute", order = 2,
+                    name = L["Import"],
+                    desc = L["Paste exported data to merge it with yours or to replace it."],
+                    func = function() self:ShowImport() end,
+                },
+            },
+        },
         reset = {
-            type = "execute", order = 3,
+            type = "execute", order = 5,
             name = L["Reset data"],
             desc = L["Deletes all collected gathering data."],
             confirm = true,
