@@ -323,6 +323,20 @@ function DB:GetPlayerArea()
     return self.GetPlayerPosition and self:GetPlayerPosition() or nil
 end
 
+--- Der Ort als kurzer Text für die Debug-Ausgabe: "Instanz Die Todesminen (36)" oder
+-- "Karte Elwynn (37) 41.2 / 56.8" (Koordinaten in Prozent), oder nil ohne Ort.
+function DB:DescribeArea(area)
+    if type(area) ~= "table" then return nil end
+
+    if area.instance then
+        return format("Instanz %s (%d)", tostring(area.name or self:GetInstanceName(area.instance) or "?"), area.instance)
+    end
+    if type(area.map) == "number" and type(area.x) == "number" and type(area.y) == "number" then
+        local name = self.api and self.api.GetMapInfo and self.api.GetMapInfo(area.map)
+        return format("Karte %s (%d) %.1f / %.1f", tostring(name and name.name or "?"), area.map, area.x * 100, area.y * 100)
+    end
+end
+
 -- ---------------------------------------------------------------------------
 -- Fundorte abfragen
 -- ---------------------------------------------------------------------------

@@ -358,3 +358,41 @@ test("Collect: unbrauchbare Instanzangaben ergeben keinen Fundort", function()
     eq(#e.DB:GetSpots("npc", 179891), 0, "Option aus")
     eq(e.DB:GetNPC(179891).loot.attempts, 1, "Beute trotzdem gezählt")
 end)
+
+test("Collect: Debug-Ausgabe nennt Position und gespeicherten Fundort", function()
+    local e = setup()
+    e.DB.api.GetMapInfo = function() return { name = "Elwynn" } end
+    withPosition(e, { map = 37, x = 0.412, y = 0.568 })
+    stub.now = 5
+    e.cast("Silberblatt")
+    e.loot({ { 100, NODE } })
+
+    local text = table.concat(e.DB.debugLines, "\n")
+    eq(text:find("Position: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Position")
+    eq(text:find("Gespeichert: Knoten 1731 Fundort: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Fundort des Knotens")
+
+    -- in einer Instanz
+    e.DB.debugLines = {}
+    inInstance(e, "party", 36, "Die Todesminen")
+    stub.now = 40
+    e.loot({ { 100, WOLF } })
+    text = table.concat(e.DB.debugLines, "\n")
+    eq(text:find("Position: Instanz Die Todesminen (36)", 1, true) ~= nil, true, "Instanz als Position")
+    eq(text:find("Gespeichert: Kreatur 179891 loot Fundort: Instanz Die Todesminen (36)", 1, true) ~= nil, true, "Fundort der Kreatur")
+end)
+
+test("Collect: Debug-Ausgabe erklärt fehlende Orte", function()
+    local e = setup()
+    e.DB.db.profile.trackLocations = true
+    stub.now = 5
+    e.loot({ { 100, WOLF } })
+    local text = table.concat(e.DB.debugLines, "\n")
+    eq(text:find("Position: nicht bestimmbar", 1, true) ~= nil, true, "keine Position")
+    eq(text:find("Fundort: keiner", 1, true) ~= nil, true, "kein Fundort")
+
+    e.DB.debugLines = {}
+    e.DB.db.profile.trackLocations = false
+    stub.now = 40
+    e.loot({ { 100, "Creature-0-3131-2552-14367-179892-0000A5C2B1" } })
+    eq(table.concat(e.DB.debugLines, "\n"):find("Aufzeichnung der Fundorte ist aus", 1, true) ~= nil, true, "Option aus")
+end)

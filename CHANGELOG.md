@@ -12,6 +12,7 @@
 - GatheringDB: each source for outside locations (GatherMate2) has its own switch in the options, next to the general one
 - GatheringDB: debug tooltip lists locations (own and from other addons) with map, coordinates, distance in yards (from the game's own map data, no other addon needed) and source; `/gli gatheringdb gm2` helps to find problems with the GatherMate2 data
 - GatheringDB: loot in dungeons and raids is stored with the instance as its location (no coordinates); instances count as "here" in the source order and show in the debug tooltip; data version 3 (migrates automatically, export/import carries the instance names)
+- GatheringDB: the debug chat output on looting shows the position (map and coordinates, or the instance) and the stored location
 - GatheringDB: data version 2 (adds `spots` and `imports`), bundled LibDeflate
 
 ## [0.1.0] - 2026-10-05

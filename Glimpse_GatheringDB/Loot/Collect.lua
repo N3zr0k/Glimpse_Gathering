@@ -184,6 +184,11 @@ local function Remember(key)
     return true
 end
 
+-- Debug-Ausgaben nur bauen, wenn der Debug-Modus an ist (die Texte kosten sonst unnötig Zeit)
+local function DebugOn()
+    return not Glimpse.IsDebug or Glimpse:IsDebug()
+end
+
 -- Das Beutefenster wird sofort gelesen, denn danach ist es weg. Ausgewertet wird erst einen
 -- Moment später: Je nach Reihenfolge der Events kommt der erfolgreiche Zauber kurz vor oder kurz
 -- nach LOOT_OPENED, und beides muss als "direkt nach dem Zauber" zählen.
@@ -203,6 +208,12 @@ function DB:OnLootOpened()
     if self.db.profile.trackLocations then
         local found, result = pcall(self.GetPlayerArea, self)
         if found then position = result else self:ReportError("GetPlayerArea", result) end
+
+        if DebugOn() then
+            self:Debug("Position:", self:DescribeArea(position) or "nicht bestimmbar (keine Karte, Koordinaten oder Instanz)")
+        end
+    elseif DebugOn() then
+        self:Debug("Position: Aufzeichnung der Fundorte ist aus")
     end
 
     C_Timer.After(EVALUATE_DELAY, function()
@@ -240,6 +251,7 @@ function DB:ProcessLoot(sources, opened, position)
                 end
                 info.category = CategoryOf(items)
                 self:RecordNode(id, info, items, position)
+                if DebugOn() then self:Debug("Gespeichert: Knoten", tostring(id), "Fundort:", self:DescribeArea(position) or "keiner") end
             end
 
         elseif kind == "Creature" then
@@ -249,6 +261,9 @@ function DB:ProcessLoot(sources, opened, position)
             if Remember(guid .. "|" .. mode) then
                 if mode == "loot" then looted[guid] = true end
                 self:RecordNPC(id, mode, UnitInfo(guid), items, position)
+                if DebugOn() then
+                    self:Debug("Gespeichert: Kreatur", tostring(id), mode, "Fundort:", self:DescribeArea(position) or "keiner")
+                end
             end
         end
     end
