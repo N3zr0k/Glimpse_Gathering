@@ -46,7 +46,28 @@ jobs:
       - name: Tag, TOC-Version und CHANGELOG prüfen
         run: python3 tools/check.py --tag "$TAG"
 
+      # Zeigt, ob CurseForge den Token annimmt (nur Statuscode und Fehlertext, nie der Token selbst)
+      - name: CurseForge-Zugang prüfen
+        if: env.CF_API_KEY != ''
+        continue-on-error: true
+        run: |
+          # Form des Secrets prüfen (ohne den Wert zu zeigen): ein Upload-Token ist eine UUID mit 36 Zeichen
+          echo "CF_API_KEY: ${#CF_API_KEY} Zeichen, UUID-Form: $([[ "$CF_API_KEY" =~ ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$ ]] && echo ja || echo nein), Leerraum oder Anfuehrungszeichen: $([[ "$CF_API_KEY" =~ [[:space:]\"\'] ]] && echo ja || echo nein)"
+          body="$(curl -s -w '\n%{http_code}' -H "x-api-token: $CF_API_KEY" "https://wow.curseforge.com/api/game/wow/versions")"
+          code="${body##*$'\n'}"
+          text="${body%$'\n'*}"
+          echo "CurseForge-Versionsabfrage: HTTP $code"
+          if [[ "$text" == *errorMessage* ]]; then
+            echo "$text" | head -c 400; echo
+            echo "::warning::CurseForge hat den Token abgelehnt (CF_API_KEY pruefen: Upload-Token aus dem Account, ohne Leerzeichen)."
+          fi
+
+      # Meldet der Packager nur beim Hochladen zu CurseForge/Wago/WoWInterface einen Fehler (Exit 1), sollen
+      # GitHub-Release und Kennzeichnung trotzdem fertig werden. Der Fehler wird am Ende gemeldet (letzter Schritt),
+      # fehlt das Zip, bricht "Zip prüfen" ab.
       - name: Paket bauen und veröffentlichen
+        id: pack
+        continue-on-error: true
         uses: BigWigsMods/packager@v2
         with:
           # Das Paket hat keine TOC im Hauptordner (zwei Addon-Ordner), deshalb steht die CurseForge-ID hier
@@ -83,3 +104,18 @@ jobs:
           else
             gh release create "$TAG" "${flags[@]}" --generate-notes "${zips[@]}"
           fi
+          # Ergebnis prüfen und im Log zeigen
+          gh release view "$TAG" --json tagName,name,isPrerelease,isDraft
+          is_pre="$(gh release view "$TAG" --json isPrerelease --jq .isPrerelease)"
+          if [[ "$TAG" == *-alpha* && "$is_pre" != "true" ]] || [[ "$TAG" == *-beta* && "$is_pre" != "false" ]]; then
+            echo "::error::Das Release $TAG hat auf GitHub nicht die gewünschte Kennzeichnung (isPrerelease=$is_pre)."
+            exit 1
+          fi
+
+      # Ganz am Ende: ein Fehler des Packagers (meist der CurseForge-Upload) bleibt sichtbar, nachdem das
+      # GitHub-Release fertig ist.
+      - name: Packager-Ergebnis melden
+        if: always() && steps.pack.outcome == 'failure'
+        run: |
+          echo "::error::Der Packager meldete einen Fehler, meist beim Upload zu CurseForge. Das GitHub-Release ist trotzdem fertig, Details im Schritt Paket bauen und veroeffentlichen."
+          exit 1
