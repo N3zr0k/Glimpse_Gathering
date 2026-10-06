@@ -168,7 +168,7 @@ local function NodeIDByName(gm, typ, name)
     if best and not tie then return best, "prefix" end
 end
 
-function provider.GetSpots(kind, id, entry)
+function provider.GetSpots(kind, _, entry)
     if kind ~= "node" or not IsAvailable() then return nil end
 
     local name = entry and entry.name
@@ -266,8 +266,8 @@ function DB:DiagnoseGatherMate2()
     local ids = {}
     for id in pairs(DB.data.nodes) do tinsert(ids, id) end
     table.sort(ids)
-    for index, id in ipairs(ids) do
-        if index > 30 then
+    for position, id in ipairs(ids) do
+        if position > 30 then
             Add("... " .. (#ids - 30) .. " more")
             break
         end
