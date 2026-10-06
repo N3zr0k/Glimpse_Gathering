@@ -10,6 +10,13 @@ local DB = Glimpse:GetModule("GatheringDB")
 DB.MAX_NODES = 2000
 DB.MAX_NPCS = 6000
 
+local function BackfillKills(data)
+    for _, npc in pairs(data.npcs or {}) do
+        local looted = type(npc) == "table" and type(npc.loot) == "table" and tonumber(npc.loot.attempts) or 0
+        if looted > 0 then npc.kills = math.max(tonumber(npc.kills) or 0, looted) end
+    end
+end
+
 -- Umstellungen: [n] hebt Daten von Version n auf n + 1 (in der Tabelle selbst, ohne Rückgabe).
 -- Neue Version: DATA_VERSION in Core/GatheringDB.lua erhöhen und hier den Schritt ergänzen.
 local migrations = {
@@ -22,6 +29,10 @@ local migrations = {
     [2] = function(data)
         data.instances = data.instances or {}
     end,
+    -- 3 -> 4 und 4 -> 5: Kreaturen haben einen eigenen Zähler für Kills (kills, optional). Jede Beute einer
+    -- Kreatur war ein Kill, deshalb beginnt der Zähler bei den Versuchen der Normalbeute (nie darunter).
+    [3] = function(data) BackfillKills(data) end,
+    [4] = function(data) BackfillKills(data) end,
 }
 
 local function IsCount(value)
@@ -90,7 +101,13 @@ local function CleanNPC(npc)
         if npc[kind] and not CleanSection(npc[kind]) then npc[kind] = nil end
     end
     CleanSpots(npc, DB.MAX_SPOTS_NPC)
-    return npc.loot ~= nil or npc.skinning ~= nil
+
+    -- Kills: ganze Zahl, sonst weg
+    if npc.kills ~= nil then
+        npc.kills = IsCount(npc.kills) and math.floor(npc.kills) or nil
+        if npc.kills == 0 then npc.kills = nil end
+    end
+    return npc.loot ~= nil or npc.skinning ~= nil or npc.kills ~= nil
 end
 
 -- Namen der Instanzen prüfen: Nummer als Schlüssel, Text als Wert

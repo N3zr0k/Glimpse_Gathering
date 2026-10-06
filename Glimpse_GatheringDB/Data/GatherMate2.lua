@@ -124,21 +124,44 @@ end
 local provider = { name = NAME }
 provider.IsAvailable = IsAvailable
 
-function provider.GetSpots(kind, _, entry)
+-- Die Knoten-IDs von GatherMate2 sind die Objekt-IDs des Spiels (Silberblatt 1617, Kupfervorkommen 1731 ...),
+-- dieselben wie bei uns. Der Abgleich läuft deshalb zuerst über die ID, das geht in jeder Sprache. Der Name
+-- (GetIDForNode) ist der Ersatz, falls eine ID bei GatherMate2 anders vergeben ist.
+function provider.GetSpots(kind, id, entry)
     if kind ~= "node" or not IsAvailable() then return nil end
 
     local name = entry and entry.name
-    if type(name) ~= "string" or name == "" then return nil end
+    local hasName = type(name) == "string" and name ~= ""
+    if not hasName and type(id) ~= "number" then return nil end
 
     local gm = GM()
     local result = {}
-    for _, typ in ipairs(TYPES[entry.category] or TYPES.other) do
-        local nodeID = gm:GetIDForNode(typ, name)
-        local cells = nodeID and Index(gm, typ)[nodeID]
-        if cells then
-            for _, cell in pairs(cells) do
+    local function Collect(typ)
+        local seen = {}
+        local function Add(nodeID)
+            if not nodeID or seen[nodeID] then return end
+            seen[nodeID] = true
+            for _, cell in pairs(Index(gm, typ)[nodeID] or {}) do
                 tinsert(result, { map = cell.map, x = cell.sx / cell.n, y = cell.sy / cell.n, density = cell.n })
             end
+        end
+        Add(type(id) == "number" and id or nil)
+        if hasName then Add(gm:GetIDForNode(typ, name)) end
+    end
+
+    local types = TYPES[entry and entry.category] or TYPES.other
+    local tried = {}
+    for _, typ in ipairs(types) do
+        tried[typ] = true
+        Collect(typ)
+    end
+
+    -- Fehlt die Kategorie oder steht sie auf "other" (beim ersten Fund war nichts Eindeutiges dabei, z. B. nur ein
+    -- Edelstein), passt vielleicht ein Kräuter- oder Erzknoten: dann zählen ID und Name in den übrigen Typen. Bei
+    -- "herb" und "ore" ist die Kategorie sicher (aus der Beute), dort wird nicht geraten.
+    if #result == 0 and (not entry or entry.category == nil or entry.category == "other") then
+        for _, typ in ipairs(ALL_TYPES) do
+            if not tried[typ] then Collect(typ) end
         end
     end
     return result
@@ -198,14 +221,27 @@ function DB:DiagnoseGatherMate2()
 
     -- Wie viele unserer Knoten finden einen Partner
     local ours, matched = 0, 0
-    for _, node in pairs(DB.data.nodes) do
-        if type(node.name) == "string" then
-            ours = ours + 1
-            local list = provider.GetSpots("node", nil, node)
-            if list and #list > 0 then matched = matched + 1 end
-        end
+    for id, node in pairs(DB.data.nodes) do
+        ours = ours + 1
+        local list = provider.GetSpots("node", id, node)
+        if list and #list > 0 then matched = matched + 1 end
     end
     Add(format("Own nodes with a match in GatherMate2: %d of %d", matched, ours))
+
+    -- Welche Knoten finden einen Partner und welche nicht (mit Kategorie, sie wählt den Typ in GatherMate2)
+    local ids = {}
+    for id in pairs(DB.data.nodes) do tinsert(ids, id) end
+    table.sort(ids)
+    for index, id in ipairs(ids) do
+        if index > 30 then
+            Add("... " .. (#ids - 30) .. " more")
+            break
+        end
+        local node = DB.data.nodes[id]
+        local list = provider.GetSpots("node", id, node)
+        Add(format("  %d %s [%s]: %s", id, tostring(node.name), tostring(node.category), (list and #list > 0)
+            and (#list .. " places in GatherMate2") or "no match"))
+    end
     return lines
 end
 

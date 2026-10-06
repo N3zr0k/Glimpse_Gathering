@@ -74,6 +74,7 @@ function stub.reset()
         local frame = { events = {} }
         function frame:SetScript(_, func) self.onEvent = func end
         function frame:RegisterUnitEvent(event) self.events[event] = true end
+        function frame:RegisterEvent(event) self.events[event] = true end
         function frame:UnregisterAllEvents() self.events = {} end
         stub.frames[#stub.frames + 1] = frame
         return frame

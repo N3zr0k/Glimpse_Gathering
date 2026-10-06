@@ -159,6 +159,288 @@ test("Collect: Teilloot derselben Quelle zählt nicht doppelt", function()
     eq(e.DB:GetNode(1731).attempts, 1, "nur einmal")
 end)
 
+test("Collect: nachgewachsener Knoten mit gleicher GUID zählt wieder", function()
+    local e = setup()
+    stub.now = 10
+    e.cast("Kupfervorkommen")
+    e.loot({ { 101, NODE } })
+    stub.now = 300 -- Knoten ist nachgewachsen, gleiche GUID
+    e.cast("Kupfervorkommen")
+    e.loot({ { 101, NODE } })
+    eq(e.DB:GetNode(1731).attempts, 2, "beide Male erfasst")
+end)
+
+test("Collect: derselbe Knoten mehrmals hintereinander abgebaut zählt jedes Mal", function()
+    local e = setup()
+    stub.now = 10
+    e.cast("Kupfervorkommen")
+    e.loot({ { 101, NODE, 2 } })
+    stub.now = 14 -- gleich der nächste Abbau am selben Knoten, wenige Sekunden später
+    e.cast("Kupfervorkommen")
+    e.loot({ { 101, NODE, 3 } })
+    stub.now = 18
+    e.cast("Kupfervorkommen")
+    e.loot({ { 101, NODE, 1 } })
+    local node = e.DB:GetNode(1731)
+    eq(node.attempts, 3, "drei Abbauten")
+    eq(node.items[101].amount, 6, "alle Mengen")
+end)
+
+test("Collect: erneut geöffnetes Fenster desselben Abbaus zählt nicht, auch ohne SUCCEEDED", function()
+    local e = setup()
+    local frame = stub.frames[#stub.frames]
+    stub.now = 10
+    frame.onEvent(frame, "UNIT_SPELLCAST_SENT", "player", "Kupfervorkommen", "x", 1)
+    stub.now = 13
+    e.loot({ { 101, NODE } })
+    stub.now = 14
+    e.loot({ { 101, NODE } })
+    eq(e.DB:GetNode(1731).attempts, 1, "einmal")
+end)
+
+test("Collect: Knoten ohne UNIT_SPELLCAST_SUCCEEDED, aber mit abgeschicktem Zauber wird erfasst", function()
+    local e = setup()
+    local frame = stub.frames[#stub.frames]
+    stub.now = 10
+    frame.onEvent(frame, "UNIT_SPELLCAST_SENT", "player", "Kupfervorkommen", "x", 1)
+    stub.now = 13 -- Zauberdauer, danach das Beutefenster, kein SUCCEEDED
+    e.loot({ { 101, NODE } })
+    eq(e.DB:GetNode(1731) ~= nil, true, "erfasst")
+end)
+
+test("Collect: Debug nennt den Grund, wenn ein Knoten übersprungen wird", function()
+    local e = setup()
+    stub.now = 500
+    e.loot({ { 101, NODE } })
+    local text = table.concat(e.DB.debugLines, "\n")
+    eq(text:find("Knoten übersprungen: kein Zauber", 1, true) ~= nil, true, "Grund steht im Debug")
+end)
+
+-- Das Ziel stirbt: UNIT_HEALTH mit totem Ziel. tapDenied = ein anderer Spieler hat das Tap.
+local function withCombatLog(guid, tapDenied)
+    stub.units.target = { guid = guid, dead = true, tapDenied = tapDenied }
+    _G.UnitIsDead = function(unit) return stub.units[unit] and stub.units[unit].dead end
+    _G.UnitIsTapDenied = function(unit) return stub.units[unit] and stub.units[unit].tapDenied end
+    local frame = stub.frames[#stub.frames]
+    frame.onEvent(frame, "UNIT_HEALTH", "target")
+end
+
+test("Collect: Kill ohne Beutefenster zählt als Ersatz erst nach der Wartezeit", function()
+    local e = setup()
+    _G.CanLootUnit = function() return false, false end
+    stub.now = 100
+    withCombatLog(WOLF)
+    stub.now = 101.6
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot, nil, "Beutefenster hat Vorrang, noch nichts gezählt")
+    stub.now = 230
+    stub.flush()
+    _G.CanLootUnit = nil
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "Versuch ohne Beute")
+end)
+
+test("Collect: Kill einer Leiche mit Beute zählt erst beim Looten", function()
+    local e = setup()
+    _G.CanLootUnit = function() return true, true end
+    stub.now = 100
+    withCombatLog(WOLF)
+    stub.now = 101.6
+    stub.flush()
+    _G.CanLootUnit = nil
+    eq(e.DB:GetNPC(179891).loot, nil, "noch nichts gezählt")
+    stub.now = 105
+    e.loot({ { 102, WOLF } })
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "ein Versuch durch das Beutefenster")
+end)
+
+test("Collect: der Kill zählt nach der Wartezeit, ein Beutefenster davor hat Vorrang", function()
+    local e = setup()
+    stub.now = 100
+    withCombatLog(WOLF)
+    stub.now = 101.6
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot, nil, "wartet noch")
+    stub.now = 230
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "nach der Wartezeit gezählt")
+
+    -- zweite Kreatur wird vorher gelootet: kein doppelter Versuch
+    local other = "Creature-0-3131-2552-14367-555-0000A5C2B1"
+    stub.now = 300
+    withCombatLog(other)
+    stub.now = 302
+    stub.flush()
+    e.loot({ { 102, other } })
+    stub.now = 500
+    stub.flush()
+    eq(e.DB:GetNPC(555).loot.attempts, 1, "genau ein Versuch")
+    eq(e.DB:GetNPC(555).loot.items[102].hits, 1, "Beute gezählt")
+end)
+
+test("Collect: Beute nach einem als leer gezählten Kill kommt dazu, ohne neuen Versuch", function()
+    local e = setup()
+    stub.now = 100
+    withCombatLog(WOLF)
+    stub.now = 101.6
+    stub.flush()
+    stub.now = 230
+    stub.flush()                 -- Ersatz greift: Kill zählt als leerer Versuch
+    stub.now = 250
+    e.loot({ { 102, WOLF } })    -- Beutefenster geht doch noch auf
+    local npc = e.DB:GetNPC(179891)
+    eq(npc.loot.attempts, 1, "weiter ein Versuch")
+    eq(npc.loot.items[102].hits, 1, "Beute trotzdem erfasst")
+    eq(npc.skinning, nil, "kein Kürschnern")
+end)
+
+test("Collect: Kills werden getrennt von den Versuchen gezählt", function()
+    local e = setup()
+    stub.now = 100
+    withCombatLog(WOLF)
+    stub.now = 101.6
+    stub.flush()
+    eq(e.DB:GetNPCKills(179891), 1, "Kill gezählt, noch ohne Versuch")
+    eq(e.DB:GetNPC(179891).loot, nil, "kein Versuch")
+
+    -- dieselbe Leiche stirbt im Event mehrfach (UNIT_HEALTH kommt oft): ein Kill
+    stub.now = 102
+    withCombatLog(WOLF)
+    stub.flush()
+    eq(e.DB:GetNPCKills(179891), 1, "weiter ein Kill")
+
+    -- zweite Leiche gleicher Art (andere GUID)
+    local other = "Creature-0-3131-2552-14367-179891-0000A5C2B2"
+    stub.now = 110
+    withCombatLog(other)
+    stub.flush()
+    eq(e.DB:GetNPCKills(179891), 2, "zwei Kills")
+    local _, _, _, _, kills = e.DB:GetStats()
+    eq(kills, 2, "Kills in den Statistiken")
+end)
+
+test("Collect: gelootete Leiche zählt auch als Kill, auch ohne Kill im Ziel", function()
+    local e = setup()
+    stub.now = 100
+    e.loot({ { 102, WOLF } })
+    eq(e.DB:GetNPCKills(179891), 1, "Kill durch das Beutefenster")
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "Versuch")
+
+    stub.now = 140
+    e.cast()
+    e.loot({ { 100, WOLF } }) -- Kürschnern derselben Leiche
+    eq(e.DB:GetNPCKills(179891), 1, "Kürschnern ist kein zweiter Kill")
+end)
+
+test("Collect: Kill im Ziel und anschließendes Looten zählen den Kill nur einmal", function()
+    local e = setup()
+    stub.now = 100
+    withCombatLog(WOLF)
+    stub.now = 101.6
+    stub.flush()
+    stub.now = 105
+    e.loot({ { 102, WOLF } })
+    eq(e.DB:GetNPCKills(179891), 1, "ein Kill")
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "ein Versuch")
+end)
+
+test("Collect: ohne Aufzeichnung keine Kills", function()
+    local e = setup()
+    e.DB.db.profile.recording = false
+    stub.now = 100
+    withCombatLog(WOLF)
+    stub.now = 102
+    stub.flush()
+    eq(e.DB:GetNPCKills(179891), 0, "nichts gezählt")
+end)
+
+test("Collect: Kill wird auch beim Zielwechsel auf eine Leiche und am Kampfende erkannt", function()
+    local e = setup()
+    local frame = stub.frames[#stub.frames]
+    _G.UnitIsDead = function(unit) return stub.units[unit] and stub.units[unit].dead end
+    _G.UnitIsTapDenied = function(unit) return stub.units[unit] and stub.units[unit].tapDenied end
+
+    stub.now = 100
+    stub.units.target = { guid = WOLF, dead = true }
+    frame.onEvent(frame, "PLAYER_TARGET_CHANGED")
+    eq(e.DB:GetNPCKills(179891), 1, "Zielwechsel auf die Leiche")
+
+    local other = "Creature-0-3131-2552-14367-555-0000A5C2B1"
+    stub.units.target = { guid = other, dead = true }
+    frame.onEvent(frame, "PLAYER_REGEN_ENABLED")
+    eq(e.DB:GetNPCKills(555), 1, "Kampfende")
+end)
+
+test("Collect: geschützte GUID im Kampf: die zuletzt lesbare GUID des Ziels gilt", function()
+    local e = setup()
+    local frame = stub.frames[#stub.frames]
+    local Glimpse = LibStub():GetAddon()
+    function Glimpse:IsSecret(value) return value == "SECRET" end
+    _G.UnitIsDead = function(unit) return stub.units[unit] and stub.units[unit].dead end
+    _G.UnitIsTapDenied = function() return false end
+
+    stub.now = 100
+    stub.units.target = { guid = WOLF, dead = false }
+    frame.onEvent(frame, "PLAYER_TARGET_CHANGED")       -- GUID lesbar, Ziel lebt
+    stub.units.target = { guid = "SECRET", dead = true } -- im Kampf geschützt, Ziel stirbt
+    frame.onEvent(frame, "UNIT_HEALTH", "target")
+    eq(e.DB:GetNPCKills(179891), 1, "Kill mit der gemerkten GUID")
+
+    -- anderes Ziel mit geschützter GUID: nichts raten
+    stub.units.target = { guid = "SECRET", dead = false }
+    frame.onEvent(frame, "PLAYER_TARGET_CHANGED")
+    stub.units.target = { guid = "SECRET", dead = true }
+    frame.onEvent(frame, "UNIT_HEALTH", "target")
+    eq(e.DB:GetNPC(179891).kills, 1, "kein zweiter Kill durch die alte GUID")
+    local text = table.concat(e.DB.debugLines, "\n")
+    eq(text:find("GUID ist unbekannt", 1, true) ~= nil, true, "Debug nennt den Grund")
+end)
+
+test("Collect: Kills mit fremdem Tap zählen nicht, eigene Kills schon", function()
+    local e = setup()
+    stub.now = 100
+    withCombatLog(WOLF, true)
+    stub.now = 102
+    stub.flush()
+    stub.now = 230
+    stub.flush()
+    eq(e.DB:GetNPC(179891), nil, "fremder Kill ignoriert")
+    withCombatLog(WOLF)
+    stub.now = 232
+    stub.flush()
+    stub.now = 400
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "eigener Kill gezählt")
+end)
+
+test("Collect: Kills nur von Kreaturen, nicht von Spielern", function()
+    local e = setup()
+    stub.now = 100
+    withCombatLog("Player-9-0000A5C2B1")
+    stub.now = 102
+    stub.flush()
+    stub.now = 230
+    stub.flush()
+    eq(next(e.DB.data.npcs), nil, "nichts gespeichert")
+end)
+
+test("Collect: Leiche, die nach langer Zeit mit gleicher GUID wiederkommt, ist neue Normalbeute", function()
+    local e = setup()
+    stub.now = 100
+    e.loot({ { 102, WOLF } })
+    stub.now = 1000 -- Respawn mit gleicher GUID
+    e.loot({ { 102, WOLF } })
+    local npc = e.DB:GetNPC(179891)
+    eq(npc.loot.attempts, 2, "zwei Normalbeuten")
+    eq(npc.skinning, nil, "kein Kürschnern")
+end)
+
+test("Collect: der Kampflog wird nicht registriert (für Addons gesperrt)", function()
+    setup()
+    local frame = stub.frames[#stub.frames]
+    eq(frame.events["COMBAT_LOG_EVENT_UNFILTERED"], nil, "kein Kampflog")
+    eq(frame.events["UNIT_HEALTH"], true, "Zieltod wird beobachtet")
+end)
+
 test("Collect: Aufzeichnung aus = nichts wird gespeichert", function()
     local e = setup()
     e.DB.db.profile.recording = false

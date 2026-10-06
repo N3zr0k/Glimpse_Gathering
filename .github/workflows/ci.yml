@@ -46,22 +46,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    outputs:
-      created: ${{ steps.tag.outputs.created }}
-      tag: ${{ steps.tag.outputs.tag }}
+      actions: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Tag anlegen, wenn die TOC-Version neu ist
-        id: tag
         run: |
           version="$(python3 tools/check.py --version)"
           final="v$version"
           if git rev-parse -q --verify "refs/tags/$final" > /dev/null; then
             echo "Tag $final existiert schon, nichts zu tun."
-            echo "created=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if grep -Eq "^##[[:space:]]*\[?$(printf '%s' "$version" | sed 's/\./\\./g')\]?" CHANGELOG.md; then
@@ -69,28 +67,17 @@ jobs:
           elif grep -Eiq '^##[[:space:]]*\[?Unreleased\]?' CHANGELOG.md; then
             if [ -n "$(git tag -l "$final-beta.*")" ]; then
               echo "Für $version gibt es schon eine Vorabversion, nichts zu tun."
-              echo "created=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             tag="$final-beta.1"               # nur Unreleased: Vorabversion
           else
             tag="$final"                      # check.py meldet den fehlenden Abschnitt
           fi
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
           # TOC-Versionen und CHANGELOG müssen zum Tag passen, sonst gibt es kein Tag
           python3 tools/check.py --tag "$tag"
           git tag "$tag" "$GITHUB_SHA"
           git push origin "refs/tags/$tag"
-          echo "created=true" >> "$GITHUB_OUTPUT"
-
-  # Ein Tag, das mit dem GITHUB_TOKEN gepusht wird, löst keinen anderen Workflow aus.
-  # Deshalb wird das Release hier direkt aufgerufen.
-  release:
-    needs: tag
-    if: needs.tag.outputs.created == 'true'
-    permissions:
-      contents: write
-    uses: ./.github/workflows/release.yml
-    with:
-      tag: ${{ needs.tag.outputs.tag }}
-    secrets: inherit
+          # Ein mit dem GITHUB_TOKEN gepushtes Tag startet keinen Push-Workflow. Der Release-Workflow
+          # wird deshalb ausdrücklich auf dem Tag gestartet (dispatch ist für das Token erlaubt).
+          gh workflow run release.yml --ref "$tag"
+          echo "Release-Workflow für $tag gestartet."

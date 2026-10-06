@@ -223,6 +223,11 @@ function GT:UpdateWaypointListener()
         end
     end
 
+    -- Im Kampf sind Tastatur-Aufrufe geschützt (der Client meldet sonst "Interface-Aktion aufgrund eines
+    -- Addons fehlgeschlagen"; ein pcall unterdrückt diese Meldung nicht). Dann bleibt der Zustand, wie er ist,
+    -- und PLAYER_REGEN_ENABLED stellt ihn nach dem Kampf nach.
+    if InCombatLockdown and InCombatLockdown() then return end
+
     local wanted = self:HasWaypointTarget()
     pcall(function()
         listener:EnableKeyboard(wanted)

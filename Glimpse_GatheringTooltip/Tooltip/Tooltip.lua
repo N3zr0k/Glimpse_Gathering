@@ -8,11 +8,14 @@ local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfo
 -- Die Zeilen im Tooltip. Anhängen, Trennlinie, Icon links und der Schutz vor Secret-Werten
 -- übernimmt Glimpse (RegisterTooltipLine), hier wird nur festgelegt, was drinsteht:
 --
---   Gesammelt (14 Versuche)
---   [Icon] Silberblatt          93 %
---   [Icon] Erdwurzel            21 %  Ø 1.4   (Ø = Menge je Fund)
---   Kürschnern (6 Versuche)
+--   Gesammelt
+--   [Icon] Silberblatt          93 %  (13/14)  Ø 1.0
+--   [Icon] Erdwurzel            21 %  (3/14)   Ø 1.4   (Ø = Menge je Fund)
+--   Kürschnern
 --   ...
+--
+-- Die Zeilen sehen wie die Quellen im Tooltip eines Items aus: Chance, Treffer/Versuche (Option "Versuche
+-- anzeigen") und Menge. Ohne die Treffer/Versuche steht die Zahl der Versuche hinter der Überschrift.
 --
 -- Im Tooltip eines Handwerksmaterials steht die wahrscheinlichste Quelle:
 --
@@ -46,7 +49,7 @@ local function ItemName(itemID)
 end
 
 -- Rechte Spalte: Chance in Prozent und die durchschnittliche Menge je Fund
--- Mit withAttempts (nur bei Quellen): dahinter Treffer und Versuche, z. B. (13/14), damit man sieht, wie
+-- Mit withAttempts (Quellen eines Items, Beute von Knoten und Kreaturen): dahinter Treffer und Versuche, z. B. (13/14), damit man sieht, wie
 -- belastbar die Chance ist (1 von 1 sind auch 100 %)
 local function ChanceText(drop, withAttempts)
     local text = format("%d %%", math.floor(drop.chance * 100 + 0.5))
@@ -60,15 +63,16 @@ end
 local function AddSection(rows, title, drops, attempts, profile)
     if #drops == 0 or attempts < profile.minAttempts then return end
 
-    tinsert(rows, {
-        Colored(title, unpack(HEADER_COLOR)) .. "  " .. GREY .. format(L["%d attempts"], attempts) .. "|r",
-    })
+    -- Mit Treffer/Versuche in jeder Zeile wäre die Zahl der Versuche in der Überschrift doppelt
+    local header = Colored(title, unpack(HEADER_COLOR))
+    if not profile.showAttempts then header = header .. "  " .. GREY .. format(L["%d attempts"], attempts) .. "|r" end
+    tinsert(rows, { header })
 
     for index = 1, math.min(#drops, profile.maxItems) do
         local drop = drops[index]
         local _, _, _, _, icon = GetItemInfoInstant(drop.itemID)
 
-        tinsert(rows, { ItemName(drop.itemID), ChanceText(drop), 1, 1, 1, icon = icon })
+        tinsert(rows, { ItemName(drop.itemID), ChanceText(drop, profile.showAttempts), 1, 1, 1, icon = icon })
     end
 end
 

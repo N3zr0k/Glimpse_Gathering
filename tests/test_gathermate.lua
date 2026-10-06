@@ -125,6 +125,45 @@ test("GatherMate2: Kategorie bestimmt den Typ, Name den Knoten", function()
     teardown()
 end)
 
+test("GatherMate2: falsche Kategorie (other statt Erz) findet den Knoten trotzdem über den Namen", function()
+    local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 }, { 0.20, 0.80, 2 } } } })
+    DB:RecordNode(11, { name = "Kupfervorkommen", category = "other" }, { [101] = 1 }, { map = 37, x = 0.40, y = 0.10 })
+    local spots = DB:GetSpots("node", 11)
+    eq(#spots, 3, "eigener Ort und zwei aus GatherMate2")
+    DB:RecordNode(12, { name = "Kupfervorkommen" }, { [101] = 1 }, { map = 37, x = 0.45, y = 0.15 }) -- ohne Kategorie
+    eq(#DB:GetSpots("node", 12) >= 3, true, "ohne Kategorie ebenso")
+    teardown()
+end)
+
+test("GatherMate2: Prüfausgabe listet jeden Knoten mit Kategorie und Treffern", function()
+    local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
+    DB:RecordNode(11, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(12, { name = "Unbekannt", category = "ore" }, { [101] = 1 })
+    local text = table.concat(DB:DiagnoseGatherMate2(), "\n")
+    eq(text:find("11 Kupfervorkommen [ore]: 1 places in GatherMate2", 1, true) ~= nil, true, "Treffer mit Kategorie")
+    eq(text:find("12 Unbekannt [ore]: no match", 1, true) ~= nil, true, "kein Treffer")
+    teardown()
+end)
+
+test("GatherMate2: Abgleich über die Objekt-ID, auch wenn der Name nicht passt", function()
+    -- Kupfervorkommen hat in GatherMate2 die ID des Spiels (1731); der Name in unserer Sprache findet dort nichts
+    local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 1731 }, { 0.20, 0.80, 1731 } } } })
+    DB:RecordNode(1731, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 }, { map = 37, x = 0.40, y = 0.10 })
+    local spots = DB:GetSpots("node", 1731)
+    eq(#spots, 3, "eigener Ort und zwei aus GatherMate2 über die ID")
+    eq(spots[2].source, "GatherMate2", "Anbieter")
+
+    -- ohne Namen geht es auch
+    DB.data.nodes[1731].name = nil
+    eq(#DB:GetSpots("node", 1731), 3, "ohne Namen")
+
+    -- ID und Name zeigen auf denselben Knoten: kein doppelter Eintrag
+    local DB2 = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
+    DB2:RecordNode(2, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 })
+    eq(#DB2:GetSpots("node", 2), 1, "kein Doppel bei gleicher ID")
+    teardown()
+end)
+
 test("GatherMate2: Kreaturen und unbekannte Quellen bekommen nichts", function()
     local DB = setup(HERBS)
     DB:RecordNPC(77, "loot", { name = "Wolf" }, { [102] = 1 }, { map = 10, x = 0.5, y = 0.5 })

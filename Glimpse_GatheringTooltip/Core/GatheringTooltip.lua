@@ -57,6 +57,7 @@ function GT:OnEnable()
     self:RegisterTooltips()
     self:RegisterEvent("GET_ITEM_INFO_RECEIVED", "OnItemInfo")
     self:RegisterEvent("MODIFIER_STATE_CHANGED", "OnModifierChanged")
+    self:RegisterEvent("PLAYER_REGEN_ENABLED", "UpdateWaypointListener") -- Tastaturabfrage nach dem Kampf nachstellen
 end
 
 -- Beim Drücken oder Loslassen den sichtbaren Tooltip neu aufbauen, aber nur wenn Tasten verlangt sind

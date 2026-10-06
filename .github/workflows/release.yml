@@ -1,23 +1,19 @@
 name: Release
 
 # Ein Tag wie v0.2.0 baut das Paket und legt ein GitHub-Release an. Das Tag muss zur Version in
-# der TOC und zu einem Abschnitt im CHANGELOG passen (prüft tools/check.py).
+# der TOC und zu einem Abschnitt im CHANGELOG passen (prüft tools/check.py). Tags mit "-beta"
+# (z. B. v0.2.1-beta.1) werden als Prerelease veröffentlicht; dafür reicht "## [Unreleased]".
 #
-# Normalerweise setzt die CI das Tag selbst: steht in der TOC eine Version, zu der es noch kein Tag
-# gibt, und ist die Pipeline sauber durchgelaufen, legt ci.yml das Tag an und ruft diesen Workflow
-# auf (workflow_call). Ein von Hand gepushtes Tag funktioniert weiterhin.
+# Normalerweise setzt die CI das Tag selbst (ci.yml) und startet diesen Workflow danach per
+# workflow_dispatch auf dem Tag. Das ist nötig, weil ein mit dem GITHUB_TOKEN gepushtes Tag
+# keinen Push-Workflow auslöst. Ein von Hand gepushtes Tag funktioniert weiterhin.
 # CurseForge, Wago und WoWInterface werden nur bedient, wenn das jeweilige Secret gesetzt ist
 # (siehe README, Abschnitt Veröffentlichen).
 
 on:
   push:
     tags: ["v*"]
-  workflow_call:
-    inputs:
-      tag:
-        description: "Tag, der veröffentlicht wird (z. B. v0.2.1)"
-        required: true
-        type: string
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -26,7 +22,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ inputs.tag || github.ref_name }}
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
       CF_API_KEY: ${{ secrets.CF_API_KEY }}
       WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
@@ -41,3 +38,14 @@ jobs:
 
       - name: Paket bauen und veröffentlichen
         uses: BigWigsMods/packager@v2
+
+      # Sicherheitsnetz: Vorabversionen müssen auf GitHub als Prerelease erscheinen, auch wenn der
+      # Packager das Release nicht selbst angelegt oder markiert hat.
+      - name: Prerelease sicherstellen
+        if: contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha')
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --prerelease
+          else
+            gh release create "$TAG" --prerelease --title "$TAG" --generate-notes .release/*.zip
+          fi

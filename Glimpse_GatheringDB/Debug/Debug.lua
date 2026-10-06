@@ -215,6 +215,7 @@ local function UnitLines(module, id)
 
     tinsert(lines, Line(L["Name"] .. ": " .. tostring(npc.name or "?")))
     if npc.level then tinsert(lines, Line(L["Level"] .. ": " .. npc.level)) end
+    if npc.kills then tinsert(lines, Line(L["Kills"] .. ": " .. npc.kills)) end
 
     for _, kind in ipairs({ "loot", "skinning" }) do
         if npc[kind] then

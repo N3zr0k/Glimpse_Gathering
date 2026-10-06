@@ -288,6 +288,7 @@ local function MergeData(self, incoming)
         else
             target.name = target.name or npc.name
             target.level = target.level or npc.level
+            if npc.kills then target.kills = math.min((target.kills or 0) + npc.kills, COUNT_MAX) end
             for _, kind in ipairs({ "loot", "skinning" }) do
                 if npc[kind] then
                     target[kind] = target[kind] or { attempts = 0, items = {} }

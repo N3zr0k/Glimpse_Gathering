@@ -202,6 +202,60 @@ test("Tooltip: Treffer und Versuche hinter der Chance", function()
     eq(rows[2][2], "93 %  |cff999999Avg. 1.0|r", "ohne Versuche")
 end)
 
+-- Tooltip eines Knotens oder einer Kreatur: gleiche Zeilen wie bei den Quellen eines Items
+local function sourceRows(profile, kind, data)
+    local GT = setup(profile)
+    local Glimpse = LibStub():GetAddon()
+    function Glimpse:ModifiersHeld() return true end
+    GT.IsLearned = function() return true end
+    GT.db.profile.showNodes, GT.db.profile.showLoot, GT.db.profile.showSkinning = true, true, true
+    GT.db.profile.minAttempts, GT.db.profile.maxItems = 1, 5
+
+    local drops = {
+        { itemID = 100, hits = 22, attempts = 22, amount = 22, chance = 1, average = 1 },
+        { itemID = 101, hits = 11, attempts = 22, amount = 17, chance = 0.5, average = 17 / 11 },
+    }
+    GT.data.GetNode = function() return { category = "ore" } end
+    GT.data.FindNodeIDs = function() return {} end
+    GT.data.GetNodeDrops = function() return drops, 22 end
+    GT.data.GetNPCDrops = function() return drops, 22 end
+
+    _G.C_Item = {
+        GetItemNameByID = function(id) return "Item" .. id end,
+        GetItemQualityByID = function() return 1 end,
+        RequestLoadItemDataByID = function() end,
+        GetItemInfoInstant = function() return 0, "", "", "", "icon" end,
+    }
+    _G.ITEM_QUALITY_COLORS = { [1] = { r = 1, g = 1, b = 1 } }
+    _G.Enum.TooltipDataType = { Object = 1, Unit = 2, Item = 3 }
+
+    local callbacks = {}
+    function GT:RegisterTooltipLine(k, func) callbacks[k] = func end
+    stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    GT:RegisterTooltips()
+    return callbacks[kind == "node" and 1 or 2](GT, data, {})
+end
+
+test("Tooltip: Knoten zeigt Treffer/Versuche wie die Quellen eines Items, ohne Zahl in der Überschrift", function()
+    local rows = sourceRows({}, "node", { guid = "GameObject-0-1-2-3-1731-0000A5C2B1" })
+    eq(plain(rows[1][1]), "Gathered", "Überschrift ohne Versuche")
+    eq(rows[2][2], "100 %  |cff999999(22/22)|r  |cff999999Avg. 1.0|r", "Kupfererz")
+    eq(rows[3][2], "50 %  |cff999999(11/22)|r  |cff999999Avg. 1.5|r", "Rauer Stein")
+    eq(rows[2].icon, "icon", "Item-Symbol")
+end)
+
+test("Tooltip: Kreatur zeigt Treffer/Versuche je Zeile", function()
+    local rows = sourceRows({}, "npc", { guid = "Creature-0-1-2-3-179891-0000A5C2B1" })
+    eq(plain(rows[1][1]), "Loot", "Überschrift")
+    eq(rows[3][2]:find("(11/22)", 1, true) ~= nil, true, "Treffer/Versuche")
+end)
+
+test("Tooltip: ohne Option Versuche anzeigen steht die Zahl in der Überschrift", function()
+    local rows = sourceRows({ showAttempts = false }, "node", { guid = "GameObject-0-1-2-3-1731-0000A5C2B1" })
+    eq(plain(rows[1][1]), "Gathered  22 attempts", "Versuche in der Überschrift")
+    eq(rows[3][2], "50 %  |cff999999Avg. 1.5|r", "Zeile ohne Treffer/Versuche")
+end)
+
 test("Tooltip: nur so viele Orte wie eingestellt", function()
     local GT = setup()
     local sources = {}
@@ -519,4 +573,23 @@ test("Tooltip: Bildnachweis für die Credits der Optionsseite", function()
     eq(credits.images[1]:find("Karacis |cff66ccff(", 1, true) ~= nil, true, "Autor und Flaticon")
     eq(credits.images[1]:find("|cff66ccff(https://www.flaticon.com/", 1, true) ~= nil, true, "Link blau in Klammern")
     eq(credits.images[1]:sub(-3), ")|r", "Klammer und Farbe geschlossen")
+end)
+
+test("Waypoint: im Kampf wird die Tastaturabfrage nicht angefasst (geschützte Aufrufe)", function()
+    local GT = setup()
+    local calls = {}
+    GT:SetWaypointTarget({ map = 37, x = 0.4, y = 0.6 }, "Silberblatt") -- legt die Abfrage an
+    local listener = stub.frames[#stub.frames]
+    function listener:EnableKeyboard(on) calls[#calls + 1] = "keyboard:" .. tostring(on) end
+    function listener:SetPropagateKeyboardInput(on) calls[#calls + 1] = "propagate:" .. tostring(on) end
+
+    _G.InCombatLockdown = function() return true end
+    GT:SetWaypointTarget(nil)
+    GT:SetWaypointTarget({ map = 37, x = 0.4, y = 0.6 }, "Silberblatt")
+    eq(#calls, 0, "im Kampf keine Aufrufe")
+
+    _G.InCombatLockdown = function() return false end
+    GT:UpdateWaypointListener() -- PLAYER_REGEN_ENABLED
+    eq(calls[1], "keyboard:true", "nach dem Kampf nachgestellt")
+    _G.InCombatLockdown = nil
 end)

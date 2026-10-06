@@ -33,7 +33,7 @@ ln -s ~/dev/Glimpse_Gathering/Glimpse_GatheringTooltip "<AddOns>/Glimpse_Gatheri
 
 Änderungen sind dann nach `/reload` im Spiel.
 
-## Öffentliche Schnittstelle von GatheringDB (API_VERSION 5)
+## Öffentliche Schnittstelle von GatheringDB (API_VERSION 6)
 
 Erreichbar über `Glimpse.GatheringDB` (oder `Glimpse:GetModule("GatheringDB")`). Die zurückgegebenen
 Tabellen sind nur zum Lesen gedacht.
@@ -41,12 +41,13 @@ Tabellen sind nur zum Lesen gedacht.
 | Funktion | Rückgabe |
 | --- | --- |
 | `:GetNode(id)` / `:GetNPC(id)` | Rohdaten oder nil |
-| `:GetNodeDrops(id)` | Liste der Beute, Zahl der Versuche |
+| `:GetNodeDrops(id)` | Liste der Beute (je Eintrag `itemID`, `hits`, `attempts`, `amount`, `chance`, `average`), Zahl der Versuche |
 | `:GetNPCDrops(id, kind)` | dasselbe, `kind` = `"loot"` oder `"skinning"` |
 | `:GetNodeDropsByName(name)` | wie `GetNodeDrops`, über den Namen (mehrere IDs zusammengerechnet) |
 | `:FindNodeIDs(name)` / `:GetTooltipName(tooltip)` | Namenssuche für Weltobjekte ohne ID |
 | `:GetItemSources(itemID, minAttempts)` | alle Quellen eines Items, wahrscheinlichste zuerst |
-| `:GetStats()` | Knoten, Kreaturen, erfasste Beutefenster, Fundorte |
+| `:GetStats()` | Knoten, Kreaturen, erfasste Beutefenster, Fundorte, Kills |
+| `:GetNPCKills(id)` | Zahl der Kills einer Kreatur (eigener Zähler, unabhängig von den Versuchen) |
 | `:GetSpots(kind, id, includeExternal)` | Fundorte einer Quelle: Liste `{ map, x, y, count, source }` (x, y = 0..1); Beute aus Instanzen: `{ instance, name, count, source }` ohne `map`, `x`, `y` (kein Wegpunkt möglich). Erst die eigenen (`source = "own"`, häufigste zuerst), dann fremde (`source = "GatherMate2"`, `count = 0`, `density` = Punkte dort); `includeExternal = false` liefert nur eigene |
 | `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
 | `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung: `distance` in Yards (nur wenn die Kartengröße bekannt ist), `mapDistance` als Bruchteil der Kartenbreite |
@@ -63,7 +64,7 @@ attempts, hits, amount, chance, average }`.
 
 Nachricht bei jeder Änderung: `GLIMPSE_GATHERING_UPDATED (kind, id)` (`kind` = `"node"`, `"npc"` oder `"reset"`).
 
-Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt).
+Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt; 6 = `GetNPCKills`, `GetStats` liefert die Kills als fünften Wert).
 
 Für TomTom: `GetSpots`/`GetItemSpots` liefern `map` (uiMapID) und `x`, `y` als Bruchteil 0..1, also direkt
 `TomTom:AddWaypoint(spot.map, spot.x, spot.y, { title = ... })`.
@@ -79,7 +80,7 @@ spots           = { { map = uiMapID, x, y (ganze Zahlen 1..10000 = 1/10000 der K
                     { inst = instanceID, n = Funde } }   -- Beute in einer Instanz: ohne Karte und Koordinaten
 instances[id]   = Name der Instanz (zuletzt gesehen, nur für vorhandene Fundorte)
 imports[id]     = Zeitpunkt (bereits zusammengeführte Exporte, höchstens 50)
-version         = Datenformat (DATA_VERSION = 3 in Core/GatheringDB.lua)
+version         = Datenformat (DATA_VERSION = 5 in Core/GatheringDB.lua)
 ```
 
 * Fundorte (`spots`, auch bei Knoten) werden beim Öffnen des Beutefensters gelesen (Option `trackLocations`).

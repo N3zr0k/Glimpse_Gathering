@@ -6,7 +6,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- account-weit, und zwar nur Handwerksmaterialien. Angezeigt wird nichts (außer im Debug-Modus),
 -- das übernehmen andere Addons (z. B. GatheringTooltip).
 --
--- Öffentliche Schnittstelle (API_VERSION 5), erreichbar über Glimpse.GatheringDB:
+-- Öffentliche Schnittstelle (API_VERSION 6), erreichbar über Glimpse.GatheringDB:
 --   :GetNode(id)               Eintrag eines Sammelknotens oder nil
 --   :GetNPC(id)                Eintrag einer Kreatur oder nil
 --   :GetNodeDrops(id)          Liste der Beute eines Knotens, dazu die Zahl der Versuche
@@ -16,7 +16,8 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --   :GetNodeDropsByName(name)  wie GetNodeDrops, über den Namen (mehrere IDs zusammengerechnet)
 --   :GetItemSources(itemID, minAttempts)
 --                              alle Quellen eines Items, die wahrscheinlichste zuerst
---   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster und Fundorte
+--   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster, Fundorte und Kills
+--   :GetNPCKills(id)           Zahl der Kills einer Kreatur (eigener Zähler, unabhängig von den Versuchen)
 --   :GetSpots(kind, id, includeExternal)
 --                              Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count, source };
 --                              in Instanzen gelootet: { instance, name, count, source } ohne map, x und y,
@@ -43,7 +44,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- Aufbau in Data/Store.lua, Erfassung in Loot/Collect.lua, Debug-Anzeige in Debug/Debug.lua.
 local DB = Glimpse:NewModule("GatheringDB", nil, "AceEvent-3.0")
 DB.L = L
-DB.API_VERSION = 5
+DB.API_VERSION = 6
 DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
 
 -- Damit andere Addons ohne GetModule drankommen
@@ -54,13 +55,16 @@ Glimpse.GatheringDB = DB
 --   1: Knoten und Kreaturen mit Beute
 --   2: dazu Fundorte (spots) und die Liste schon importierter Exporte (imports)
 --   3: Fundorte können auch eine Instanz sein ({ inst, n } statt { map, x, y, n }), instances = Namen der Instanzen
-local DATA_VERSION = 3
+local DATA_VERSION = 5
 DB.DATA_VERSION = DATA_VERSION
+-- Die Version steht bewusst NICHT in den Defaults: AceDB lässt beim Speichern alle Werte weg, die dem Default
+-- gleichen. Mit einem Default wäre die gespeicherte Version nach dem Logout verschwunden und beim nächsten Laden
+-- immer die aktuelle gewesen, die Umstellung (Data/Migrate.lua) wäre nie gelaufen. Ohne Eintrag gilt Version 1,
+-- alle Schritte laufen (sie sind wiederholbar), danach steht die Version fest in der Datei.
 local dataDefaults = {
     global = {
-        version = DATA_VERSION,
         nodes = {}, -- [objectID] = { name, category, attempts, items = { [itemID] = { hits, amount } }, spots }
-        npcs = {},  -- [npcID] = { name, level, loot = { attempts, items }, skinning = { attempts, items }, spots }
+        npcs = {},  -- [npcID] = { name, level, kills, loot = { attempts, items }, skinning = { attempts, items }, spots }
         instances = {}, -- [instanceID] = Name der Instanz, für Fundorte in Instanzen
         imports = {}, -- [Export-ID] = Zeitpunkt, damit derselbe Export nicht zweimal zusammengeführt wird
     },

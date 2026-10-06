@@ -7,10 +7,11 @@ local function OnCommand(_, args)
     args = strlower(args or "")
 
     if args == "stats" then
-        local nodes, npcs, attempts, spots = DB:GetStats()
+        local nodes, npcs, attempts, spots, kills = DB:GetStats()
         Glimpse:Print(format(L["Gathering nodes: %d"], nodes))
         Glimpse:Print(format(L["Creatures: %d"], npcs))
         Glimpse:Print(format(L["Recorded loot windows: %d"], attempts))
+        Glimpse:Print(format(L["Kills: %d"], kills))
         Glimpse:Print(format(L["Locations: %d"], spots))
         local text = DB:ProviderStatistics()
         if text ~= "" then Glimpse:Print(text) end

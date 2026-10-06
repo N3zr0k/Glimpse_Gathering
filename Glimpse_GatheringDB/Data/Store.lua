@@ -119,8 +119,7 @@ end
 -- Ein Beutefenster zu einem Abschnitt { attempts, items } zählen.
 -- items ist { [itemID] = Menge } aus genau diesem Fenster. hits zählt, in wie vielen Versuchen
 -- das Item vorkam (daraus ergibt sich die Chance), amount die Gesamtmenge.
-local function CountAttempt(section, items)
-    section.attempts = (section.attempts or 0) + 1
+local function AddItems(section, items)
     section.items = section.items or {}
 
     for itemID, amount in pairs(items) do
@@ -132,6 +131,11 @@ local function CountAttempt(section, items)
         record.hits = record.hits + 1
         record.amount = record.amount + amount
     end
+end
+
+local function CountAttempt(section, items)
+    section.attempts = (section.attempts or 0) + 1
+    AddItems(section, items)
 end
 
 --- Zählt ein Beutefenster eines Sammelknotens. info = { name, category }, beides optional.
@@ -197,6 +201,7 @@ local function BuildDrops(section)
         tinsert(list, {
             itemID = itemID,
             hits = record.hits,
+            attempts = attempts,
             amount = record.amount,
             chance = record.hits / attempts,
             average = record.amount / record.hits,
@@ -211,6 +216,45 @@ local function BuildDrops(section)
 end
 
 --- Eintrag eines Sammelknotens (nur lesen!) oder nil.
+--- Zählt einen Kill der Kreatur (eigener Zähler, unabhängig von den Beutefenstern und Versuchen).
+function DB:RecordKill(id, info)
+    id = tonumber(id)
+    if not id then return end
+
+    local npc = self.data.npcs[id]
+    if not npc then
+        npc = {}
+        self.data.npcs[id] = npc
+    end
+
+    if info then
+        npc.name = npc.name or info.name
+        npc.level = npc.level or info.level
+    end
+
+    npc.kills = (npc.kills or 0) + 1
+    self:EnforceLimits()
+    self:SendMessage(self.MESSAGE_UPDATED, "npc", id)
+end
+
+--- Zahl der Kills einer Kreatur (0, wenn keine gezählt wurden)
+function DB:GetNPCKills(id)
+    local npc = self:GetNPC(id)
+    return npc and npc.kills or 0
+end
+
+--- Fügt Beute zu einem Versuch hinzu, der schon gezählt wurde (Kill ohne Beutefenster, danach doch
+-- gelootet). Zählt keinen neuen Versuch.
+function DB:AddNPCItems(id, kind, items)
+    id = tonumber(id)
+    local section = id and self.data.npcs[id] and self.data.npcs[id][kind]
+    if not section then return end
+
+    AddItems(section, items)
+    self.itemIndex = nil
+    self:SendMessage(self.MESSAGE_UPDATED, "npc", id)
+end
+
 function DB:GetNode(id)
     return self.data.nodes[tonumber(id)]
 end
@@ -231,9 +275,9 @@ function DB:GetNPCDrops(id, kind)
     return BuildDrops(npc and npc[kind or "loot"])
 end
 
---- Anzahl Knoten, Anzahl Kreaturen, Gesamtzahl der erfassten Beutefenster und Zahl der Fundorte.
+--- Anzahl Knoten, Anzahl Kreaturen, Gesamtzahl der erfassten Beutefenster, Zahl der Fundorte und Zahl der Kills.
 function DB:GetStats()
-    local nodes, npcs, attempts, spots = 0, 0, 0, 0
+    local nodes, npcs, attempts, spots, kills = 0, 0, 0, 0, 0
 
     for _, node in pairs(self.data.nodes) do
         nodes = nodes + 1
@@ -244,9 +288,10 @@ function DB:GetStats()
         npcs = npcs + 1
         attempts = attempts + (npc.loot and npc.loot.attempts or 0) + (npc.skinning and npc.skinning.attempts or 0)
         spots = spots + (npc.spots and #npc.spots or 0)
+        kills = kills + (npc.kills or 0)
     end
 
-    return nodes, npcs, attempts, spots
+    return nodes, npcs, attempts, spots, kills
 end
 
 --- Löscht alle gesammelten Daten. Die Tabellen bleiben dieselben, damit gemerkte Verweise gültig sind.
