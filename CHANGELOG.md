@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
-- GatheringDB: GatherMate2 locations are matched by the object ID first (GatherMate2 uses the game's object IDs, e.g. 1731 for the copper vein), the name is only the fallback; the Mining name "Kupfervorkommen" found nothing in GatherMate2, so copper veins had no locations from other addons
+- GatheringDB: GatherMate2 locations of copper veins and other nodes were not found when GatherMate2 spells the node name differently: the name is now also compared without case and special characters and, if that finds nothing, by the one name of the type with the same first letters (at least 5, e.g. "Kupferader" for "Kupfervorkommen"); GatherMate2 has its own node IDs (copper vein 201), so the game's object ID is not used; `/gli gatheringdb gm2` lists the names GatherMate2 knows for a node without a match
 - GatheringDB: a node whose category is missing or "other" is also looked up as herb or ore in GatherMate2 by its name (it found no locations before); `/gli gatheringdb gm2` lists every own node with its category and the number of places found in GatherMate2
 - GatheringDB: the data version was lost on every logout (AceDB drops saved values that equal their default), so data conversions never ran; the version is no longer a default, a missing version runs all (repeatable) conversion steps once
 - GatheringDB: kills without loot are detected more reliably: besides the health event of the target, switching to a corpse and the end of combat are checked, and when the GUID of the target is protected in combat the last readable GUID of the same target is used; the debug output says why a kill was not counted
@@ -14,6 +14,7 @@
 - GatheringDB: the debug output says why a node was skipped (no spell, no material, window opened again)
 
 ### Changed
+- GatheringTooltip: a place in the item tooltip that only comes from another addon (GatherMate2) and where you have not found the source yourself shows no chance and no average, because those come from your own finds
 - GatheringTooltip: the tooltip of a node or creature looks like the sources in a item tooltip: each row shows the chance with hits/attempts, e.g. `50 %  (11/22)  Avg. 1.5`, the heading no longer repeats the number of attempts (without the option "Show attempts" it still does)
 - GatheringDB: `GetNodeDrops`, `GetNPCDrops` and `GetNodeDropsByName` give every drop an `attempts` field (attempts of the whole node or creature)
 - Maps, player position, distances, coordinates and units now come from the Glimpse core module `Locations` (Glimpse 0.2.0 or newer is required, `X-Glimpse-MinVersion`); GatheringDB API_VERSION 5 (`GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` moved to the core, `GetMapName` stays)

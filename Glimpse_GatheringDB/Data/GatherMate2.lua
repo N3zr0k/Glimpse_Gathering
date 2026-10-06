@@ -124,32 +124,66 @@ end
 local provider = { name = NAME }
 provider.IsAvailable = IsAvailable
 
--- Die Knoten-IDs von GatherMate2 sind die Objekt-IDs des Spiels (Silberblatt 1617, Kupfervorkommen 1731 ...),
--- dieselben wie bei uns. Der Abgleich läuft deshalb zuerst über die ID, das geht in jeder Sprache. Der Name
--- (GetIDForNode) ist der Ersatz, falls eine ID bei GatherMate2 anders vergeben ist.
+-- GatherMate2 vergibt eigene Knoten-IDs (Kupfervorkommen 201, Silberblatt 402 ...), nicht die Objekt-IDs des Spiels.
+-- Der Abgleich läuft deshalb über den Namen des Knotens. Zuerst der genaue Name (GetIDForNode), dann ohne Groß-/Kleinschreibung
+-- und Sonderzeichen, zuletzt, falls GatherMate2 den Knoten leicht anders schreibt (z. B. "Kupferader" statt "Kupfervorkommen"):
+-- der einzige Name des Typs, der mit denselben ersten Buchstaben beginnt (mindestens PREFIX).
+local PREFIX = 5
+
+local function Normalize(text)
+    return (tostring(text):lower():gsub("[%s%p]", ""))
+end
+
+local function CommonPrefix(a, b)
+    local n = math.min(#a, #b)
+    local i = 0
+    while i < n and a:byte(i + 1) == b:byte(i + 1) do i = i + 1 end
+    return i
+end
+
+-- Knoten-ID in GatherMate2 zu einem Namen (und wie sie gefunden wurde: "exact", "normalized", "prefix")
+local function NodeIDByName(gm, typ, name)
+    local id = gm:GetIDForNode(typ, name)
+    if id then return id, "exact" end
+
+    local names = gm.reverseNodeIDs
+    names = type(names) == "table" and names[typ]
+    if type(names) ~= "table" then return nil end
+
+    local wanted = Normalize(name)
+    local best, bestLength, tie = nil, 0, false
+    for nodeID, nodeName in pairs(names) do
+        local normalized = Normalize(nodeName)
+        if normalized == wanted then return nodeID, "normalized" end
+
+        local length = CommonPrefix(normalized, wanted)
+        if length >= PREFIX and length >= bestLength then
+            if length == bestLength and best ~= nodeID then
+                tie = true
+            else
+                best, bestLength, tie = nodeID, length, false
+            end
+        end
+    end
+    if best and not tie then return best, "prefix" end
+end
+
 function provider.GetSpots(kind, id, entry)
     if kind ~= "node" or not IsAvailable() then return nil end
 
     local name = entry and entry.name
-    local hasName = type(name) == "string" and name ~= ""
-    if not hasName and type(id) ~= "number" then return nil end
+    if type(name) ~= "string" or name == "" then return nil end
 
     local gm = GM()
     local result = {}
     local function Collect(typ)
-        local seen = {}
-        local function Add(nodeID)
-            if not nodeID or seen[nodeID] then return end
-            seen[nodeID] = true
-            for _, cell in pairs(Index(gm, typ)[nodeID] or {}) do
-                tinsert(result, { map = cell.map, x = cell.sx / cell.n, y = cell.sy / cell.n, density = cell.n })
-            end
+        local nodeID = NodeIDByName(gm, typ, name)
+        for _, cell in pairs(nodeID and Index(gm, typ)[nodeID] or {}) do
+            tinsert(result, { map = cell.map, x = cell.sx / cell.n, y = cell.sy / cell.n, density = cell.n })
         end
-        Add(type(id) == "number" and id or nil)
-        if hasName then Add(gm:GetIDForNode(typ, name)) end
     end
 
-    local types = TYPES[entry and entry.category] or TYPES.other
+    local types = TYPES[entry.category] or TYPES.other
     local tried = {}
     for _, typ in ipairs(types) do
         tried[typ] = true
@@ -157,9 +191,9 @@ function provider.GetSpots(kind, id, entry)
     end
 
     -- Fehlt die Kategorie oder steht sie auf "other" (beim ersten Fund war nichts Eindeutiges dabei, z. B. nur ein
-    -- Edelstein), passt vielleicht ein Kräuter- oder Erzknoten: dann zählen ID und Name in den übrigen Typen. Bei
+    -- Edelstein), passt vielleicht ein Kräuter- oder Erzknoten: dann zählt der Name in den übrigen Typen. Bei
     -- "herb" und "ore" ist die Kategorie sicher (aus der Beute), dort wird nicht geraten.
-    if #result == 0 and (not entry or entry.category == nil or entry.category == "other") then
+    if #result == 0 and (entry.category == nil or entry.category == "other") then
         for _, typ in ipairs(ALL_TYPES) do
             if not tried[typ] then Collect(typ) end
         end
@@ -239,8 +273,25 @@ function DB:DiagnoseGatherMate2()
         end
         local node = DB.data.nodes[id]
         local list = provider.GetSpots("node", id, node)
-        Add(format("  %d %s [%s]: %s", id, tostring(node.name), tostring(node.category), (list and #list > 0)
-            and (#list .. " places in GatherMate2") or "no match"))
+        if list and #list > 0 then
+            Add(format("  %d %s [%s]: %d places in GatherMate2", id, tostring(node.name), tostring(node.category), #list))
+        else
+            Add(format("  %d %s [%s]: no match", id, tostring(node.name), tostring(node.category)))
+            for _, typ in ipairs(TYPES[node.category] or TYPES.other) do
+                local nodeID, how = nil, nil
+                if type(node.name) == "string" and node.name ~= "" then nodeID, how = NodeIDByName(gm, typ, node.name) end
+                if nodeID then
+                    Add(format("    %s: name found as GatherMate2 id %s (%s), but no points stored for it", typ, tostring(nodeID), how))
+                else
+                    local known = {}
+                    local names = type(gm.reverseNodeIDs) == "table" and gm.reverseNodeIDs[typ]
+                    for knownID, knownName in pairs(names or {}) do tinsert(known, knownID .. "=" .. tostring(knownName)) end
+                    table.sort(known)
+                    Add(format("    %s: name not known to GatherMate2. Known names (%d): %s", typ, #known,
+                        table.concat(known, ", ", 1, math.min(#known, 60))))
+                end
+            end
+        end
     end
     return lines
 end

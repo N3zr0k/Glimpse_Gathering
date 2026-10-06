@@ -170,10 +170,22 @@ local function SourceItem(self, source)
     return { source = source, name = name, locations = self:LocationList(source) }
 end
 
--- Zeile einer ausgerichteten Quelle: Symbol (Beutel, Beruf), Name mit Fundort, rechts die Chance
+-- Hat der Spieler an diesem Ort selbst etwas gefunden? Orte nur aus anderen Addons (GatherMate2) zählen nicht. Eine
+-- Quelle ohne Ort hat nur eigene Funde.
+local function HasOwnFind(source)
+    if not source.spot then return true end
+    for _, spot in ipairs(source.spots or {}) do
+        if spot.source == "own" then return true end
+    end
+    return source.spot.source == "own"
+end
+
+-- Zeile einer ausgerichteten Quelle: Symbol (Beutel, Beruf), Name mit Fundort, rechts die Chance und Menge. Die stammen
+-- aus den eigenen Funden, an einem Ort nur aus anderen Addons ohne eigenen Fund steht rechts nichts.
 local function SourceRow(self, item)
     local icons = self.db.profile.showSourceIcons
-    return { item.text, ChanceText(item.source, self.db.profile.showAttempts), 1, 1, 1, icon = icons and self:SourceIcon(item.source) or nil }
+    local right = HasOwnFind(item.source) and ChanceText(item.source, self.db.profile.showAttempts) or ""
+    return { item.text, right, 1, 1, 1, icon = icons and self:SourceIcon(item.source) or nil }
 end
 
 -- Die besten Orte, um ein Material zu bekommen, aus dem Index von GatheringDB

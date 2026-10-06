@@ -202,6 +202,20 @@ test("Tooltip: Treffer und Versuche hinter der Chance", function()
     eq(rows[2][2], "93 %  |cff999999Avg. 1.0|r", "ohne Versuche")
 end)
 
+test("Tooltip: Orte nur aus anderen Addons zeigen keine Chance", function()
+    local GT = setup()
+    local rows = itemRows(GT, {
+        Source(1, Here(0.4, 0.5, 10)),                                                     -- eigener Fund
+        Source(2, Zone(14, 900, "GatherMate2")),                                           -- nur GatherMate2
+        Source(2, Zone(14, 950, "GatherMate2"), { spots = { Zone(14, 950, "GatherMate2"), Zone(14, 960) } }), -- auch eigener Ort dabei
+        Source(4, nil),                                                                    -- ohne Ort
+    }, 4)
+    eq(rows[2][2]:find("90 \x25\x25") ~= nil, true, "eigener Fund: Chance")
+    eq(rows[3][2], "", "nur GatherMate2: keine Chance")
+    eq(rows[4][2]:find("90 \x25\x25") ~= nil, true, "eigener Ort in der Zone: Chance")
+    eq(rows[5][2]:find("90 \x25\x25") ~= nil, true, "ohne Ort: Chance")
+end)
+
 -- Tooltip eines Knotens oder einer Kreatur: gleiche Zeilen wie bei den Quellen eines Items
 local function sourceRows(profile, kind, data)
     local GT = setup(profile)

@@ -37,6 +37,11 @@ local function FakeGatherMate(points, withHBD)
     end
     function gm:DecodeLoc(id) return math.floor(id / 1000000) / 10000, math.floor(id % 1000000 / 100) / 10000 end
     function gm:GetIDForNode(typ, name) return NODE_IDS[typ] and NODE_IDS[typ][name] end
+    gm.reverseNodeIDs = {}
+    for typ, names in pairs(NODE_IDS) do
+        gm.reverseNodeIDs[typ] = {}
+        for name, nodeID in pairs(names) do gm.reverseNodeIDs[typ][nodeID] = name end
+    end
     if withHBD ~= false then
         gm.HBD = { GetAllMapIDs = function() return { 37, 38, 1000 } end }
     end
@@ -145,22 +150,52 @@ test("GatherMate2: Prüfausgabe listet jeden Knoten mit Kategorie und Treffern",
     teardown()
 end)
 
-test("GatherMate2: Abgleich über die Objekt-ID, auch wenn der Name nicht passt", function()
-    -- Kupfervorkommen hat in GatherMate2 die ID des Spiels (1731); der Name in unserer Sprache findet dort nichts
-    local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 1731 }, { 0.20, 0.80, 1731 } } } })
+test("GatherMate2: Abgleich über den Namen, nicht über die Objekt-ID", function()
+    -- GatherMate2 hat eigene IDs (Kupfervorkommen 2): unsere Objekt-ID (1731) spielt keine Rolle
+    local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 }, { 0.20, 0.80, 2 } } } })
     DB:RecordNode(1731, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 }, { map = 37, x = 0.40, y = 0.10 })
-    local spots = DB:GetSpots("node", 1731)
-    eq(#spots, 3, "eigener Ort und zwei aus GatherMate2 über die ID")
-    eq(spots[2].source, "GatherMate2", "Anbieter")
+    eq(#DB:GetSpots("node", 1731), 3, "eigener Ort und zwei aus GatherMate2")
 
-    -- ohne Namen geht es auch
-    DB.data.nodes[1731].name = nil
-    eq(#DB:GetSpots("node", 1731), 3, "ohne Namen")
+    -- gleiche Zahl wie die GatherMate2-ID, aber anderer Name: kein Treffer
+    DB:RecordNode(2, { name = "Gänseblümchen", category = "ore" }, { [101] = 1 })
+    eq(#DB:GetSpots("node", 2), 0, "ID allein genügt nicht")
+    teardown()
+end)
 
-    -- ID und Name zeigen auf denselben Knoten: kein doppelter Eintrag
-    local DB2 = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
-    DB2:RecordNode(2, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 })
-    eq(#DB2:GetSpots("node", 2), 1, "kein Doppel bei gleicher ID")
+test("GatherMate2: Schreibweise, Groß-/Kleinschreibung und ähnliche Namen", function()
+    local points = { Mining = { [37] = { { 0.70, 0.30, 2 } } } }
+    local DB = setup(points)
+    DB:RecordNode(11, { name = "kupfer-vorkommen", category = "ore" }, { [101] = 1 })
+    eq(#DB:GetSpots("node", 11), 1, "ohne Groß-/Kleinschreibung und Sonderzeichen")
+    DB:RecordNode(12, { name = "Kupferader", category = "ore" }, { [101] = 1 })
+    eq(#DB:GetSpots("node", 12), 1, "eindeutig gleicher Anfang")
+    DB:RecordNode(13, { name = "Kupfe", category = "ore" }, { [101] = 1 })
+    eq(#DB:GetSpots("node", 13), 1, "genau PREFIX Zeichen")
+    DB:RecordNode(14, { name = "Kupf", category = "ore" }, { [101] = 1 })
+    eq(#DB:GetSpots("node", 14), 0, "zu kurz")
+    DB:RecordNode(15, { name = "Zinnader", category = "ore" }, { [101] = 1 })
+    eq(#DB:GetSpots("node", 15), 0, "anderer Anfang")
+    teardown()
+end)
+
+test("GatherMate2: mehrdeutiger Anfang findet nichts", function()
+    local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
+    _G.GatherMate2.reverseNodeIDs["Mining"][5] = "Kupfergrube"
+    DB:RecordNode(11, { name = "Kupferader", category = "ore" }, { [101] = 1 })
+    eq(#DB:GetSpots("node", 11), 0, "zwei gleich gute Namen")
+    teardown()
+end)
+
+test("GatherMate2: Prüfausgabe nennt bei fehlendem Treffer die Namen von GatherMate2", function()
+    local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
+    DB:RecordNode(12, { name = "Unbekannt", category = "ore" }, { [101] = 1 })
+    local text = table.concat(DB:DiagnoseGatherMate2(), "\n")
+    eq(text:find("name not known to GatherMate2", 1, true) ~= nil, true, "Hinweis")
+    eq(text:find("2=Kupfervorkommen", 1, true) ~= nil, true, "Namen mit GatherMate2-ID")
+
+    DB:RecordNode(13, { name = "Truhe", category = "other" }, { [101] = 1 }) -- bekannt, aber ohne Punkte
+    text = table.concat(DB:DiagnoseGatherMate2(), "\n")
+    eq(text:find("Treasure: name found as GatherMate2 id 3 (exact), but no points stored for it", 1, true) ~= nil, true, "Name bekannt, keine Punkte")
     teardown()
 end)
 
