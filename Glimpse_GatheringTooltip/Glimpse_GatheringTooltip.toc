@@ -3,7 +3,7 @@
 ## Notes: Shows what gathering nodes and creatures dropped so far, with drop chances, in their tooltips.
 ## Notes-deDE: Zeigt in den Tooltips von Sammelknoten und Kreaturen, was dort bisher gefunden wurde, mit Drop-Chancen.
 
-## Version: 0.2.1
+## Version: 0.2.2
 ## Author: N3zr0k
 ## X-License: MIT
 ## X-Website: https://github.com/N3zr0k/Glimpse_Gathering
@@ -11,7 +11,7 @@
 
 ## Category: Tooltip
 ## IconTexture: Interface\AddOns\Glimpse_GatheringTooltip\Media\Icon
-## X-Glimpse-MinVersion: 0.2.0
+## X-Glimpse-MinVersion: 0.2.2
 ## Dependencies: Glimpse, Glimpse_GatheringDB
 ## OptionalDeps: TomTom
 

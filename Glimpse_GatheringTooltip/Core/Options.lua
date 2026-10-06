@@ -190,7 +190,7 @@ function GT:BuildOptions()
                         showCoords = Toggle(self, "showCoords", 2, "Show coordinates",
                             "Show the coordinates of locations in your area.", 0.49),
                         showDistance = Toggle(self, "showDistance", 3, "Show distance",
-                            "Show the distance in yards to the location.", 0.49),
+                            "Show the distance to the location.", 0.49),
                         showAttempts = Toggle(self, "showAttempts", 4, "Show attempts",
                             "Show hits and attempts behind the chance, e.g. (13/14), to see how reliable the chance is.", 0.49),
                     },

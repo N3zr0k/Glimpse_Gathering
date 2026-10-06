@@ -55,6 +55,7 @@ Glimpse.GatheringDB = DB
 --   1: Knoten und Kreaturen mit Beute
 --   2: dazu Fundorte (spots) und die Liste schon importierter Exporte (imports)
 --   3: Fundorte können auch eine Instanz sein ({ inst, n } statt { map, x, y, n }), instances = Namen der Instanzen
+--   4, 5: Kreaturen zählen ihre Kills (kills), aufgefüllt aus den Versuchen der Normalbeute
 local DATA_VERSION = 5
 DB.DATA_VERSION = DATA_VERSION
 -- Die Version steht bewusst NICHT in den Defaults: AceDB lässt beim Speichern alle Werte weg, die dem Default

@@ -177,7 +177,7 @@ test("Tooltip: Quellzeile mit Symbol, Name und Fundort in einer Zeile", function
     eq(#rows, 3, "Überschrift und zwei Quellen")
     eq(rows[1][1]:find("Places", 1, true) ~= nil, true, "Überschrift")
     eq(rows[2][1]:find("Silberblatt", 1, true) == 1, true, "Name zuerst")
-    eq(rows[2][1]:find(GT:FormatLocation({ coords = "41, 57", distance = 120, zone = "Elwynn", here = true }), 1, true) ~= nil, false, "Spalten statt eines Textes")
+    eq(rows[2][1]:find(GT:FormatCoords({ coords = "41, 57" }) .. " " .. GT:FormatPlace({ zone = "Elwynn", distance = 120, here = true }), 1, true) ~= nil, false, "Spalten statt eines Textes")
     eq(rows[2][1]:find(GT:FormatCoords({ coords = "41, 57" }), 1, true) ~= nil, true, "Koordinaten")
     eq(rows[2][1]:find(GT:FormatPlace({ zone = "Elwynn", distance = 120, here = true }), 1, true) ~= nil, true, "eigener Ort")
     eq(rows[2].icon, "Interface\\Icons\\Trade_Herbalism", "Symbol")

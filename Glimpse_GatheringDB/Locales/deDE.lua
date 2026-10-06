@@ -18,8 +18,8 @@ L["Deletes all collected gathering data."] = "Löscht alle gesammelten Daten."
 L["Really delete all collected gathering data?"] = "Wirklich alle gesammelten Daten löschen?"
 
 -- Slash-Befehl
-L["Shows statistics, exports, imports or resets the gathering data (stats | export | import | reset)"] = "Zeigt die Statistik, exportiert, importiert oder setzt die Daten zurück (stats | export | import | reset)"
-L["Usage: /gli gatheringdb stats | export | import | reset"] = "Verwendung: /gli gatheringdb stats | export | import | reset"
+L["Shows statistics, exports, imports or resets the gathering data, checks GatherMate2 (stats | export | import | reset | gm2)"] = "Zeigt die Statistik, exportiert, importiert, setzt die Daten zurück oder prüft GatherMate2 (stats | export | import | reset | gm2)"
+L["Usage: /gli gatheringdb stats | export | import | reset | gm2"] = "Verwendung: /gli gatheringdb stats | export | import | reset | gm2"
 L["Gathering data deleted."] = "Sammeldaten gelöscht."
 
 -- Debug-Anzeige im Tooltip

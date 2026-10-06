@@ -173,12 +173,6 @@ function GT:FormatPlace(entry)
         .. Colored(LOCATION_COLOR, ")")
 end
 
---- Ein Eintrag aus LocationList als Text: Koordinaten, dann der Ort
-function GT:FormatLocation(entry)
-    local coords = self:FormatCoords(entry)
-    return (coords and (coords .. " ") or "") .. self:FormatPlace(entry)
-end
-
 -- ---------------------------------------------------------------------------
 -- Tabelle: Name, Koordinaten und Zone stehen in allen Quellen untereinander
 -- ---------------------------------------------------------------------------

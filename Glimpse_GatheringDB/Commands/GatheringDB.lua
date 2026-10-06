@@ -2,7 +2,7 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local L = DB.L
 
--- /gli gatheringdb stats | export | import | reset
+-- /gli gatheringdb stats | export | import | reset | gm2
 local function OnCommand(_, args)
     args = strlower(args or "")
 
@@ -28,8 +28,8 @@ local function OnCommand(_, args)
         DB:ResetData()
         Glimpse:Print(L["Gathering data deleted."])
     else
-        Glimpse:Print(L["Usage: /gli gatheringdb stats | export | import | reset"])
+        Glimpse:Print(L["Usage: /gli gatheringdb stats | export | import | reset | gm2"])
     end
 end
 
-Glimpse:RegisterCommand("gatheringdb", L["Shows statistics, exports, imports or resets the gathering data (stats | export | import | reset)"], OnCommand)
+Glimpse:RegisterCommand("gatheringdb", L["Shows statistics, exports, imports or resets the gathering data (stats | export | import | reset | gm2)"], OnCommand)

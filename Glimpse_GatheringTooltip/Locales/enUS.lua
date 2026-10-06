@@ -42,7 +42,6 @@ L["Show a bag for loot and the profession icon for skinning, herbalism and minin
 L["Show coordinates"] = true
 L["Show the coordinates of locations in your area."] = true
 L["Show distance"] = true
-L["%d yd"] = true
 L["Instance %d"] = true
 L["Map %d"] = true
 L["Herbalism"] = true
@@ -54,7 +53,7 @@ L["Sources in other zones of your continent are only shown from this chance (in 
 L["On: within each step, sources with locations you found yourself come before those with locations from other addons only (GatherMate2). Off: both count the same."] = true
 L["Show locations"] = true
 L["Shows the location in brackets behind each source: coordinates and distance in your area, the zone and distance elsewhere."] = true
-L["Show the distance in yards to the location."] = true
+L["Show the distance to the location."] = true
 L["Show attempts"] = true
 L["Show hits and attempts behind the chance, e.g. (13/14), to see how reliable the chance is."] = true
 L["Symbol in front of the location where you are."] = true

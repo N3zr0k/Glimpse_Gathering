@@ -5,13 +5,16 @@
 ```
 Glimpse_GatheringDB/        Daten sammeln und speichern
   Core/                     Modul, Optionen, Compat (Beute-Funktionen; Karten und Position kommen aus dem Glimpse-Modul Locations)
-  Data/                     Store (speichern, abfragen), Migrate (Version, Bereinigung, Grenzen)
-  Loot/                     Collect (Beutefenster auswerten)
+  Data/                     Store (speichern, abfragen), Migrate (Version, Bereinigung, Grenzen), Transfer und TransferUI
+                            (Export, Import), Providers und GatherMate2 (Fundorte anderer Addons), Sources (Orte eines Items)
+  Loot/                     Collect (Beutefenster und Kills auswerten)
   Debug/                    Rohdaten im Tooltip, nur bei Debug-Modus
   Commands/                 /gli gatheringdb
+  Libs/                     LibDeflate (Export komprimieren)
 Glimpse_GatheringTooltip/   Anzeige
-  Core/                     Modul, Optionen (Tabs), Professions
-  Tooltip/                  Zeilen für Knoten, Kreaturen und Items
+  Core/                     Modul, Optionen (Tabs), Professions (gelernte Berufe)
+  Tooltip/                  Tooltip (Zeilen für Knoten, Kreaturen und Items), Sources (Orte, Symbole, Gruppen), Waypoint (Wegpunkt-Taste)
+  Media/                    Symbole, Markierungen (Markers)
 tests/                      Logik-Tests ohne WoW
 ```
 
@@ -58,13 +61,13 @@ Tabellen sind nur zum Lesen gedacht.
 | `:ExportData()` | Exporttext, `{ nodes, npcs, chars }` |
 | `:ImportData(text, mode)` | `true, Ergebnis` oder `false, Fehlerschlüssel`; `mode` = `"merge"` (Standard) oder `"replace"` |
 
-Ein Eintrag der Beuteliste: `{ itemID, hits, amount, chance (0..1), average }`. Eine Quelle aus
-`GetItemSources`: `{ kind ("node"|"npc"), id, mode ("gather"|"loot"|"skinning"), name, level, category,
-attempts, hits, amount, chance, average }`.
+Ein Eintrag der Beuteliste: `{ itemID, hits, attempts, amount, chance (0..1), average }` (`attempts` = Versuche der
+ganzen Quelle, nicht nur dieses Items). Eine Quelle aus `GetItemSources`: `{ kind ("node"|"npc"), id,
+mode ("gather"|"loot"|"skinning"), name, level, category, attempts, hits, amount, chance, average }`.
 
 Nachricht bei jeder Änderung: `GLIMPSE_GATHERING_UPDATED (kind, id)` (`kind` = `"node"`, `"npc"` oder `"reset"`).
 
-Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt; 6 = `GetNPCKills`, `GetStats` liefert die Kills als fünften Wert).
+Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 4 = `GetLocatedItemSources`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt; 6 = `GetNPCKills`, `GetStats` liefert die Kills als fünften Wert).
 
 Für TomTom: `GetSpots`/`GetItemSpots` liefern `map` (uiMapID) und `x`, `y` als Bruchteil 0..1, also direkt
 `TomTom:AddWaypoint(spot.map, spot.x, spot.y, { title = ... })`.
@@ -74,20 +77,26 @@ Für TomTom: `GetSpots`/`GetItemSpots` liefern `map` (uiMapID) und `x`, `y` als 
 Eigene SavedVariable `GlimpseGatheringDB` (AceDB, `global`, account-weit):
 
 ```
-nodes[objectID] = { name, category ("herb"|"ore"|"other"), attempts, items = { [itemID] = { hits, amount } } }
-npcs[npcID]     = { name, level, loot = { attempts, items }, skinning = { attempts, items }, spots }
+nodes[objectID] = { name, category ("herb"|"ore"|"other"), attempts, items = { [itemID] = { hits, amount } }, spots }
+npcs[npcID]     = { name, level, kills, loot = { attempts, items }, skinning = { attempts, items }, spots }
 spots           = { { map = uiMapID, x, y (ganze Zahlen 1..10000 = 1/10000 der Karte), n = Funde },
                     { inst = instanceID, n = Funde } }   -- Beute in einer Instanz: ohne Karte und Koordinaten
 instances[id]   = Name der Instanz (zuletzt gesehen, nur für vorhandene Fundorte)
 imports[id]     = Zeitpunkt (bereits zusammengeführte Exporte, höchstens 50)
-version         = Datenformat (DATA_VERSION = 5 in Core/GatheringDB.lua)
+version         = Datenformat (DATA_VERSION = 5 in Core/GatheringDB.lua); fehlt er, gilt 1
 ```
 
 * Fundorte (`spots`, auch bei Knoten) werden beim Öffnen des Beutefensters gelesen (Option `trackLocations`).
   Orte näher als `DB.SPOT_RADIUS` (1 % der Karte) werden gewichtet zusammengefasst, je Quelle höchstens
   `MAX_SPOTS_NODE` (40) bzw. `MAX_SPOTS_NPC` (12); der schwächste Ort fällt zuerst weg.
-* Version 1 hatte noch keine `spots` und `imports`; `migrations[1]` ergänzt `imports`. Version 2 kannte keine
-  Instanzen als Fundort; `migrations[2]` ergänzt `instances`.
+* Versionen: 1 Knoten und Kreaturen mit Beute; 2 dazu `spots` und `imports` (`migrations[1]`); 3 Instanzen als Fundort
+  und `instances` (`migrations[2]`); 4 und 5 `kills` je Kreatur (`migrations[3]` und `[4]`, beide füllen `kills` aus den
+  Versuchen der Normalbeute auf, nie darunter).
+* `kills` zählt die Tode des Ziels, unabhängig von den Versuchen: jede gelootete Leiche zählt als Kill, auch wenn der Tod
+  nicht gesehen wurde, Kürschnern ist kein zweiter Kill. Abfrage mit `DB:GetNPCKills(id)`, Zählen in `DB:RecordKill`.
+* Die Version steht **nicht** in den AceDB-Defaults (AceDB lässt Werte weg, die dem Default gleichen, die Umstellung
+  würde nie laufen). Eine fehlende Version gilt als 1, deshalb müssen alle Schritte in `migrations` wiederholbar sein.
+* Kreaturen werden nach ihrer ID gespeichert, nicht nach Stufe.
 * Instanzen: In einer Instanz (`IsInInstance`, Art nicht `none`) gibt es keine brauchbaren Koordinaten. Die Beute
   bekommt dann als Fundort die Instanz (`DB:GetPlayerInstance()`, instanceID aus `GetInstanceInfo`), nie Karte
   und Koordinaten. `Locations:GetPlayerArea()` (Glimpse-Kern, Modul `Locations`) liefert `{ instance, name }` oder `{ map, x, y }`.
@@ -126,8 +135,11 @@ Anbieter erscheinen dort, später angemeldete nicht).
 
 `Data/GatherMate2.lua` ist der Anbieter für GatherMate2 (nur Knoten, keine Kreaturen). Benutzt wird nur dessen
 Schnittstelle: `GetNodesForZone`, `DecodeLoc`, `GetIDForNode`, `HBD:GetAllMapIDs` (ohne HBD die Speicher in `gmdbs`).
-Ablauf: Knotenname und Kategorie (`herb` → Herb Gathering, `ore` → Mining, sonst Extract Gas/Treasure/Logging) ergeben
-die GatherMate2-Knoten-ID. Beim ersten Zugriff wird ein Typ einmal gelesen und je Knoten in Rasterzellen von 1 % der
+GatherMate2 hat eigene Knoten-IDs (Kupfervorkommen 201, Silberblatt 402), nicht die Objekt-IDs des Spiels; der Abgleich läuft
+deshalb über den Namen. Die Kategorie wählt den Typ (`herb` → Herb Gathering, `ore` → Mining, sonst Extract Gas/Treasure/Logging;
+fehlt sie oder steht sie auf `other`, werden auch die übrigen Typen versucht). Gesucht wird erst der genaue Name
+(`GetIDForNode`), dann ohne Groß-/Kleinschreibung und Sonderzeichen (`reverseNodeIDs`), zuletzt der einzige Name des Typs mit
+gleichem Anfang (mindestens 5 Zeichen). Beim ersten Zugriff wird ein Typ einmal gelesen und je Knoten in Rasterzellen von 1 % der
 Karte zusammengefasst (`density` = Punkte je Zelle). Der Index wird nach den Nachrichten `GatherMate2NodeAdded`,
 `GatherMate2NodeDeleted` und `GatherMate2Cleanup` frühestens nach 30 Sekunden erneuert. Ändert GatherMate2 seine
 Schnittstelle, meldet sich der Anbieter als nicht verfügbar; `/gli gatheringdb gm2` zeigt, wie viele Punkte GatherMate2 hat und wie viele davon ankommen (Fehlersuche); die Tests (`tests/test_gathermate.lua`) bilden die
@@ -135,19 +147,33 @@ Struktur nach.
 
 ## Wie die Beute erkannt wird
 
-`Loot/Collect.lua` liest bei `LOOT_OPENED` sofort alle Quellen des Beutefensters und wertet 0,3 s später aus,
-weil `UNIT_SPELLCAST_SUCCEEDED` je nach Reihenfolge kurz vor oder nach dem Beutefenster kommt.
+`Loot/Collect.lua` liest bei `LOOT_OPENED` sofort alle Quellen des Beutefensters und wertet 0,3 s später aus
+(`EVALUATE_DELAY`), weil `UNIT_SPELLCAST_SUCCEEDED` je nach Reihenfolge kurz vor oder nach dem Beutefenster kommt.
 
-* **Sammelknoten** (`GameObject`): zählt nur, wenn direkt davor (1 s) ein Zauber des Spielers erfolgreich war und
-  mindestens ein Material dabei ist. Truhen gehen ohne Zauber auf und fallen deshalb weg.
-* **Kreaturen** (`Creature`): Normalbeute zählt als Versuch, auch ohne Material. Kürschnerbeute wird erkannt,
-  wenn davor ein Zauber erfolgreich war oder die Leiche schon einmal gelootet wurde.
+* **Sammelknoten** (`GameObject`): zählt nur, wenn direkt davor (1 s) ein Zauber des Spielers erfolgreich war oder
+  (Ersatz) ein Zauber innerhalb von 10 s abgeschickt wurde, und mindestens ein Material dabei ist. Gezählt wird je Zauber
+  (`nodeMark`): derselbe Knoten kann mehrmals nacheinander und nach dem Nachwachsen (gleiche GUID) wieder zählen, ein
+  erneut geöffnetes Fenster desselben Zaubers nicht. Truhen gehen ohne Zauber auf und fallen deshalb weg.
+* **Kreaturen** (`Creature`): Normalbeute zählt als Versuch und als Kill, auch ohne Material. Kürschnerbeute wird erkannt,
+  wenn davor ein Zauber erfolgreich war oder die Leiche schon einmal gelootet wurde. Dieselbe Kreatur zählt 10 Minuten
+  nicht erneut (`CREATURE_REPEAT`, Teilloot).
+* **Kills ohne Beutefenster:** Der Tod des Ziels wird über `UNIT_HEALTH`, Zielwechsel auf eine Leiche und das Ende des
+  Kampfes erkannt (das Kampflog ist für Addons gesperrt und wird nicht benutzt). Kommt 2 Minuten lang kein Beutefenster
+  (`KILL_FALLBACK`) und sagt `CanLootUnit` nicht, dass noch Beute da ist, zählt der Kill als Versuch. Beute, die danach
+  kommt, wird ohne zweiten Versuch ergänzt. Das Fenster hat immer Vorrang.
 * Gespeichert werden nur Handwerkswaren und Edelsteine (Item-Klassen 7 und 3).
-* Dieselbe Quelle zählt pro Sitzung nur einmal (Teilloot).
 
 Das sind Heuristiken. Im Debug-Modus schreibt `Collect.lua` pro Beutefenster eine Zeile
-(`Beutefenster: Typ, ID, Zauber davor, Materialien`), damit sich Fehlerkennungen nachvollziehen lassen.
+(`Beutefenster: Typ, ID, Zauber davor, Materialien`) und zu jedem Kill, warum er gezählt wurde oder nicht.
 Fehler in der Auswertung werden abgefangen und gezählt (`/gli gatheringdb stats`).
+
+## GatheringTooltip
+
+`Tooltip/Tooltip.lua` baut die Zeilen: Knoten und Kreaturen zeigen ihre Beute wie die Quellen eines Items (Chance,
+Treffer/Versuche, Durchschnitt), Materialien die besten Orte aus `GetLocatedItemSources`. Orte, die nur von einem anderen
+Addon kommen, zeigen keine Chance. `Tooltip/Sources.lua` ordnet Symbole, Gruppen und Fundorte (Spalten) an,
+`Tooltip/Waypoint.lua` setzt über das Glimpse-Modul `Locations` einen Wegpunkt zum besten Ort. Der Tastenhörer dafür wird im
+Kampf nicht angefasst (geschützte Aufrufe) und danach nachgezogen (`PLAYER_REGEN_ENABLED`).
 
 ## Prüfen
 
