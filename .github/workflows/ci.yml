@@ -37,19 +37,18 @@ jobs:
           GLIMPSE_DIR: .glimpse
         run: lua tests/run.lua
 
-  # Neue Version oder neue Stufe und alles grün -> Tag setzen und Release bauen. Die Stufe steht im CHANGELOG:
-  #   nur "## [Unreleased]"                 Alpha   vX.Y.Z-alpha.1  (Vorabversion)
-  #   "## [X.Y.Z] - Datum (beta)"           Beta    vX.Y.Z-beta.1   (richtiges Release, als Vorabversion veröffentlicht)
-  #   "## [X.Y.Z] - Datum"                  final   vX.Y.Z
+  # Neue Version oder neue Stufe und alles grün -> Tag setzen und Release bauen. Die Stufe steht in der TOC-Version:
+  #   Version X.Y.Z-alpha.N                 Alpha   vX.Y.Z-alpha.N  (Prerelease)
+  #   Version X.Y.Z-beta.N                  Beta    vX.Y.Z-beta.N   (richtiges Release, im Titel als Beta gekennzeichnet)
+  #   Version X.Y.Z                         final   vX.Y.Z
   # Nur auf main; Pull Requests und Stufen, die es für die Version schon gibt (oder höhere), werden übersprungen.
   tag:
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    outputs:
-      tag: ${{ steps.make.outputs.tag }}
     permissions:
       contents: write
+      actions: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -60,7 +59,7 @@ jobs:
       - name: Tag anlegen, wenn die Version oder ihre Stufe neu ist
         id: make
         run: |
-          # Die Stufe steht im CHANGELOG (siehe tools/check.py): Alpha, Beta oder final.
+          # Die Stufe steht in der TOC-Version (siehe tools/check.py): Alpha, Beta oder final.
           tag="$(python3 tools/check.py --next-tag)"
           if [ -z "$tag" ]; then
             # Gibt es das Tag schon, aber noch kein Release (z. B. ein früherer Lauf ist gescheitert), wird nur das
@@ -68,7 +67,7 @@ jobs:
             current="$(python3 tools/check.py --current-tag)"
             if [ -n "$current" ] && ! gh release view "$current" > /dev/null 2>&1; then
               echo "Tag $current existiert, aber es gibt noch kein Release: es wird gebaut."
-              echo "tag=$current" >> "$GITHUB_OUTPUT"
+              gh workflow run release.yml --ref "refs/tags/$current"
             else
               echo "Für diese Version gibt es schon ein Tag dieser oder einer höheren Stufe, nichts zu tun."
             fi
@@ -78,17 +77,8 @@ jobs:
           python3 tools/check.py --tag "$tag"
           git tag "$tag" "$GITHUB_SHA"
           git push origin "refs/tags/$tag"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "Tag $tag angelegt, das Release wird im Job release gebaut."
-
-  # Ein mit dem GITHUB_TOKEN gepushtes Tag startet keinen Push-Workflow. Das Release wird deshalb hier
-  # gebaut: release.yml läuft als wiederverwendbarer Workflow und holt das Tag selbst aus dem Repo.
-  release:
-    needs: tag
-    if: needs.tag.outputs.tag != ''
-    permissions:
-      contents: write
-    uses: ./.github/workflows/release.yml
-    with:
-      tag: ${{ needs.tag.outputs.tag }}
-    secrets: inherit
+          # Ein mit dem GITHUB_TOKEN gepushtes Tag startet keinen Push-Workflow. Der Release-Workflow wird deshalb
+          # ausdrücklich auf dem Tag gestartet (workflow_dispatch ist davon ausgenommen), so sieht der Packager
+          # einen echten Tag-Lauf.
+          gh workflow run release.yml --ref "refs/tags/$tag"
+          echo "Tag $tag angelegt, der Release-Workflow läuft darauf."

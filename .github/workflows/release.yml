@@ -2,13 +2,14 @@ name: Release
 
 # Ein Tag wie v0.2.0 baut das Paket und legt ein GitHub-Release an. Das Tag muss zur Version in
 # der TOC und zu einem Abschnitt im CHANGELOG passen (prüft tools/check.py). Tags mit "-beta" oder
-# "-alpha" (z. B. v0.2.1-beta.1) werden als Prerelease veröffentlicht. Beta braucht den Abschnitt
-# "## [X.Y.Z]" im CHANGELOG, Alpha reicht "## [Unreleased]".
+# "-alpha" (z. B. v0.2.1-beta.1) sind Vorabversionen: Alpha wird als Prerelease veröffentlicht, Beta als
+# richtiges Release mit Beta-Kennzeichnung im Titel. Die Stufe steht in der
+# TOC-Version (X.Y.Z-beta.N). Beta braucht den Abschnitt "## [X.Y.Z]" im CHANGELOG, Alpha reicht "## [Unreleased]".
 #
-# Normalerweise setzt die CI das Tag selbst (ci.yml) und ruft diesen Workflow danach auf (workflow_call
-# mit dem Tag als Eingabe). Das ist nötig, weil ein mit dem GITHUB_TOKEN gepushtes Tag keinen
-# Push-Workflow auslöst. Ein von Hand gepushtes Tag oder ein Start per Hand (workflow_dispatch auf
-# dem Tag) funktioniert weiterhin.
+# Normalerweise setzt die CI das Tag selbst (ci.yml) und startet diesen Workflow danach per
+# workflow_dispatch auf dem Tag. Das ist nötig, weil ein mit dem GITHUB_TOKEN gepushtes Tag keinen
+# Push-Workflow auslöst. Ein von Hand gepushtes Tag funktioniert ebenfalls. Bei einem Start per Hand
+# muss als Ref das Tag gewählt werden, nicht ein Branch.
 # CurseForge, Wago und WoWInterface werden nur bedient, wenn das jeweilige Secret gesetzt ist
 # (siehe README, Abschnitt Veröffentlichen).
 
@@ -16,12 +17,6 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
-  workflow_call:
-    inputs:
-      tag:
-        description: "Tag, aus dem das Release gebaut wird (vX.Y.Z, vX.Y.Z-beta.N oder vX.Y.Z-alpha.N)"
-        type: string
-        required: true
 
 permissions:
   contents: write
@@ -30,7 +25,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ inputs.tag || github.ref_name }}
+      TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
       CF_API_KEY: ${{ secrets.CF_API_KEY }}
@@ -39,22 +34,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
           fetch-depth: 0
+
+      - name: Sicherstellen, dass auf einem Tag gebaut wird
+        run: |
+          if [ "$GITHUB_REF_TYPE" != "tag" ]; then
+            echo "::error::Der Workflow muss auf einem Tag laufen (Ref $GITHUB_REF), nicht auf einem Branch."
+            exit 1
+          fi
 
       - name: Tag, TOC-Version und CHANGELOG prüfen
         run: python3 tools/check.py --tag "$TAG"
 
-      # Per workflow_call meldet GitHub dem Packager den Push auf den Branch des Aufrufers. Er würde das
-      # Tag am HEAD als "future tag" erkennen und nichts bauen. Darum wird das Tag hier ausdrücklich
-      # als Auslöser gesetzt (bei Push eines Tags oder workflow_dispatch auf dem Tag ist das identisch).
       - name: Paket bauen und veröffentlichen
         uses: BigWigsMods/packager@v2
-        env:
-          GITHUB_EVENT_NAME: workflow_dispatch
-          GITHUB_REF: refs/tags/${{ env.TAG }}
-          GITHUB_REF_NAME: ${{ env.TAG }}
-          GITHUB_REF_TYPE: tag
 
       - name: Zip prüfen
         run: |
@@ -67,15 +60,23 @@ jobs:
           fi
           printf 'Zip: %s\n' "${zips[@]}"
 
-      # Sicherheitsnetz: Vorabversionen müssen auf GitHub als Prerelease erscheinen, auch wenn der
-      # Packager das Release nicht selbst angelegt oder markiert hat.
-      - name: Prerelease sicherstellen
+      # Der Packager markiert jedes Tag mit "-alpha" oder "-beta" als Prerelease. Gewollt ist:
+      #   Alpha  -> Prerelease
+      #   Beta   -> richtiges Release mit Beta-Kennzeichnung im Titel (nicht Prerelease, nicht "Latest")
+      #   final  -> richtiges Release (vom Packager)
+      # Hat der Packager das Release nicht angelegt, wird es hier mit dem Zip erzeugt.
+      - name: Alpha und Beta auf GitHub kennzeichnen
         if: contains(env.TAG, '-beta') || contains(env.TAG, '-alpha')
         run: |
           shopt -s nullglob
           zips=(.release/*.zip)
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release edit "$TAG" --prerelease
+          if [[ "$TAG" == *-alpha* ]]; then
+            flags=(--prerelease --title "$TAG")
           else
-            gh release create "$TAG" --prerelease --title "$TAG" --generate-notes "${zips[@]}"
+            flags=(--prerelease=false --latest=false --title "$TAG (Beta)")
+          fi
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" "${flags[@]}"
+          else
+            gh release create "$TAG" "${flags[@]}" --generate-notes "${zips[@]}"
           fi

@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """Prüft die Struktur des Repos, ohne WoW und ohne Lua:
 
-  * jede TOC hat Interface, Title und eine Version im Format x.y.z
+  * jede TOC hat Interface, Title und eine Version: x.y.z, x.y.z-beta.N oder x.y.z-alpha.N
   * jede in einer TOC oder XML genannte Datei existiert (Groß-/Kleinschreibung zählt, wie unter Linux)
   * jede XML-Datei ist wohlgeformt
-  * mit --tag vX.Y.Z: alle TOC-Versionen und der CHANGELOG passen zum Tag
-  * mit --tag vX.Y.Z-beta.N (Beta): die TOC-Version muss X.Y.Z sein, im CHANGELOG muss ein Abschnitt
-    "## [X.Y.Z]" stehen (ein richtiges Release, nur als Vorabversion veröffentlicht)
-  * mit --tag vX.Y.Z-alpha.N (Alpha): wie Beta, es reicht aber auch "## [Unreleased]"
+  * mit --tag vX.Y.Z[-beta.N|-alpha.N]: alle TOC-Versionen sind genau diese Version und im CHANGELOG
+    steht ein Abschnitt "## [X.Y.Z]" (bei Alpha reicht auch "## [Unreleased]")
   * mit --version: gibt die gemeinsame TOC-Version aus (Fehler, wenn die TOCs abweichen)
   * mit --current-tag: gibt das vorhandene Tag der höchsten Stufe zur TOC-Version aus (nichts, wenn es keins gibt)
-  * mit --next-tag: gibt das Tag aus, das zur TOC-Version und zum CHANGELOG gehört und noch nicht
-    existiert (nichts, wenn es keins anzulegen gibt). Die Stufe steht im CHANGELOG:
-      "## [Unreleased]" allein                 -> Alpha  (vX.Y.Z-alpha.1)
-      "## [X.Y.Z] - Datum (beta)"              -> Beta   (vX.Y.Z-beta.1), richtiges Release als Vorabversion
-      "## [X.Y.Z] - Datum (beta.2)"            -> Beta   (vX.Y.Z-beta.2), jede weitere Beta mit ihrer Nummer
-      "## [X.Y.Z] - Datum"                     -> final  (vX.Y.Z)
-    Es entsteht kein Tag, wenn es für die Version schon eines höherer Stufe gibt (Alpha < Beta < final)
-    oder eines derselben Stufe mit gleicher oder höherer Nummer.
+  * mit --next-tag: gibt das Tag aus, das zur TOC-Version gehört und noch nicht existiert (nichts, wenn es keins
+    anzulegen gibt). Die Stufe steht in der TOC-Version:
+      "0.2.2-alpha.1"  -> Alpha  (v0.2.2-alpha.1)  Prerelease auf GitHub
+      "0.2.2-beta.2"   -> Beta   (v0.2.2-beta.2)   richtiges Release, Titel mit Beta
+      "0.2.2"          -> final  (v0.2.2)
+    Es entsteht kein Tag, wenn es für die Basisversion schon ein Tag derselben oder einer höheren Stufe
+    (Alpha < Beta < final, bei gleicher Stufe zählt die Nummer) gibt.
 
 Aufruf aus dem Hauptordner des Repos:  python3 tools/check.py [--tag v0.1.0 | --version | --next-tag | --current-tag]
 """
@@ -66,8 +63,8 @@ def check_toc(path):
         if not fields.get(field):
             error(f"{path}: Feld '## {field}' fehlt")
     version = fields.get("Version", "")
-    if version and not re.fullmatch(r"\d+\.\d+\.\d+", version):
-        error(f"{path}: Version '{version}' ist nicht im Format x.y.z")
+    if version and not VERSION_RE.fullmatch(version):
+        error(f"{path}: Version '{version}' ist nicht im Format x.y.z, x.y.z-beta.N oder x.y.z-alpha.N")
 
     base = os.path.dirname(path)
     for name in files:
@@ -92,6 +89,7 @@ def check_xml(path):
 
 
 STAGES = ("alpha", "beta", "final")
+VERSION_RE = re.compile(r"(\d+\.\d+\.\d+)(?:-(alpha|beta)\.(\d+))?")
 
 
 def read_changelog():
@@ -103,30 +101,25 @@ def read_changelog():
         return ""
 
 
-def stage_of(version, changelog):
-    """Stufe und Nummer der Version laut CHANGELOG: ("alpha", 1), ("beta", N) oder ("final", 0). Final auch,
-    wenn nichts passt: check.py --tag meldet dann den fehlenden Abschnitt."""
-    heading = re.search(r"^##\s*\[?" + re.escape(version) + r"\]?(.*)$", changelog, re.M)
-    if heading:
-        beta = re.search(r"\bbeta(?:[. ]?(\d+))?\b", heading.group(1), re.I)
-        if beta:
-            return "beta", int(beta.group(1) or 1)
-        return "final", 0
-    if re.search(r"^##\s*\[?Unreleased\]?", changelog, re.M | re.I):
-        return "alpha", 1
-    return "final", 0
+def split_version(version):
+    """"0.2.2-beta.2" -> ("0.2.2", "beta", 2), "0.2.2" -> ("0.2.2", "final", 0)."""
+    match = VERSION_RE.fullmatch(version)
+    if not match:
+        return version, "final", 0
+    base, stage, number = match.groups()
+    return base, stage or "final", int(number or 0)
 
 
-def existing_tags(version):
-    """Die Tags zur Version als Liste von (Stufe, Nummer, Tag)."""
-    out = subprocess.run(["git", "tag", "-l", f"v{version}", f"v{version}-*"],
+def existing_tags(base):
+    """Die Tags zur Basisversion als Liste von (Stufe, Nummer, Tag)."""
+    out = subprocess.run(["git", "tag", "-l", f"v{base}", f"v{base}-*"],
                          capture_output=True, text=True, check=False).stdout.split()
     found = []
     for tag in out:
-        if tag == f"v{version}":
+        if tag == f"v{base}":
             found.append(("final", 0, tag))
         else:
-            match = re.fullmatch(re.escape(f"v{version}") + r"-(alpha|beta)\.(\d+)", tag)
+            match = re.fullmatch(re.escape(f"v{base}") + r"-(alpha|beta)\.(\d+)", tag)
             if match:
                 found.append((match.group(1), int(match.group(2)), tag))
     return found
@@ -134,21 +127,19 @@ def existing_tags(version):
 
 def current_tag(version):
     """Das vorhandene Tag der höchsten Stufe (bei gleicher Stufe die höchste Nummer), sonst ""."""
-    found = existing_tags(version)
+    found = existing_tags(split_version(version)[0])
     if not found:
         return ""
     return max(found, key=lambda item: (STAGES.index(item[0]), item[1]))[2]
 
 
-def next_tag(version, changelog):
+def next_tag(version):
     """Das Tag, das jetzt angelegt werden soll, oder "" wenn keins fällig ist."""
-    stage, number = stage_of(version, changelog)
-    for other, other_number, _ in existing_tags(version):
-        if STAGES.index(other) > STAGES.index(stage):
+    base, stage, number = split_version(version)
+    for other, other_number, _ in existing_tags(base):
+        if (STAGES.index(other), other_number) >= (STAGES.index(stage), number):
             return ""
-        if other == stage and other_number >= number:
-            return ""
-    return f"v{version}" if stage == "final" else f"v{version}-{stage}.{number}"
+    return f"v{version}"
 
 
 def main():
@@ -191,24 +182,17 @@ def main():
             if len(found) > 1:
                 error("die TOC-Dateien haben unterschiedliche Versionen: " + ", ".join(sorted(found)))
             sys.exit(1)
-        changelog = read_changelog()
-        if errors:
-            sys.exit(1)
-        print(next_tag(found.pop(), changelog))
+        print(next_tag(found.pop()))
         return
 
     if args.tag:
         wanted = args.tag.lstrip("v")
-        base, _, prerelease = wanted.partition("-")
-        kind = None
-        if prerelease:
-            match = re.fullmatch(r"(alpha|beta)\.\d+", prerelease)
-            if match:
-                kind = match.group(1)
-            else:
-                error(f"Tag {args.tag}: Vorabversion muss alpha.N oder beta.N heißen")
+        match = VERSION_RE.fullmatch(wanted)
+        if not match:
+            error(f"Tag {args.tag}: muss vX.Y.Z, vX.Y.Z-beta.N oder vX.Y.Z-alpha.N heißen")
+        base, kind = (match.group(1), match.group(2)) if match else (wanted, None)
         for path, version in versions.items():
-            if version != base:
+            if version != wanted:
                 error(f"{path}: Version {version} passt nicht zum Tag {args.tag}")
         changelog = read_changelog()
         if changelog and not re.search(r"^##\s*\[?" + re.escape(base) + r"\]?", changelog, re.M):

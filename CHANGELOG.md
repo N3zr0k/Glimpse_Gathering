@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.2.2] - 2026-10-06 (beta.2)
+## [0.2.2] - 2026-10-06
 
 ### Added
 - GatheringDB: separate kill counter per creature (`GetNPCKills`, shown in the debug tooltip and `/gli gatheringdb stats`)

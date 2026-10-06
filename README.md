@@ -151,6 +151,8 @@ python3 tools/check.py
 
 ## Credits
 
+Special thanks to Flovy and sMash for testing.
+
 The marker icons (`Glimpse_GatheringTooltip/Media/Markers`) are from [Flaticon](https://www.flaticon.com), recolored and converted to TGA:
 
 - Pin: icon by Karacis from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/ort_5338544)
