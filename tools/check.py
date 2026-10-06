@@ -5,8 +5,11 @@
   * jede in einer TOC oder XML genannte Datei existiert (Groß-/Kleinschreibung zählt, wie unter Linux)
   * jede XML-Datei ist wohlgeformt
   * mit --tag vX.Y.Z: alle TOC-Versionen und der CHANGELOG passen zum Tag
+  * mit --tag vX.Y.Z-beta.N (Vorabversion): die TOC-Version muss X.Y.Z sein, im CHANGELOG reicht
+    "## [Unreleased]" statt eines Abschnitts für X.Y.Z
+  * mit --version: gibt die gemeinsame TOC-Version aus (Fehler, wenn die TOCs abweichen)
 
-Aufruf aus dem Hauptordner des Repos:  python3 tools/check.py [--tag v0.1.0]
+Aufruf aus dem Hauptordner des Repos:  python3 tools/check.py [--tag v0.1.0 | --version]
 """
 import argparse
 import os
@@ -80,6 +83,7 @@ def check_xml(path):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tag", help="Release-Tag, z. B. v0.1.0")
+    parser.add_argument("--version", action="store_true", help="gemeinsame TOC-Version ausgeben")
     args = parser.parse_args()
 
     versions = {}
@@ -92,15 +96,27 @@ def main():
     if not versions:
         error("keine TOC-Datei gefunden")
 
+    if args.version:
+        found = set(versions.values())
+        if errors or len(found) != 1:
+            if len(found) > 1:
+                error("die TOC-Dateien haben unterschiedliche Versionen: " + ", ".join(sorted(found)))
+            sys.exit(1)
+        print(found.pop())
+        return
+
     if args.tag:
         wanted = args.tag.lstrip("v")
+        base, _, prerelease = wanted.partition("-")
         for path, version in versions.items():
-            if version != wanted:
+            if version != base:
                 error(f"{path}: Version {version} passt nicht zum Tag {args.tag}")
         try:
             with open("CHANGELOG.md", encoding="utf-8") as handle:
-                if not re.search(r"^##\s*\[?" + re.escape(wanted) + r"\]?", handle.read(), re.M):
-                    error(f"CHANGELOG.md hat keinen Abschnitt für {wanted}")
+                changelog = handle.read()
+            if not re.search(r"^##\s*\[?" + re.escape(base) + r"\]?", changelog, re.M):
+                if not (prerelease and re.search(r"^##\s*\[?Unreleased\]?", changelog, re.M | re.I)):
+                    error(f"CHANGELOG.md hat keinen Abschnitt für {base}")
         except OSError:
             error("CHANGELOG.md fehlt")
 

@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -32,3 +36,61 @@ jobs:
         env:
           GLIMPSE_DIR: .glimpse
         run: lua tests/run.lua
+
+  # Neue Version in der TOC und alles grün -> Tag setzen und Release bauen.
+  # Steht im CHANGELOG nur [Unreleased], wird eine Vorabversion (vX.Y.Z-beta.1) gebaut.
+  # Nur auf main; Pull Requests und bereits getaggte Versionen werden übersprungen.
+  tag:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      created: ${{ steps.tag.outputs.created }}
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag anlegen, wenn die TOC-Version neu ist
+        id: tag
+        run: |
+          version="$(python3 tools/check.py --version)"
+          final="v$version"
+          if git rev-parse -q --verify "refs/tags/$final" > /dev/null; then
+            echo "Tag $final existiert schon, nichts zu tun."
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if grep -Eq "^##[[:space:]]*\[?$(printf '%s' "$version" | sed 's/\./\\./g')\]?" CHANGELOG.md; then
+            tag="$final"                      # CHANGELOG-Abschnitt vorhanden: richtiges Release
+          elif grep -Eiq '^##[[:space:]]*\[?Unreleased\]?' CHANGELOG.md; then
+            if [ -n "$(git tag -l "$final-beta.*")" ]; then
+              echo "Für $version gibt es schon eine Vorabversion, nichts zu tun."
+              echo "created=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            tag="$final-beta.1"               # nur Unreleased: Vorabversion
+          else
+            tag="$final"                      # check.py meldet den fehlenden Abschnitt
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # TOC-Versionen und CHANGELOG müssen zum Tag passen, sonst gibt es kein Tag
+          python3 tools/check.py --tag "$tag"
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+
+  # Ein Tag, das mit dem GITHUB_TOKEN gepusht wird, löst keinen anderen Workflow aus.
+  # Deshalb wird das Release hier direkt aufgerufen.
+  release:
+    needs: tag
+    if: needs.tag.outputs.created == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit
