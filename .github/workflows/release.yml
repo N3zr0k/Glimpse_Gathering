@@ -45,16 +45,37 @@ jobs:
       - name: Tag, TOC-Version und CHANGELOG prüfen
         run: python3 tools/check.py --tag "$TAG"
 
+      # Per workflow_call meldet GitHub dem Packager den Push auf den Branch des Aufrufers. Er würde das
+      # Tag am HEAD als "future tag" erkennen und nichts bauen. Darum wird das Tag hier ausdrücklich
+      # als Auslöser gesetzt (bei Push eines Tags oder workflow_dispatch auf dem Tag ist das identisch).
       - name: Paket bauen und veröffentlichen
         uses: BigWigsMods/packager@v2
+        env:
+          GITHUB_EVENT_NAME: workflow_dispatch
+          GITHUB_REF: refs/tags/${{ env.TAG }}
+          GITHUB_REF_NAME: ${{ env.TAG }}
+          GITHUB_REF_TYPE: tag
+
+      - name: Zip prüfen
+        run: |
+          shopt -s nullglob
+          zips=(.release/*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "::error::Der Packager hat kein Zip in .release/ erzeugt."
+            ls -la .release 2>/dev/null || true
+            exit 1
+          fi
+          printf 'Zip: %s\n' "${zips[@]}"
 
       # Sicherheitsnetz: Vorabversionen müssen auf GitHub als Prerelease erscheinen, auch wenn der
       # Packager das Release nicht selbst angelegt oder markiert hat.
       - name: Prerelease sicherstellen
         if: contains(env.TAG, '-beta') || contains(env.TAG, '-alpha')
         run: |
+          shopt -s nullglob
+          zips=(.release/*.zip)
           if gh release view "$TAG" > /dev/null 2>&1; then
             gh release edit "$TAG" --prerelease
           else
-            gh release create "$TAG" --prerelease --title "$TAG" --generate-notes .release/*.zip
+            gh release create "$TAG" --prerelease --title "$TAG" --generate-notes "${zips[@]}"
           fi
