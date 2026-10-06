@@ -1,6 +1,5 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
-local function Locations() return LibStub():GetAddon():GetModule("Locations") end
 
 local function setup(compress)
     stub.libs.LibDeflate = nil

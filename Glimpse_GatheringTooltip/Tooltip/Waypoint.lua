@@ -159,10 +159,10 @@ function GT:CaptureKey(callback)
             frame.active = false
             pcall(function() frame:EnableKeyboard(false) end)
 
-            local callback = frame.callback
-            if key == "ESCAPE" then return callback(nil) end
-            if key == "DELETE" or key == "BACKSPACE" then return callback("off") end
-            callback(PressedKey(key))
+            local done = frame.callback
+            if key == "ESCAPE" then return done(nil) end
+            if key == "DELETE" or key == "BACKSPACE" then return done("off") end
+            done(PressedKey(key))
         end)
     end
     capture.active, capture.callback = true, callback
@@ -214,7 +214,7 @@ function GT:UpdateWaypointListener()
     if not CreateFrame then return end
     if not listener then
         listener = CreateFrame("Frame")
-        listener:SetScript("OnKeyDown", function(frame, key)
+        listener:SetScript("OnKeyDown", function(_, key)
             if not GT:HasWaypointTarget() then return end
             if PressedKey(key) == GT.db.profile.waypointKey then GT:SetWaypoint() end
         end)

@@ -293,7 +293,7 @@ end)
 -- Instanzen
 -- ---------------------------------------------------------------------------
 
-local function inInstance(e, kind, id, name)
+local function inInstance(_, kind, id, name)
     Locations().api.IsInInstance = function() return kind ~= "none", kind end
     Locations().api.GetInstanceInfo = function() return name, kind, 1, "Normal", 5, 0, false, id end
 end

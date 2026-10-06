@@ -385,7 +385,7 @@ test("Entfernung: Yards aus der Kartengröße der Spielfunktion", function()
 end)
 
 test("Entfernung: Größe aus Weltpositionen, wenn GetMapWorldSize fehlt", function()
-    local DB = setup(HERBS)
+    setup(HERBS)
     _G.CreateVector2D = function(x, y) return { x = x, y = y } end
     Locations().api = {
         GetWorldPosFromMapPos = function(_, v)

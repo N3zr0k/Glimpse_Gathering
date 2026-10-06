@@ -431,7 +431,7 @@ test("Tooltip: Hinweiszeile am Ende des Materialtooltips", function()
     rows = itemRows(GT, { Source(1, Here(0.4, 0.5, 10)) })
     eq(#rows, 2, "ohne Hinweis")
 
-    rows = itemRows(GT, { Source(1, { instance = 36, name = "Minen", count = 1, source = "own", tier = 1 }) })
+    itemRows(GT, { Source(1, { instance = 36, name = "Minen", count = 1, source = "own", tier = 1 }) })
     eq(GT:HasWaypointTarget(), false, "Instanz: kein Ziel")
 end)
 
