@@ -2,7 +2,7 @@
 std = "lua51"
 max_line_length = false
 codes = true
-exclude_files = { "**/Libs/**" }
+exclude_files = { "**/Libs/**", ".glimpse/**" }
 ignore = {
     "212/self",   -- ungenutztes self
     "212/_.*",    -- ungenutzte Argumente mit Unterstrich

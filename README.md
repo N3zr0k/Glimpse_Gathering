@@ -2,7 +2,7 @@
 
 <p align="center"><img src="docs/icon_gatheringdb.png" width="128" alt="GatheringDB icon"> <img src="docs/icon_gatheringtooltip.png" width="128" alt="GatheringTooltip icon"></p>
 
-Two addons for [Glimpse](https://github.com/N3zr0k/Glimpse) (0.1.0 or newer) that learn where crafting
+Two addons for [Glimpse](https://github.com/N3zr0k/Glimpse) (0.2.0 or newer) that learn where crafting
 materials come from while you play.
 
 | Addon | Role |

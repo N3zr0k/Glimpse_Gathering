@@ -6,6 +6,16 @@ local stub = {}
 local ROOT = ((arg and arg[0] or ""):match("^(.*)/[^/]*$") or ".") .. "/.."
 stub.root = ROOT
 
+-- Ordner des Kerns Glimpse (mit Modules/Locations)
+function stub.coreDir()
+    local candidates = { os.getenv("GLIMPSE_DIR"), ROOT .. "/../Glimpse", ROOT .. "/.glimpse" }
+    for _, dir in ipairs(candidates) do
+        local file = io.open(dir .. "/Modules/Locations/Locations.lua", "r")
+        if file then file:close() return dir end
+    end
+    return ROOT .. "/../Glimpse"
+end
+
 function stub.reset()
     -- Lua-5.1-Ausdrücke, die der Client mitbringt
     _G.tinsert = table.insert
@@ -87,12 +97,14 @@ function stub.newGlimpse()
     end
 
     -- Mitgelieferte Bibliotheken sind über stub.libs erreichbar (LibStub("LibDeflate", true))
-    -- Das Modul Locations gehört zum Kern und wird hier aus dem Nachbarordner Glimpse geladen (Kern und
-    -- Erweiterung liegen nebeneinander). Seine Blizzard-Funktionen stehen in Locations.api, die Tests ersetzen sie.
+    -- Das Modul Locations gehört zum Kern (Repo Glimpse) und wird von dort geladen. Gesucht wird in dieser
+    -- Reihenfolge: Umgebungsvariable GLIMPSE_DIR (so macht es die CI), Nachbarordner Glimpse, Ordner .glimpse im Repo.
+    -- Seine Blizzard-Funktionen stehen in Locations.api, die Tests ersetzen sie.
     _G.LibStub = function() return { GetAddon = function() return Glimpse end } end
+    local core = stub.coreDir()
     for _, file in ipairs({ "Locations", "Maps", "Position", "Distance", "Units", "Coords", "Waypoint" }) do
-        local chunk, err = loadfile(ROOT .. "/../Glimpse/Modules/Locations/" .. file .. ".lua")
-        assert(chunk, "Kern Glimpse fehlt neben diesem Ordner (Modul Locations): " .. tostring(err))
+        local chunk, err = loadfile(core .. "/Modules/Locations/" .. file .. ".lua")
+        assert(chunk, "Kern Glimpse nicht gefunden (Modul Locations), siehe tests/wowstub.lua: " .. tostring(err))
         chunk("Glimpse")
     end
     Glimpse.db = { profile = {} }

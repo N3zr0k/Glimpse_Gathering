@@ -17,9 +17,18 @@ jobs:
       - name: luacheck
         uses: lunarmodules/luacheck@v1
 
+      # Die Tests brauchen das Modul Locations aus dem Kern (Repo Glimpse)
+      - name: Kern Glimpse holen
+        uses: actions/checkout@v4
+        with:
+          repository: N3zr0k/Glimpse
+          path: .glimpse
+
       - uses: leafo/gh-actions-lua@v10
         with:
           luaVersion: "5.4"
 
       - name: Tests
+        env:
+          GLIMPSE_DIR: .glimpse
         run: lua tests/run.lua
