@@ -7,9 +7,10 @@ local L = GT.L
 --   Handwerksmaterial: Tooltip eines Materials im Inventar, mit den Quellen
 --   Ziel:              Tooltip des Ziels (Sammelknoten, Kreatur)
 
-local function Toggle(self, key, order, name, desc)
+-- relWidth: Anteil der Breite (0.49 = zwei Haken je Reihe). "half" hat eine feste, kleine Breite und kürzt die Texte.
+local function Toggle(self, key, order, name, desc, relWidth)
     return {
-        type = "toggle", order = order, width = "full",
+        type = "toggle", order = order, width = relWidth and "relative" or "full", relWidth = relWidth,
         name = L[name], desc = L[desc],
         get = function() return self.db.profile[key] end,
         set = function(_, value)
@@ -32,6 +33,129 @@ local function Range(self, key, order, name, desc, min, max)
     }
 end
 
+-- Auswahl der Markierung für den eigenen Ort: Symbole nebeneinander zum Anklicken, Farbe per Auswahlliste
+-- (jeder Eintrag zeigt das gewählte Symbol in seiner Farbe)
+local APP_NAME = "Glimpse_GatheringTooltip"
+
+local function IconName(key)
+    return ({
+        pin = L["Pin"], pinsolid = L["Solid pin"], pinline = L["Outline pin"], person = L["Position"], arrow = L["Arrow"],
+    })[key]
+end
+
+local function ColorName(key)
+    return ({ blue = L["Blue"], white = L["White"], yellow = L["Yellow"], green = L["Green"], red = L["Red"] })[key]
+end
+
+function GT:BuildMarkerOptions()
+    local function Refresh()
+        self:RefreshTooltip()
+        LibStub("AceConfigRegistry-3.0"):NotifyChange(Glimpse.name .. "_" .. APP_NAME)
+    end
+
+    local args = {
+        show = {
+            type = "toggle", order = 1, width = "full",
+            name = L["Show marker"], desc = L["Symbol in front of the location where you are."],
+            get = function() return self.db.profile.showHereIcon ~= false end,
+            set = function(_, value) self.db.profile.showHereIcon = value; Refresh() end,
+        },
+        color = {
+            type = "select", order = 2, width = "normal",
+            name = L["Color"],
+            values = function()
+                local values = {}
+                for _, key in ipairs(self.MarkerColors) do
+                    local path, size = self:MarkerPath(nil, key)
+                    values[key] = "|T" .. path .. ":" .. (size + 4) .. "|t  " .. ColorName(key)
+                end
+                return values
+            end,
+            sorting = self.MarkerColors,
+            get = function() return self.db.profile.hereColor or "blue" end,
+            set = function(_, value) self.db.profile.hereColor = value; Refresh() end,
+        },
+        spacer = { type = "description", order = 3, width = "full", name = " " },
+    }
+
+    for index, icon in ipairs(self.MarkerIcons) do
+        args["icon_" .. icon.key] = {
+            type = "execute", order = 3 + index, width = "relative", relWidth = 0.19,
+            image = function() return (self:MarkerPath(icon.key)) end,
+            imageWidth = 28, imageHeight = 28,
+            name = function()
+                local selected = (self.db.profile.hereIcon or "pinsolid") == icon.key
+                return (selected and "|cffffd100" or "") .. IconName(icon.key) .. (selected and "|r" or "")
+            end,
+            desc = L["Click to use this symbol."],
+            func = function() self.db.profile.hereIcon = icon.key; Refresh() end,
+        }
+    end
+
+    return { type = "group", inline = true, order = 10, name = L["Marker for your place"], args = args }
+end
+
+-- Wegpunkt zum besten Fundort: Taste (beliebige Kombination aus Strg, Umschalt, Alt und einer Taste) und Hinweis
+function GT:BuildWaypointOptions()
+    local function Refresh()
+        LibStub("AceConfigRegistry-3.0"):NotifyChange(Glimpse.name .. "_" .. APP_NAME)
+        self:RefreshTooltip()
+    end
+
+    return {
+        type = "group", inline = true, order = 4, name = L["Waypoint"],
+        args = {
+            key = {
+                type = "execute", order = 1, width = "normal",
+                name = function()
+                    if self:IsCapturingKey() then return L["Press a key ..."] end
+                    return L["Key"] .. ": " .. self:WaypointKeyName()
+                end,
+                desc = L["While the tooltip of a crafting material is shown, this key sets a waypoint to its best place: TomTom if installed, otherwise the game marker. Click, then press the new combination (Ctrl, Shift and Alt can be combined). Escape cancels, Delete turns the key off. Keys that are already used in the game are refused."],
+                func = function()
+                    self:CaptureKey(function(chord)
+                        if chord then
+                            local ok, conflict = self:SetWaypointKey(chord)
+                            if not ok then self:ShowKeyInUse(chord, conflict) end
+                        end
+                        Refresh()
+                    end)
+                    Refresh()
+                end,
+            },
+            tomtom = {
+                type = "description", order = 2, width = "full",
+                name = function()
+                    if Glimpse:GetModule("Locations"):HasTomTom() then
+                        return "|cff66e066" .. L["TomTom detected: waypoints are set through TomTom."] .. "|r"
+                    end
+                    return "|cff999999" .. L["TomTom not found: waypoints are set with the game marker."] .. "|r"
+                end,
+            },
+            hint = {
+                type = "toggle", order = 3, width = "full",
+                name = L["Show hint"], desc = L["Shows the key as a line at the end of the tooltip."],
+                disabled = function() return self.db.profile.waypointKey == "off" end,
+                get = function() return self.db.profile.showWaypointHint end,
+                set = function(_, value)
+                    self.db.profile.showWaypointHint = value
+                    self:RefreshTooltip()
+                end,
+            },
+        },
+    }
+end
+
+-- Bildnachweis der Symbole für den Credits-Bereich der Optionsseite (Glimpse:BuildCreditsArgs); die Links stehen in der README
+function GT:BuildCredits()
+    local images = {}
+    for _, credit in ipairs(self.IconCredits) do
+        -- der Link steht in Klammern und blau (anklickbar ist er in den Optionen nicht, zum Kopieren)
+        images[#images + 1] = (IconName(credit.key) or credit.key) .. " - " .. credit.author .. " |cff66ccff(" .. credit.url .. ")|r"
+    end
+    return { images = images }
+end
+
 function GT:BuildOptions()
     return {
         items = {
@@ -39,12 +163,14 @@ function GT:BuildOptions()
             args = {
                 showItemSource = Toggle(self, "showItemSource", 1, "Show sources on items",
                     "Show where a crafting material comes from in its tooltip."),
-                maxSources = Range(self, "maxSources", 2, "Number of sources",
-                    "How many sources are shown: your area first, then other areas, each the most likely first.", 1, 10),
+                maxSources = Range(self, "maxSources", 2, "Number of places",
+                    "How many places are shown (a source in two zones counts twice). Order: your area first, then other zones on your continent by distance, then everything else.", 1, 10),
+                minChance = Range(self, "minChance", 3, "Minimum chance for other zones",
+                    "Sources in other zones of your continent are only shown from this chance (in percent). 0 shows all.", 0, 50),
                 externalSeparate = {
-                    type = "toggle", order = 3, width = "full",
+                    type = "toggle", order = 4, width = "full",
                     name = L["List sources with outside locations separately"],
-                    desc = L["On: sources that only have locations from other addons (GatherMate2) come after those with your own. Off: those locations count like your own when sorting."],
+                    desc = L["On: within each step, sources with locations you found yourself come before those with locations from other addons only (GatherMate2). Off: both count the same."],
                     -- nur sinnvoll, wenn GatheringDB ein Addon mit Fundorten gefunden hat
                     disabled = function() return not (self.data.HasAvailableProvider and self.data:HasAvailableProvider()) end,
                     get = function() return self.db.profile.externalSeparate end,
@@ -53,29 +179,23 @@ function GT:BuildOptions()
                         self:RefreshTooltip()
                     end,
                 },
-                showSourceIcons = Toggle(self, "showSourceIcons", 4, "Show source icons",
+                showSourceIcons = Toggle(self, "showSourceIcons", 5, "Show source icons",
                     "Show a bag for loot and the profession icon for skinning, herbalism and mining in front of each source. Off: a heading for loot or the profession is shown above its sources."),
-                locationLines = {
-                    type = "select", order = 5, width = "full",
-                    name = L["Locations per source"],
-                    desc = L["Shows the location in brackets behind each source: coordinates and distance in your area, the zone or instance elsewhere."],
-                    values = function()
-                        return {
-                            off = L["Off"],
-                            nearest = L["Nearest location"],
-                            several = L["Up to three zones"],
-                        }
-                    end,
-                    get = function() return self.db.profile.locationLines end,
-                    set = function(_, value)
-                        self.db.profile.locationLines = value
-                        self:RefreshTooltip()
-                    end,
+                -- Darstellung der Fundorte: vier Haken in zwei Reihen
+                display = {
+                    type = "group", inline = true, order = 6, name = L["Display"],
+                    args = {
+                        showLocations = Toggle(self, "showLocations", 1, "Show locations",
+                            "Shows the location in brackets behind each source: coordinates and distance in your area, the zone and distance elsewhere.", 0.49),
+                        showCoords = Toggle(self, "showCoords", 2, "Show coordinates",
+                            "Show the coordinates of locations in your area.", 0.49),
+                        showDistance = Toggle(self, "showDistance", 3, "Show distance",
+                            "Show the distance in yards to the location.", 0.49),
+                        showAttempts = Toggle(self, "showAttempts", 4, "Show attempts",
+                            "Show hits and attempts behind the chance, e.g. (13/14), to see how reliable the chance is.", 0.49),
+                    },
                 },
-                showCoords = Toggle(self, "showCoords", 6, "Show coordinates",
-                    "Show the coordinates of locations in your area."),
-                showDistance = Toggle(self, "showDistance", 7, "Show distance",
-                    "Show the distance in yards to locations in your area."),
+                hereMarker = self:BuildMarkerOptions(),
             },
         },
         target = {
@@ -99,6 +219,7 @@ function GT:BuildOptions()
                 minAttempts = Range(self, "minAttempts", 2, "Minimum attempts",
                     "Lists are only shown after this many recorded attempts.", 1, 20),
                 modifiers = Glimpse:BuildModifierOptions(self.db.profile, function() self:RefreshTooltip() end, 3),
+                waypoint = self:BuildWaypointOptions(),
             },
         },
     }

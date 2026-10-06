@@ -4,7 +4,7 @@
 
 ```
 Glimpse_GatheringDB/        Daten sammeln und speichern
-  Core/                     Modul, Optionen, Compat (alle Blizzard-Funktionen an einer Stelle)
+  Core/                     Modul, Optionen, Compat (Beute-Funktionen; Karten und Position kommen aus dem Glimpse-Modul Locations)
   Data/                     Store (speichern, abfragen), Migrate (Version, Bereinigung, Grenzen)
   Loot/                     Collect (Beutefenster auswerten)
   Debug/                    Rohdaten im Tooltip, nur bei Debug-Modus
@@ -33,7 +33,7 @@ ln -s ~/dev/Glimpse_Gathering/Glimpse_GatheringTooltip "<AddOns>/Glimpse_Gatheri
 
 Änderungen sind dann nach `/reload` im Spiel.
 
-## Öffentliche Schnittstelle von GatheringDB (API_VERSION 3)
+## Öffentliche Schnittstelle von GatheringDB (API_VERSION 5)
 
 Erreichbar über `Glimpse.GatheringDB` (oder `Glimpse:GetModule("GatheringDB")`). Die zurückgegebenen
 Tabellen sind nur zum Lesen gedacht.
@@ -50,9 +50,8 @@ Tabellen sind nur zum Lesen gedacht.
 | `:GetSpots(kind, id, includeExternal)` | Fundorte einer Quelle: Liste `{ map, x, y, count, source }` (x, y = 0..1); Beute aus Instanzen: `{ instance, name, count, source }` ohne `map`, `x`, `y` (kein Wegpunkt möglich). Erst die eigenen (`source = "own"`, häufigste zuerst), dann fremde (`source = "GatherMate2"`, `count = 0`, `density` = Punkte dort); `includeExternal = false` liefert nur eigene |
 | `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
 | `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung: `distance` in Yards (nur wenn die Kartengröße bekannt ist), `mapDistance` als Bruchteil der Kartenbreite |
-| `:GetMapSize(map)` / `:GetMapDistance(map, x1, y1, x2, y2)` | Kartengröße (Breite, Höhe) und Strecke in Yards, aus `C_Map.GetMapWorldSize` bzw. `GetWorldPosFromMapPos`, ohne andere Addons; nil, wenn unbekannt |
 | `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
-| `:GetLocatedItemSources(itemID, minAttempts, externalSeparate)` | Quellen eines Items (Kopien der Einträge von `GetItemSources`) nach Fundort geordnet, mit `area` und `spots`. Reihenfolge, jeweils höchste Chance zuerst: `"here"` (Orte auf der Karte des Spielers oder in seiner Instanz), `"elsewhere"` (Orte auf anderen Karten), `"external"` (nur Orte aus anderen Addons), `"none"`. `externalSeparate = false`: fremde Orte zählen wie eigene, `"external"` entfällt (Standard `true`; die Option dafür liegt in GatheringTooltip, Tab Handwerksmaterial) |
+| `:GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)` | Die Orte der Quellen eines Items, geordnet nach "wo findet man es am besten". Ein Eintrag ist eine Quelle an einem Ort (Zone oder Instanz): eine Quelle in drei Zonen ergibt drei Einträge, mehrere Orte derselben Zone einen (Kopien der Einträge von `GetItemSources` mit `tier`, `area`, `group`, `spot`, `spots`, `place`). Stufen: 1 `"here"` (Gebiet des Spielers: Karte oder Instanz), 2 `"nearby"` (andere Karte desselben Kontinents, nach Entfernung in Yards, ab `minChance` (0 bis 1)), 3 `"elsewhere"` (anderer Kontinent oder andere Instanz), 4 `"none"` (kein Ort, ein Eintrag je Quelle). Innerhalb einer Stufe zuerst `group = "own"` (bestätigter Ort), dann `"external"` (Ort nur von einem anderen Addon); danach in Stufe 1 und 3 die höchste Chance. Ein Ort in der eigenen Zone zählt auch, wenn er nur extern belegt ist. `spot` ist der beste Ort des Eintrags. `externalSeparate = false`: externe zählen wie bestätigte (Standard `true`; die Option dafür liegt in GatheringTooltip, Tab Handwerksmaterial) |
 | `:GetProviders()` / `:RegisterProvider(name, provider)` | Anbieter fremder Fundorte abfragen (`{ name, available, enabled }`) bzw. anmelden |
 | `:GetMapName(map)` | Name der Karte (uiMapID) oder nil |
 | `:ExportData()` | Exporttext, `{ nodes, npcs, chars }` |
@@ -64,7 +63,7 @@ attempts, hits, amount, chance, average }`.
 
 Nachricht bei jeder Änderung: `GLIMPSE_GATHERING_UPDATED (kind, id)` (`kind` = `"node"`, `"npc"` oder `"reset"`).
 
-Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`).
+Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt).
 
 Für TomTom: `GetSpots`/`GetItemSpots` liefern `map` (uiMapID) und `x`, `y` als Bruchteil 0..1, also direkt
 `TomTom:AddWaypoint(spot.map, spot.x, spot.y, { title = ... })`.
@@ -90,7 +89,7 @@ version         = Datenformat (DATA_VERSION = 3 in Core/GatheringDB.lua)
   Instanzen als Fundort; `migrations[2]` ergänzt `instances`.
 * Instanzen: In einer Instanz (`IsInInstance`, Art nicht `none`) gibt es keine brauchbaren Koordinaten. Die Beute
   bekommt dann als Fundort die Instanz (`DB:GetPlayerInstance()`, instanceID aus `GetInstanceInfo`), nie Karte
-  und Koordinaten. `DB:GetPlayerArea()` liefert `{ instance, name }` oder `{ map, x, y }`.
+  und Koordinaten. `Locations:GetPlayerArea()` (Glimpse-Kern, Modul `Locations`) liefert `{ instance, name }` oder `{ map, x, y }`.
 * `hits` = in wie vielen Versuchen das Item vorkam (daraus die Chance), `amount` = Gesamtmenge.
 * Ändert sich das Format: `DATA_VERSION` erhöhen und in `Data/Migrate.lua` unter `migrations[alteVersion]`
   die Umstellung eintragen. Daten einer **neueren** Version rührt das Addon nicht an und zeichnet nicht auf.

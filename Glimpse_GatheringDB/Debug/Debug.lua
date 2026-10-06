@@ -1,5 +1,6 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
+local Locations = Glimpse:GetModule("Locations")
 local L = DB.L
 
 -- Debug-Anzeige: zeigt im Tooltip, was GatheringDB zu einem Sammelknoten oder einer Kreatur
@@ -119,7 +120,7 @@ function DB:DebugSpotLines(kind, ids)
 
     tinsert(lines, Line(format(L["Locations: %d own, %d from other addons"], own, external)))
 
-    local position = self:GetPlayerArea()
+    local position = Locations:GetPlayerArea()
     if position and position.instance then
         -- in einer Instanz gibt es keine Koordinaten
         tinsert(lines, Line(L["Position"] .. ": " .. PlaceLabel(position)))
@@ -142,25 +143,26 @@ local MAX_SOURCES = 5
 local MAX_SOURCE_SPOTS = 2
 
 local AREA_LABELS = {
-    here = "here", elsewhere = "elsewhere", external = "outside locations only", none = "no location",
+    here = "here", nearby = "same continent", elsewhere = "elsewhere", none = "no location",
 }
 
 --- Zeilen für ein Material: seine Quellen in der Reihenfolge von GetLocatedItemSources (eigenes Gebiet,
--- andere Gebiete, nur fremde Orte, ohne Ort), je Quelle Chance und die nächsten Fundorte. Leer, wenn es
--- keine Quelle gibt.
-function DB:DebugItemLines(itemID, externalSeparate)
-    local sources = self:GetLocatedItemSources(itemID, 1, externalSeparate)
+-- gleicher Kontinent, sonst, ohne Ort; bestätigte vor externen), je Eintrag (Quelle an einem Ort) Chance, Stufe und die
+-- nächsten Fundorte. Leer, wenn es keine Quelle gibt.
+function DB:DebugItemLines(itemID, externalSeparate, minChance)
+    local sources = self:GetLocatedItemSources(itemID, 1, externalSeparate, minChance)
     if #sources == 0 then return {} end
 
     local lines = {}
-    tinsert(lines, Line(L["Sources"] .. ": " .. #sources .. "  (" ..
+    tinsert(lines, Line(L["Places"] .. ": " .. #sources .. "  (" ..
         (externalSeparate ~= false and L["outside separate"] or L["outside combined"]) .. ")"))
 
     for index = 1, math.min(#sources, MAX_SOURCES) do
         local source = sources[index]
         local name = tostring(source.name or "?") .. " (" .. source.kind .. " " .. source.id .. ", " .. source.mode .. ")"
-        tinsert(lines, Line(name, format("%d/%d = %.1f%%  [%s]", source.hits, source.attempts, source.chance * 100,
-            L[AREA_LABELS[source.area]])))
+        local label = L[AREA_LABELS[source.area]]
+        if source.group then label = label .. ", " .. L[source.group == "own" and "confirmed" or "outside"] end
+        tinsert(lines, Line(name, format("%d/%d = %.1f%%  [%s]", source.hits, source.attempts, source.chance * 100, label)))
 
         for spotIndex = 1, math.min(#source.spots, MAX_SOURCE_SPOTS) do
             tinsert(lines, SpotLine(source.spots[spotIndex]))
@@ -294,7 +296,8 @@ local function ItemLines(module, data)
     local itemID = tonumber(data.id)
     if not itemID then return nil end
 
-    -- Wie GatheringTooltip sortiert, wenn es da ist (nur gelesen, keine Abhängigkeit); sonst getrennt
+    -- Wie GatheringTooltip sortiert, wenn es da ist (nur gelesen, keine Abhängigkeit); sonst getrennt.
+    -- Ohne Mindestchance: Die Debug-Anzeige soll alle Quellen zeigen, auch die, die der Tooltip weglässt.
     local tooltip = Glimpse:GetModule("GatheringTooltip", true)
     local profile = tooltip and tooltip.db and tooltip.db.profile
     local sources = DB:DebugItemLines(itemID, not profile or profile.externalSeparate ~= false)

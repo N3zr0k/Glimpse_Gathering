@@ -17,10 +17,17 @@ local defaults = {
         showLoot = true,
         showSkinning = true,
         showItemSource = true,
-        maxSources = 1,
+        maxSources = 3,
+        minChance = 10, -- Prozent: Quellen in anderen Zonen desselben Kontinents erscheinen erst ab dieser Chance (0 = alle)
         externalSeparate = true, -- Quellen, die nur Fundorte aus anderen Addons haben, getrennt hinten aufführen
         showSourceIcons = true, -- Symbol vor jeder Quelle (Beutel, Beruf) statt Text hinter dem Namen
-        locationLines = "nearest", -- Fundorte unter jeder Quelle: "off", "nearest" oder "several"
+        showLocations = true, -- Fundort der Quelle in Klammern hinter dem Namen
+        waypointKey = "CTRL-G", -- Taste für den Wegpunkt zum besten Fundort ("off" = aus)
+        showWaypointHint = true, -- Hinweis auf die Taste im Tooltip
+        showHereIcon = true, -- Markierung vor dem eigenen Ort
+        hereIcon = "pinsolid", -- Symbol: pin, pinsolid, pinline, person, arrow
+        hereColor = "blue", -- Farbe: blue, white, yellow, green, red
+        showAttempts = true, -- Treffer/Versuche hinter der Chance, z. B. (13/14)
         showCoords = true,
         showDistance = true,
         onlyLearned = false,
@@ -36,13 +43,13 @@ function GT:OnInitialize()
     self.db = Glimpse.db:RegisterNamespace("GatheringTooltip", defaults)
 
     -- BuildOptions steht in Core/Options.lua
-    Glimpse:RegisterAddonOptions(ADDON_NAME, self:BuildOptions(), true) -- true = Tabs
+    Glimpse:RegisterAddonOptions(ADDON_NAME, self:BuildOptions(), true, self:BuildCredits()) -- true = Tabs
 end
 
 function GT:OnEnable()
     -- Die Datenbank ist Pflicht (## Dependencies), die Prüfung fängt nur eine zu alte Version ab
     self.data = Glimpse:GetModule("GatheringDB")
-    if (self.data.API_VERSION or 0) < 3 then
+    if (self.data.API_VERSION or 0) < 5 then
         self:Debug("GatheringDB ist zu alt")
         return
     end

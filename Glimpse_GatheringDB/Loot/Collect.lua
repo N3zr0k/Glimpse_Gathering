@@ -1,5 +1,6 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
+local Locations = Glimpse:GetModule("Locations")
 
 -- Blizzard-Funktionen kommen gesammelt aus Core/Compat.lua
 local api = DB.api
@@ -129,47 +130,6 @@ local function UnitInfo(guid)
     end
 end
 
---- Die Instanz, in der der Spieler ist: { instance (instanceID), name } oder nil in der offenen Welt (oder
--- wenn sie sich nicht bestimmen lässt). Dort gibt es keine brauchbaren Koordinaten, die Instanz selbst
--- ist der Fundort.
-function DB:GetPlayerInstance()
-    local isInside, getInfo = api.IsInInstance, api.GetInstanceInfo
-    if not isInside or not getInfo then return nil end
-
-    local inside, kind = isInside()
-    inside, kind = Clean(inside), Clean(kind)
-    if not inside or kind == "none" then return nil end
-
-    -- GetInstanceInfo: Name, Art, Schwierigkeit, Schwierigkeitsname, Größe, dynamisch, ?, Instanz-ID ...
-    local name, _, _, _, _, _, _, instanceID = getInfo()
-    name, instanceID = Clean(name), Clean(instanceID)
-    if type(instanceID) ~= "number" or instanceID < 1 then return nil end
-
-    return { instance = instanceID, name = type(name) == "string" and name or nil }
-end
-
---- Position des Spielers in der offenen Welt: { map (uiMapID), x, y (0 bis 1) } oder nil, wenn sie sich
--- nicht bestimmen lässt (Instanzen, keine Kartenfunktionen, geschützte Werte). Der Spieler steht beim
--- Looten in der Nähe der Quelle, das ist für den Fundort genau genug. Siehe auch DB:GetPlayerArea.
-function DB:GetPlayerPosition()
-    local get, best = api.GetPlayerMapPosition, api.GetBestMapForUnit
-    if not get or not best then return nil end
-    if self:GetPlayerInstance() then return nil end
-
-    local map = Clean(best("player"))
-    if type(map) ~= "number" or map < 1 then return nil end
-
-    local position = get(map, "player")
-    if not position or not position.GetXY then return nil end
-
-    local x, y = position:GetXY()
-    x, y = Clean(x), Clean(y)
-    -- (0, 0) heißt: keine Position bekannt
-    if type(x) ~= "number" or type(y) ~= "number" or x <= 0 or y <= 0 or x > 1 or y > 1 then return nil end
-
-    return { map = map, x = x, y = y }
-end
-
 local function Remember(key)
     if counted[key] then return false end
 
@@ -206,7 +166,7 @@ function DB:OnLootOpened()
     -- Wo der Spieler jetzt steht, nicht erst nach der Verzögerung
     local position
     if self.db.profile.trackLocations then
-        local found, result = pcall(self.GetPlayerArea, self)
+        local found, result = pcall(Locations.GetPlayerArea, Locations)
         if found then position = result else self:ReportError("GetPlayerArea", result) end
 
         if DebugOn() then
@@ -241,9 +201,9 @@ local function RawValues(func)
 end
 
 function DB:DebugArea(event)
-    self:Debug("Gebiet (" .. tostring(event) .. "):", self:DescribeArea(self:GetPlayerArea()) or "nicht bestimmbar (keine Karte, Koordinaten oder Instanz)")
-    self:Debug("IsInInstance:", RawValues(api.IsInInstance))
-    self:Debug("GetInstanceInfo:", RawValues(api.GetInstanceInfo))
+    self:Debug("Gebiet (" .. tostring(event) .. "):", self:DescribeArea(Locations:GetPlayerArea()) or "nicht bestimmbar (keine Karte, Koordinaten oder Instanz)")
+    self:Debug("IsInInstance:", RawValues(Locations.api.IsInInstance))
+    self:Debug("GetInstanceInfo:", RawValues(Locations.api.GetInstanceInfo))
     self:Debug("Aufzeichnung der Fundorte:", self.db.profile.trackLocations and "an" or "aus")
 end
 

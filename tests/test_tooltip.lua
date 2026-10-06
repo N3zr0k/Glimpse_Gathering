@@ -1,23 +1,35 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Symbole und Ortszeilen im Tooltip eines Handwerksmaterials (GatheringTooltip/Tooltip/Sources.lua)
+-- Symbole, Fundorte und Tabelle im Tooltip eines Handwerksmaterials (GatheringTooltip/Tooltip/Sources.lua und Tooltip.lua)
 local function setup(profile)
     local Glimpse = stub.newGlimpse()
     local GT = Glimpse:NewModule("GatheringTooltip")
     GT.L = Glimpse.L
-    GT.db = { profile = { locationLines = "nearest", showCoords = true, showDistance = true, showSourceIcons = true } }
+    GT.db = { profile = { showLocations = true, showCoords = true, showDistance = true, showSourceIcons = true, showAttempts = true, minChance = 10 } }
     for key, value in pairs(profile or {}) do GT.db.profile[key] = value end
     GT.data = { GetMapName = function(_, map) return ({ [37] = "Elwynn", [14] = "Dunkelküste", [10] = "Düsterwald" })[map] end }
     stub.load("Glimpse_GatheringTooltip/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Tooltip/Waypoint.lua", "Glimpse_GatheringTooltip")
+    GT.db.profile.waypointKey = GT.db.profile.waypointKey or "CTRL-G"
+    GT.db.profile.showWaypointHint = GT.db.profile.showWaypointHint == true -- die Hinweiszeile zählt in anderen Tests nicht mit
     return GT
 end
 
-local function Near(map, x, y, yards, source)
-    return { map = map, x = x, y = y, count = 3, source = source or "own", mapDistance = 0.01, distance = yards }
+-- Orte, wie sie GetLocatedItemSources liefert
+local function Here(x, y, yards, source)
+    return { map = 37, x = x, y = y, count = 3, source = source or "own", tier = 1, mapDistance = 0.01, distance = yards }
 end
-local function Far(map, source)
-    return { map = map, x = 0.5, y = 0.5, count = 3, source = source or "own" }
+local function Zone(map, yards, source) -- Stufe 2: andere Karte, gleicher Kontinent
+    return { map = map, x = 0.5, y = 0.5, count = 3, source = source or "own", tier = 2, distance = yards }
+end
+local function Other(map, source) -- Stufe 3
+    return { map = map, x = 0.5, y = 0.5, count = 3, source = source or "own", tier = 3 }
+end
+local function Source(tier, spot, extra)
+    local source = { kind = "node", id = 1, name = "Silberblatt", category = "herb", chance = 0.9, average = 1, hits = 9, attempts = 10, tier = tier, spot = spot }
+    for key, value in pairs(extra or {}) do source[key] = value end
+    return source
 end
 
 test("Tooltip: Symbole für Beute, Berufe und übrige Knoten", function()
@@ -31,128 +43,92 @@ test("Tooltip: Symbole für Beute, Berufe und übrige Knoten", function()
     eq(GT:SourceIcon({ kind = "node" }), P .. "INV_Misc_QuestionMark", "ohne Kategorie")
 end)
 
-local BLUE, YELLOW = "|cff66ccff", "|cffffff78"
-
-test("Tooltip: eigenes Gebiet zeigt den nächsten Ort mit Koordinaten und Entfernung", function()
+test("Tooltip: Stufe 1 zeigt Koordinaten und Entfernung des Ortes", function()
     local GT = setup()
-    local list = GT:LocationList({ area = "here", spots = { Near(37, 0.412, 0.568, 120.4), Near(37, 0.7, 0.2, 400) } })
-    eq(#list, 1, "nur der nächste Ort, es ist ja dieselbe Zone")
+    local list = GT:LocationList(Source(1, Here(0.412, 0.568, 120.4)))
+    eq(#list, 1, "ein Eintrag")
     eq(list[1].coords, "41, 57", "Koordinaten")
     eq(list[1].distance, 120, "Entfernung")
-    eq(list[1].zone, nil, "keine Zone")
-    eq(list[1].more, nil, "keine weiteren Zonen")
-
-    GT.db.profile.locationLines = "several"
-    eq(#GT:LocationList({ area = "here", spots = { Near(37, 0.412, 0.568, 120), Near(37, 0.7, 0.2, 400) } }), 1, "gleiche Zone: auch bei mehreren nur einer")
-    GT.db.profile.locationLines = "nearest"
+    eq(list[1].zone, "Elwynn", "Zone des eigenen Ortes")
+    eq(list[1].here, true, "hier")
+    eq(list[1].tag, nil, "kein Anbieter")
 
     GT.db.profile.showDistance = false
-    local one = GT:LocationList({ area = "here", spots = { Near(37, 0.412, 0.568, 120) } })[1]
+    local one = GT:LocationList(Source(1, Here(0.412, 0.568, 120)))[1]
     eq(one.coords, "41, 57", "ohne Entfernung")
     eq(one.distance, nil, "Entfernung aus")
-    GT.db.profile.showCoords = false
-    eq(#GT:LocationList({ area = "here", spots = { Near(37, 0.412, 0.568, 120) } }), 0, "ohne beides kein Eintrag")
 
-    -- Entfernung unbekannt
+    GT.db.profile.showCoords = false
+    local bare = GT:LocationList(Source(1, Here(0.412, 0.568, 120)))[1]
+    eq(bare.coords, nil, "ohne Koordinaten")
+    eq(bare.zone, "Elwynn", "die Zone bleibt")
+
     GT.db.profile.showDistance, GT.db.profile.showCoords = true, true
-    local unknown = GT:LocationList({ area = "here", spots = { Near(37, 0.1, 0.2, nil) } })[1]
+    local unknown = GT:LocationList(Source(1, Here(0.1, 0.2, nil)))[1]
     eq(unknown.coords, "10, 20", "nur Koordinaten")
     eq(unknown.distance, nil, "keine Entfernung")
 end)
 
-test("Tooltip: in der eigenen Instanz entfällt der Fundort", function()
+test("Tooltip: in der eigenen Instanz steht nur der Name mit Markierung", function()
     local GT = setup()
-    eq(#GT:LocationList({ area = "here", spots = { { instance = 36, name = "Todesminen", here = true, source = "own" } } }), 0, "kein Eintrag")
+    local entry = GT:LocationList(Source(1, { instance = 36, name = "Todesminen", here = true, source = "own", tier = 1 }))[1]
+    eq(entry.zone, "Todesminen", "Name der Instanz")
+    eq(entry.here, true, "hier")
+    eq(entry.coords, nil, "keine Koordinaten")
 end)
 
-test("Tooltip: mehrere Orte nur bei verschiedenen Zonen", function()
+test("Tooltip: Stufe 2 zeigt Zone und Entfernung", function()
     local GT = setup()
-    local source = { area = "elsewhere", spots = { Far(14), Far(14), Far(10), { instance = 36, name = "Todesminen", source = "own" } } }
-    local list = GT:LocationList(source)
-    eq(#list, 1, "nächster Ort")
-    eq(list[1].zone, "Dunkelküste", "erste Zone")
-    eq(list[1].more, 2, "zwei weitere Zonen (die doppelte zählt nicht)")
+    local entry = GT:LocationList(Source(2, Zone(14, 2300.4)))[1]
+    eq(entry.zone, "Dunkelküste", "Zone")
+    eq(entry.distance, 2300, "Entfernung")
+    eq(entry.coords, nil, "keine Koordinaten in anderen Zonen")
 
-    GT.db.profile.locationLines = "several"
-    list = GT:LocationList(source)
-    eq(#list, 3, "drei verschiedene Zonen")
-    eq(list[1].zone, "Dunkelküste", "Zone")
-    eq(list[2].zone, "Düsterwald", "zweite Zone")
-    eq(list[3].zone, "Todesminen", "Instanz")
-    eq(list[1].more, nil, "ohne +N")
+    eq(GT:LocationList(Source(2, Zone(14, nil)))[1].distance, nil, "Entfernung unbekannt")
+    GT.db.profile.showDistance = false
+    eq(GT:LocationList(Source(2, Zone(14, 2300)))[1].distance, nil, "Entfernung aus")
+end)
 
-    source.spots[5], source.spots[6] = Far(11), Far(12)
-    eq(#GT:LocationList(source), 3, "höchstens drei")
-
-    -- nur eine Zone: eine Zeile, auch bei mehreren Orten darin
-    eq(#GT:LocationList({ area = "elsewhere", spots = { Far(14), Far(14), Far(14) } }), 1, "eine Zone")
+test("Tooltip: Stufe 3 zeigt nur die Zone oder Instanz", function()
+    local GT = setup()
+    local zone = GT:LocationList(Source(3, Other(10)))[1]
+    eq(zone.zone, "Düsterwald", "Zone")
+    eq(zone.distance, nil, "ohne Entfernung")
+    eq(GT:LocationList(Source(3, { instance = 36, name = "Todesminen", source = "own", tier = 3 }))[1].zone, "Todesminen", "Instanz")
 
     -- Name unbekannt
-    GT.db.profile.locationLines = "nearest"
-    eq(GT:LocationList({ area = "elsewhere", spots = { Far(99) } })[1].zone, "Map 99", "Karte ohne Namen")
-    eq(GT:LocationList({ area = "elsewhere", spots = { { instance = 7, source = "own" } } })[1].zone, "Instance 7", "Instanz ohne Namen")
-end)
-
-test("Tooltip: eigenes Gebiet und weitere Zonen zusammen", function()
-    local GT = setup()
-    local spots = { Near(37, 0.412, 0.568, 120), Near(37, 0.7, 0.2, 400), Far(14), Far(14), Far(10), Far(11) }
-
-    -- nearest: nur der Ort im eigenen Gebiet, mit der Zahl weiterer Zonen
-    local list = GT:LocationList({ area = "here", spots = spots })
-    eq(#list, 1, "ein Eintrag")
-    eq(list[1].coords, "41, 57", "Ort im eigenen Gebiet")
-    eq(list[1].more, 3, "drei weitere Zonen")
-
-    -- several: erst das eigene Gebiet, dann andere Zonen, höchstens drei Einträge
-    GT.db.profile.locationLines = "several"
-    list = GT:LocationList({ area = "here", spots = spots })
-    eq(#list, 3, "drei Einträge")
-    eq(list[1].coords, "41, 57", "eigenes Gebiet zuerst")
-    eq(list[2].zone, "Dunkelküste", "zweiter Eintrag")
-    eq(list[3].zone, "Düsterwald", "dritter Eintrag")
-
-    -- Quelle nur mit Orten anderer Addons: gleiches Verhalten
-    local external = { area = "external", spots = { Near(37, 0.3, 0.4, 80, "GatherMate2"), Far(14, "GatherMate2") } }
-    list = GT:LocationList(external)
-    eq(#list, 2, "eigenes Gebiet und eine Zone")
-    eq(list[2].zone, "Dunkelküste", "Zone")
-    eq(list[2].tag, "GatherMate2", "Anbieter")
-
-    -- in der eigenen Instanz: bei nearest nichts, bei several die anderen Zonen
-    local inst = { area = "here", spots = { { instance = 36, name = "Todesminen", here = true, source = "own" }, Far(14) } }
-    eq(#GT:LocationList(inst), 1, "several: andere Zone")
-    GT.db.profile.locationLines = "nearest"
-    eq(#GT:LocationList(inst), 0, "nearest: nichts")
+    eq(GT:LocationList(Source(3, Other(99)))[1].zone, "Map 99", "Karte ohne Namen")
+    eq(GT:LocationList(Source(3, { instance = 7, source = "own", tier = 3 }))[1].zone, "Instance 7", "Instanz ohne Namen")
 end)
 
 test("Tooltip: Orte anderer Addons tragen deren Namen", function()
     local GT = setup()
-    local far = GT:LocationList({ area = "external", spots = { Far(14, "GatherMate2") } })[1]
-    eq(far.zone, "Dunkelküste", "andere Zone")
-    eq(far.tag, "GatherMate2", "Anbieter")
-
-    local near = GT:LocationList({ area = "external", spots = { Far(14, "GatherMate2"), Near(37, 0.3, 0.4, 80, "GatherMate2") } })[1]
-    eq(near.coords, "30, 40", "im eigenen Gebiet vor anderen Gebieten")
-    eq(near.distance, 80, "Entfernung")
-    eq(near.tag, "GatherMate2", "Anbieter")
+    eq(GT:LocationList(Source(2, Zone(14, 900, "GatherMate2")))[1].tag, "GatherMate2", "Zone")
+    eq(GT:LocationList(Source(1, Here(0.3, 0.4, 80, "GatherMate2")))[1].tag, "GatherMate2", "Koordinaten")
+    eq(GT:LocationList(Source(1, Here(0.3, 0.4, 80)))[1].tag, nil, "eigene Orte ohne Zusatz")
 end)
 
-test("Tooltip: Fundort wird mit Klammern und Farben formatiert", function()
+test("Tooltip: ohne Ort, Option aus oder Stufe 4 gibt es keinen Eintrag", function()
     local GT = setup()
-    eq(GT:FormatLocation({ coords = "41, 57", distance = 120 }),
-        BLUE .. "(|r" .. YELLOW .. "41, 57|r" .. BLUE .. " · |r" .. BLUE .. "120 yd|r" .. BLUE .. ")|r", "Koordinaten gelb, Rest blau")
-    eq(GT:FormatLocation({ zone = "Dunkelküste", tag = "GatherMate2", more = 2 }),
-        BLUE .. "(|r" .. BLUE .. "Dunkelküste|r" .. BLUE .. " · |r" .. BLUE .. "GatherMate2|r" .. BLUE .. "  +2|r" .. BLUE .. ")|r", "Zone mit Anbieter und weiteren Zonen")
+    eq(#GT:LocationList(Source(4, nil)), 0, "Stufe 4")
+    eq(#GT:LocationList(Source(2, nil)), 0, "ohne Ort")
+
+    GT.db.profile.showLocations = false
+    eq(#GT:LocationList(Source(2, Zone(14, 900))), 0, "Option aus")
 end)
 
-test("Tooltip: ohne Orte, aus oder ohne Gebiet gibt es keinen Eintrag", function()
-    local GT = setup()
-    eq(#GT:LocationList({ area = "none", spots = {} }), 0, "keine Orte")
-    eq(#GT:LocationList({ area = "none" }), 0, "ohne spots")
-    eq(#GT:LocationList({ area = "none", spots = { Far(14) } }), 0, "Gruppe none")
+local BLUE, YELLOW, WHITE, GREY = "|cff66ccff", "|cffffff78", "|cffffffff", "|cff999999"
+local SEP = GREY .. " - |r"
+local HERE = "|TInterface\\AddOns\\Glimpse_GatheringTooltip\\Media\\Markers\\pinsolid_blue.tga:11|t "
 
-    GT.db.profile.locationLines = "off"
-    eq(#GT:LocationList({ area = "elsewhere", spots = { Far(14) } }), 0, "Option aus")
+test("Tooltip: Fundort wird mit Farben formatiert", function()
+    local GT = setup()
+    eq(GT:FormatCoords({ coords = "41, 57" }), YELLOW .. "(41, 57)|r", "Koordinaten gelb in Klammern")
+    eq(GT:FormatCoords({ zone = "Elwynn" }), nil, "ohne Koordinaten")
+    eq(GT:FormatPlace({ zone = "Dunkelküste", distance = 1200, tag = "GatherMate2" }),
+        BLUE .. "(|r" .. BLUE .. "Dunkelküste|r" .. SEP .. WHITE .. "1200 yd|r" .. SEP .. GREY .. "GatherMate2|r" .. BLUE .. ")|r",
+        "Zone blau, Entfernung weiß, Anbieter grau")
+    eq(GT:FormatPlace({ zone = "Elwynn", here = true }):sub(1, #HERE), HERE, "eigener Ort mit Markierung")
 end)
 
 test("Tooltip: Gruppen für die Anzeige ohne Symbole", function()
@@ -166,24 +142,19 @@ test("Tooltip: Gruppen für die Anzeige ohne Symbole", function()
     eq(select(2, GT:SourceGroup({ kind = "npc", mode = "skinning" })), "Skinning", "Kürschnern")
 end)
 
-test("Tooltip: Tooltip.lua lässt sich laden", function()
-    local GT = setup()
-    GT.IsLearned = function() return true end
-    _G.C_Item = {}
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
-    eq(type(GT.RegisterTooltips), "function", "RegisterTooltips")
-end)
-
 -- Zeilen des Material-Tooltips: Tooltip.lua mit abgefangenem Provider
-local function itemRows(GT, sources)
+local function itemRows(GT, sources, maxSources)
     _G.C_Item = {}
     _G.Enum.TooltipDataType = { Object = 1, Unit = 2, Item = 3 }
     local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
     function Glimpse:ModifiersHeld() return true end
     GT.IsLearned = function() return true end
     GT.db.profile.showItemSource, GT.db.profile.minAttempts = true, 1
-    GT.db.profile.maxSources = GT.db.profile.maxSources or 2
-    GT.data.GetLocatedItemSources = function() return sources end
+    GT.db.profile.maxSources = maxSources or GT.db.profile.maxSources or 3
+    GT.data.GetLocatedItemSources = function(_, _, attempts, separate, minChance)
+        GT.lastCall = { attempts = attempts, separate = separate, minChance = minChance }
+        return sources
+    end
 
     local callbacks = {}
     function GT:RegisterTooltipLine(kind, func) callbacks[kind] = func end
@@ -192,55 +163,360 @@ local function itemRows(GT, sources)
     return callbacks[3](GT, { id = 100 }, {})
 end
 
+local function plain(text)
+    -- ohne Farbcodes, und ein Zeichen zählt einmal (die Umlaute sind in UTF-8 zwei Bytes)
+    return (text:gsub("|c" .. string.rep("%x", 8), ""):gsub("|r", ""):gsub("[\128-\191]", ""))
+end
+
 test("Tooltip: Quellzeile mit Symbol, Name und Fundort in einer Zeile", function()
-    local GT = setup()
+    local GT = setup({ minChance = 15 })
     local rows = itemRows(GT, {
-        { kind = "node", id = 1, name = "Silberblatt", category = "herb", chance = 0.93, average = 1.4, area = "here",
-            spots = { Near(37, 0.412, 0.568, 120) } },
-        { kind = "npc", id = 2, name = "Waldwolf", mode = "skinning", level = 12, chance = 0.42, average = 1.4, area = "elsewhere",
-            spots = { Far(14) } },
+        Source(1, Here(0.412, 0.568, 120)),
+        Source(2, Zone(14, 2300), { id = 2, kind = "npc", name = "Waldwolf", mode = "skinning", level = 12, chance = 0.42, category = nil }),
     })
     eq(#rows, 3, "Überschrift und zwei Quellen")
-    eq(rows[1][1]:find("Sources", 1, true) ~= nil, true, "Überschrift")
-    eq(rows[2][1], "Silberblatt " .. GT:FormatLocation({ coords = "41, 57", distance = 120 }), "Name, Fundort")
+    eq(rows[1][1]:find("Places", 1, true) ~= nil, true, "Überschrift")
+    eq(rows[2][1]:find("Silberblatt", 1, true) == 1, true, "Name zuerst")
+    eq(rows[2][1]:find(GT:FormatLocation({ coords = "41, 57", distance = 120, zone = "Elwynn", here = true }), 1, true) ~= nil, false, "Spalten statt eines Textes")
+    eq(rows[2][1]:find(GT:FormatCoords({ coords = "41, 57" }), 1, true) ~= nil, true, "Koordinaten")
+    eq(rows[2][1]:find(GT:FormatPlace({ zone = "Elwynn", distance = 120, here = true }), 1, true) ~= nil, true, "eigener Ort")
     eq(rows[2].icon, "Interface\\Icons\\Trade_Herbalism", "Symbol")
-    eq(rows[2][2]:find("93 %%") ~= nil, true, "Chance")
-    eq(rows[3][1]:find("Waldwolf", 1, true) ~= nil and rows[3][1]:find("Level 12", 1, true) ~= nil, true, "Kreatur mit Stufe")
+    eq(rows[2][2]:find("90 \x25\x25") ~= nil, true, "Chance")
+    eq(rows[3][1]:find("Level 12", 1, true) ~= nil, true, "Kreatur mit Stufe")
     eq(rows[3][1]:find("Skinning", 1, true), nil, "Art steht im Symbol")
-    eq(rows[3][1]:find(GT:FormatLocation({ zone = "Dunkelküste" }), 1, true) ~= nil, true, "Zone nach der Stufe")
+    eq(rows[3][1]:find(GT:FormatPlace({ zone = "Dunkelküste", distance = 2300 }), 1, true) ~= nil, true, "Zone und Entfernung")
     eq(rows[3].icon, "Interface\\Icons\\INV_Misc_Pelt_Wolf_01", "Pelz")
+
+    -- die Mindestchance und die Trennung gehen an GatheringDB (Prozent in Bruchteile)
+    near(GT.lastCall.minChance, 0.15, "Mindestchance")
+    eq(GT.lastCall.separate, nil, "Trennung (Standard des Profils)")
 end)
 
-test("Tooltip: mehrere Zonen stehen in Folgezeilen, die nicht als Quelle zählen", function()
-    local GT = setup({ locationLines = "several" })
+test("Tooltip: Treffer und Versuche hinter der Chance", function()
+    local GT = setup()
+    local rows = itemRows(GT, { Source(1, Here(0.4, 0.5, 10), { chance = 13 / 14, hits = 13, attempts = 14 }) })
+    eq(rows[2][2], "93 %  |cff999999(13/14)|r  |cff999999Avg. 1.0|r", "Chance, Treffer/Versuche, Menge")
+
+    GT.db.profile.showAttempts = false
+    rows = itemRows(GT, { Source(1, Here(0.4, 0.5, 10), { chance = 13 / 14, hits = 13, attempts = 14 }) })
+    eq(rows[2][2], "93 %  |cff999999Avg. 1.0|r", "ohne Versuche")
+end)
+
+test("Tooltip: nur so viele Orte wie eingestellt", function()
+    local GT = setup()
+    local sources = {}
+    for id = 1, 5 do sources[id] = Source(1, Here(0.1 * id, 0.2, 10 * id), { id = id, name = "Q" .. id }) end
+    eq(#itemRows(GT, sources, 2), 3, "Überschrift und zwei Zeilen")
+    eq(#itemRows(GT, sources, 5), 6, "alle fünf")
+    eq(#itemRows(GT, { sources[1] }, 3), 2, "eine Quelle: eine Zeile")
+    eq(itemRows(GT, { sources[1] }, 3)[1][1]:find("Best place", 1, true) ~= nil, true, "Überschrift bei einem Ort")
+end)
+
+test("Tooltip: fehlende Koordinaten lassen die Spalte frei", function()
+    local GT = setup()
     local rows = itemRows(GT, {
-        { kind = "npc", id = 2, name = "Waldwolf", mode = "loot", chance = 0.42, average = 1, area = "elsewhere",
-            spots = { Far(14), Far(10) } },
-        { kind = "npc", id = 3, name = "Bär", mode = "loot", chance = 0.2, average = 1, area = "none", spots = {} },
-        { kind = "npc", id = 4, name = "Eber", mode = "loot", chance = 0.1, average = 1, area = "none", spots = {} },
+        Source(1, Here(0.412, 0.568, 120), { id = 1, name = "Silberblatt" }),
+        Source(2, Zone(14, 2300), { id = 2, kind = "npc", name = "Waldwolf", mode = "skinning", level = 12, chance = 0.42 }),
     })
-    eq(#rows, 4, "Überschrift, Wolf, zweite Zone, Bär (maxSources = 2)")
-    eq(rows[2][1]:find("Dunkelküste", 1, true) ~= nil, true, "erste Zone in der Quellzeile")
-    eq(rows[3][1]:find("Düsterwald", 1, true) ~= nil, true, "zweite Zone darunter")
-    eq(rows[3][2], nil, "ohne Chance")
-    eq(rows[4][1]:find("Bär", 1, true) ~= nil, true, "zweite Quelle")
+    eq(#rows, 3, "Überschrift und zwei Quellen")
+    local silver, wolf = plain(rows[2][1]), plain(rows[3][1])
+
+    -- Name, Abstand, Koordinaten, Abstand, (Markierung), Ort
+    local coordStart = #"Waldwolf (Level 12)" + 8 + 1
+    eq(silver:find("(41, 57)", 1, true), coordStart, "Koordinaten")
+    eq(silver:find("(Elwynn", 1, true) ~= nil, true, "eigener Ort mit Namen")
+    eq(wolf:find(plain("(Dunkelküste"), 1, true) > coordStart + #"(41, 57)", true, "Ort steht hinter der Koordinatenspalte")
+    eq(wolf:sub(coordStart, coordStart + 7), string.rep(" ", 8), "Platzhalter statt Koordinaten")
+end)
+
+test("Tooltip: ohne Koordinaten gibt es keine Lücke vor den Zonen", function()
+    local GT = setup()
+    local rows = itemRows(GT, {
+        Source(2, Zone(14, 2300), { id = 2, kind = "npc", name = "Waldwolf", mode = "skinning", chance = 0.8 }),
+        Source(3, Other(10), { id = 3, kind = "npc", name = "Bär", mode = "loot", chance = 0.7 }),
+    })
+    local wolf, bear = plain(rows[2][1]), plain(rows[3][1])
+    eq(wolf:find(plain("(Dunkelküste"), 1, true), #"Waldwolf" + 8 + 1, "Zone direkt hinter dem Namen")
+    eq(bear:find(plain("(Düsterwald"), 1, true), #"Waldwolf" + 8 + 1, "gleiche Spalte")
+end)
+
+test("Tooltip: dieselbe Quelle in mehreren Zonen steht in mehreren Zeilen", function()
+    local GT = setup()
+    local rows = itemRows(GT, {
+        Source(1, Here(0.412, 0.568, 120), { id = 1, name = "Silberblatt" }),
+        Source(2, Zone(14, 2300), { id = 1, name = "Silberblatt" }),
+        Source(2, Zone(10, 3100), { id = 1, name = "Silberblatt" }),
+    })
+    eq(#rows, 4, "Überschrift und drei Orte")
+    eq(rows[2][1]:find("41, 57", 1, true) ~= nil, true, "eigene Zone")
+    eq(rows[3][1]:find("Dunkelküste", 1, true) ~= nil, true, "zweite Zone")
+    eq(rows[4][1]:find("Düsterwald", 1, true) ~= nil, true, "dritte Zone")
+    for index = 2, 4 do eq(rows[index][1]:find("Silberblatt", 1, true) == 1, true, "jede Zeile nennt die Quelle") end
+end)
+
+test("Tooltip: Quellen ohne Ort haben keine Klammer", function()
+    local GT = setup()
+    local rows = itemRows(GT, { Source(4, nil, { name = "Unbekannt" }) })
+    eq(rows[2][1], "Unbekannt", "nur der Name")
 end)
 
 test("Tooltip: ohne Symbole stehen die Quellen unter Überschriften für Beute und Berufe", function()
-    local GT = setup({ showSourceIcons = false, maxSources = 4 })
+    local GT = setup({ showSourceIcons = false })
     local rows = itemRows(GT, {
-        { kind = "node", id = 1, name = "Silberblatt", category = "herb", chance = 0.9, average = 1, area = "here", spots = {} },
-        { kind = "npc", id = 2, name = "Waldwolf", mode = "skinning", chance = 0.8, average = 1, area = "here", spots = {} },
-        { kind = "node", id = 5, name = "Friedensblume", category = "herb", chance = 0.7, average = 1, area = "elsewhere", spots = {} },
-        { kind = "npc", id = 3, name = "Bär", mode = "loot", chance = 0.2, average = 1, area = "none", spots = {} },
-    })
+        Source(1, Here(0.4, 0.5, 10), { id = 1, name = "Silberblatt", chance = 0.9 }),
+        Source(1, Here(0.5, 0.5, 20), { id = 2, kind = "npc", name = "Waldwolf", mode = "skinning", chance = 0.8 }),
+        Source(2, Zone(14, 900), { id = 5, name = "Friedensblume", chance = 0.7 }),
+        Source(4, nil, { id = 3, kind = "npc", name = "Bär", mode = "loot", chance = 0.2 }),
+    }, 4)
     eq(#rows, 8, "Titel, drei Überschriften, vier Quellen")
     eq(rows[2][1]:find("Herbalism", 1, true) ~= nil, true, "Kräuterkunde zuerst")
-    eq(rows[3][1], "Silberblatt", "Silberblatt")
-    eq(rows[4][1], "Friedensblume", "zweites Kraut in derselben Gruppe")
+    eq(rows[3][1]:find("Silberblatt", 1, true) == 1, true, "Silberblatt")
+    eq(rows[4][1]:find("Friedensblume", 1, true) == 1, true, "zweites Kraut in derselben Gruppe")
     eq(rows[5][1]:find("Skinning", 1, true) ~= nil, true, "Kürschnern")
-    eq(rows[6][1], "Waldwolf", "ohne Art hinter dem Namen")
+    eq(rows[6][1]:find("Waldwolf", 1, true) == 1, true, "Waldwolf")
     eq(rows[7][1]:find("Loot", 1, true) ~= nil, true, "Beute")
     eq(rows[8][1], "Bär", "Bär")
     eq(rows[3].icon, nil, "kein Symbol")
+end)
+
+test("Tooltip: Tooltip.lua lässt sich laden", function()
+    local GT = setup()
+    GT.IsLearned = function() return true end
+    _G.C_Item = {}
+    stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    eq(type(GT.RegisterTooltips), "function", "RegisterTooltips")
+end)
+
+test("Tooltip: Markierung des eigenen Ortes ist wählbar", function()
+    local GT = setup()
+    eq(GT:HereIcon():find("Markers\\pinsolid_blue.tga", 1, true) ~= nil, true, "Standard: blaue volle Nadel")
+    GT.db.profile.hereIcon, GT.db.profile.hereColor = "arrow", "red"
+    eq(GT:HereIcon():find("arrow_red.tga:10", 1, true) ~= nil, true, "roter Pfeil mit eigener Höhe")
+    GT.db.profile.hereIcon, GT.db.profile.hereColor = "gibt es nicht", "gibt es nicht"
+    eq(GT:HereIcon():find("pinsolid_blue.tga", 1, true) ~= nil, true, "unbekannte Werte fallen auf den Standard zurück")
+    GT.db.profile.showHereIcon = false
+    eq(GT:HereIcon(), "", "keine Markierung")
+    eq(GT:FormatPlace({ zone = "Elwynn", here = true }):find("|T", 1, true), nil, "ohne Symbol im Text")
+end)
+
+test("Tooltip: zu jedem Symbol und jeder Farbe gibt es eine Datei", function()
+    local GT = setup()
+    eq(#GT.MarkerIcons <= 5, true, "höchstens fünf Symbole")
+    for _, icon in ipairs(GT.MarkerIcons) do
+        for _, color in ipairs(GT.MarkerColors) do
+            local f = io.open("Glimpse_GatheringTooltip/Media/Markers/" .. icon.key .. "_" .. color .. ".tga", "rb")
+            eq(f ~= nil, true, icon.key .. "_" .. color)
+            if f then f:close() end
+        end
+    end
+end)
+
+test("Tooltip: Optionen für die Markierung lassen sich bauen", function()
+    local GT = setup()
+    local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
+    local refreshed = 0
+    function GT:RefreshTooltip() refreshed = refreshed + 1 end
+    local realLibStub = _G.LibStub
+    _G.LibStub = function(name)
+        if name == "AceConfigRegistry-3.0" then return { NotifyChange = function() end } end
+        return realLibStub(name)
+    end
+    stub.load("Glimpse_GatheringTooltip/Core/Options.lua", "Glimpse_GatheringTooltip")
+    Glimpse.name = Glimpse.name or "Glimpse"
+    local group = GT:BuildMarkerOptions()
+    eq(group.inline, true, "Gruppe")
+
+    local pin, arrow = group.args.icon_pinsolid, group.args.icon_arrow
+    eq(pin.image():find("pinsolid_blue.tga", 1, true) ~= nil, true, "Symbol in der gewählten Farbe")
+    eq(pin.name():find("|cffffd100", 1, true) ~= nil, true, "gewähltes Symbol hervorgehoben")
+    eq(arrow.name():find("|cffffd100", 1, true), nil, "anderes nicht")
+
+    arrow.func()
+    eq(GT.db.profile.hereIcon, "arrow", "Klick wählt das Symbol")
+    eq(refreshed, 1, "Tooltip aktualisiert")
+    eq(group.args.color.values().red:find("arrow_red.tga", 1, true) ~= nil, true, "Farbauswahl zeigt das gewählte Symbol")
+    group.args.color.set(nil, "green")
+    eq(GT.db.profile.hereColor, "green", "Farbe")
+    _G.LibStub = realLibStub
+end)
+
+test("Tooltip: Fundort-Optionen stehen in einer Gruppe mit zwei Haken je Reihe", function()
+    local GT = setup()
+    local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
+    function GT:RefreshTooltip() end
+    GT.data = {}
+    function Glimpse:BuildModifierOptions() return {} end
+    local realLibStub = _G.LibStub
+    _G.LibStub = function(name)
+        if name == "AceConfigRegistry-3.0" then return { NotifyChange = function() end } end
+        return realLibStub(name)
+    end
+    Glimpse.name = Glimpse.name or "Glimpse"
+    stub.load("Glimpse_GatheringTooltip/Core/Options.lua", "Glimpse_GatheringTooltip")
+    local options = GT:BuildOptions()
+    _G.LibStub = realLibStub
+
+    local items = options.items.args
+    eq(items.display.inline, true, "Gruppe Darstellung")
+    for _, key in ipairs({ "showLocations", "showCoords", "showDistance", "showAttempts" }) do
+        eq(items.display.args[key] ~= nil, true, key .. " in der Gruppe")
+        eq(items.display.args[key].width, "relative", key .. " Anteil der Breite")
+        eq(items.display.args[key].relWidth, 0.49, key .. " halbe Breite")
+        eq(items[key], nil, key .. " nicht mehr einzeln")
+    end
+end)
+
+test("Tooltip: Entfernung kommt aus dem Kern", function()
+    local GT = setup()
+    local Locations = LibStub("AceAddon-3.0"):GetAddon("Glimpse"):GetModule("Locations")
+    eq(GT:FormatDistance(120), "120 yd", "Yards")
+    eq(GT:FormatDistance(2300), "1.3 mi", "Einheit des Kerns")
+    function Locations:FormatDistance(yards) return "[" .. yards .. "]" end
+    eq(GT:FormatDistance(120), "[120]", "Format des Kerns")
+    eq(GT:FormatPlace({ zone = "Elwynn", distance = 3690 }):find("[3690]", 1, true) ~= nil, true, "im Ort")
+end)
+
+test("Tooltip: Wegpunkt per Taste zum besten Fundort", function()
+    local GT = setup({ showWaypointHint = true })
+    local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
+    local Locations = Glimpse:GetModule("Locations")
+    local printed, set = {}, nil
+    function Glimpse:Print(text) printed[#printed + 1] = text end
+    function Locations:SetWaypoint(map, x, y, title) set = { map, x, y, title }; return true end
+
+    eq(GT:SetWaypointTarget({ instance = 36 }, "Erz"), false, "Instanz hat keine Koordinaten")
+    eq(GT:HasWaypointTarget(), false, "kein Ziel")
+    eq(GT:WaypointHint(), nil, "ohne Ziel kein Hinweis")
+
+    eq(GT:SetWaypointTarget({ map = 37, x = 0.4, y = 0.6 }, "Silberblatt"), true, "Ziel gesetzt")
+    eq(GT:WaypointHint():find("Ctrl+G: set waypoint", 1, true) ~= nil, true, "Hinweis mit Taste")
+    eq(GT:WaypointHint():find("TomTom", 1, true), nil, "ohne TomTom kein Zusatz")
+    _G.TomTom = { AddWaypoint = function() end }
+    eq(GT:WaypointHint():find("(TomTom)", 1, true) ~= nil, true, "mit TomTom: Zusatz im Hinweis")
+    _G.TomTom = nil
+
+    -- Taste: nur die gewählte Kombination löst aus
+    local listener = stub.frames[#stub.frames]
+    stub.keys.ctrl = true
+    listener.onEvent(listener, "H")
+    eq(set, nil, "andere Taste löst nichts aus")
+    stub.keys.ctrl = false
+    listener.onEvent(listener, "G")
+    eq(set, nil, "ohne Strg nichts")
+    stub.keys.ctrl = true
+    listener.onEvent(listener, "G")
+    eq(set[1], 37, "Karte") eq(set[4], "Silberblatt - Elwynn", "Titel mit Zone")
+    eq(printed[1]:find("Elwynn", 1, true) ~= nil, true, "Meldung")
+
+    GT.db.profile.waypointKey = "off"
+    eq(GT:HasWaypointTarget(), false, "aus")
+    eq(GT:WaypointHint(), nil, "aus: kein Hinweis")
+    GT.db.profile.waypointKey = "CTRL-G"
+    GT:SetWaypointTarget(nil)
+    eq(GT:SetWaypoint(), false, "ohne Ziel nichts")
+
+    function Locations:SetWaypoint() return false end
+    GT:SetWaypointTarget({ map = 37, x = 0.4, y = 0.6 }, "Silberblatt")
+    eq(GT:SetWaypoint(), false, "nicht möglich")
+    eq(printed[#printed]:find("No waypoint possible", 1, true) ~= nil, true, "Meldung")
+end)
+
+test("Tooltip: Hinweiszeile am Ende des Materialtooltips", function()
+    local GT = setup({ showWaypointHint = true })
+    local rows = itemRows(GT, { Source(1, Here(0.4, 0.5, 10)) })
+    eq(rows[#rows][1]:find("Ctrl+G: set waypoint", 1, true) ~= nil, true, "Hinweis")
+    eq(GT:HasWaypointTarget(), true, "Ziel gesetzt")
+
+    GT.db.profile.showWaypointHint = false
+    rows = itemRows(GT, { Source(1, Here(0.4, 0.5, 10)) })
+    eq(#rows, 2, "ohne Hinweis")
+
+    rows = itemRows(GT, { Source(1, { instance = 36, name = "Minen", count = 1, source = "own", tier = 1 }) })
+    eq(GT:HasWaypointTarget(), false, "Instanz: kein Ziel")
+end)
+
+test("Tooltip: Wegpunkt-Taste einstellen und auf Belegung prüfen", function()
+    local GT = setup()
+    eq(GT:WaypointKeyName("CTRL-G"), "Ctrl+G", "Name")
+    eq(GT:WaypointKeyName("ALT-CTRL-SHIFT-F5"), "Ctrl+Shift+Alt+F5", "alle drei Umschalter")
+    eq(GT:WaypointKeyName("off"), "Off", "aus")
+
+    -- Belegung des Spiels: Strg+W ist belegt
+    _G.GetBindingAction = function(chord) return chord == "CTRL-W" and "MOVEFORWARD" or "" end
+    _G.BINDING_NAME_MOVEFORWARD = "Move Forward"
+    eq(GT:FindBindingConflict("CTRL-W"), "Move Forward", "belegt")
+    eq(GT:FindBindingConflict("CTRL-G"), nil, "frei")
+
+    local ok, conflict = GT:SetWaypointKey("CTRL-W")
+    eq(ok, false, "belegte Kombination wird abgelehnt") eq(conflict, "Move Forward", "Name der Belegung")
+    eq(GT.db.profile.waypointKey, "CTRL-G", "alte Taste bleibt")
+    eq(GT:SetWaypointKey("ALT-CTRL-SHIFT-H"), true, "freie Kombination")
+    eq(GT.db.profile.waypointKey, "ALT-CTRL-SHIFT-H", "gespeichert")
+    eq(GT:SetWaypointKey("off"), true, "aus")
+    _G.GetBindingAction, _G.BINDING_NAME_MOVEFORWARD = nil, nil
+end)
+
+test("Tooltip: Tastenabfrage nimmt die gedrückte Kombination auf", function()
+    local GT = setup()
+    local got = {}
+    local function result(chord) got[#got + 1] = chord == nil and "abgebrochen" or chord end
+
+    GT:CaptureKey(result)
+    eq(GT:IsCapturingKey(), true, "wartet")
+    local frame = stub.frames[#stub.frames]
+    frame.onEvent(frame, "LSHIFT")
+    eq(#got, 0, "ein Umschalter allein zählt nicht")
+    stub.keys.ctrl, stub.keys.shift, stub.keys.alt = true, true, true
+    frame.onEvent(frame, "K")
+    eq(got[1], "ALT-CTRL-SHIFT-K", "Kombination in der Schreibweise des Spiels")
+    eq(GT:IsCapturingKey(), false, "fertig")
+
+    stub.keys.ctrl, stub.keys.shift, stub.keys.alt = false, false, false
+    GT:CaptureKey(result) frame.onEvent(frame, "ESCAPE")
+    eq(got[2], "abgebrochen", "Escape bricht ab")
+    GT:CaptureKey(result) frame.onEvent(frame, "DELETE")
+    eq(got[3], "off", "Entf schaltet aus")
+end)
+
+test("Tooltip: belegte Taste wird auch über die Liste aller Belegungen gefunden, Meldung als Fehlerfenster", function()
+    local GT = setup()
+    -- GetBindingAction kennt die Taste nicht (Sondertaste), die Liste der Belegungen schon
+    _G.GetBindingAction = function() return "" end
+    local bindings = { { "TOGGLESHEATH", "Misc", "Ü", nil }, { "JUMP", "Movement", "SPACE", "ALT-SPACE" } }
+    _G.GetNumBindings = function() return #bindings end
+    _G.GetBinding = function(i) return (table.unpack or unpack)(bindings[i], 1, 4) end
+    _G.BINDING_NAME_TOGGLESHEATH = "Sheath"
+    eq(GT:FindBindingConflict("Ü"), "Sheath", "Taste Ü belegt")
+    eq(GT:FindBindingConflict("ALT-SPACE"), "Jump" == nil and "" or "JUMP", "zweite Belegung ohne Namen: Befehl")
+    eq(GT:FindBindingConflict("CTRL-G"), nil, "frei")
+
+    local shown
+    _G.StaticPopupDialogs = {}
+    _G.StaticPopup_Show = function(which, text) shown = { which, text } end
+    local ok, conflict = GT:SetWaypointKey("Ü")
+    eq(ok, false, "abgelehnt")
+    GT:ShowKeyInUse("Ü", conflict)
+    eq(shown[2]:find("Ü", 1, true) ~= nil and shown[2]:find("Sheath", 1, true) ~= nil, true, "Fehlerfenster nennt Taste und Belegung")
+    eq(StaticPopupDialogs.GLIMPSE_GATHERINGTOOLTIP_KEY_IN_USE ~= nil, true, "Dialog angelegt")
+    _G.GetBindingAction, _G.GetNumBindings, _G.GetBinding, _G.StaticPopupDialogs, _G.StaticPopup_Show = nil, nil, nil, nil, nil
+end)
+
+test("Tooltip: jedes Markierungs-Symbol hat einen Bildnachweis", function()
+    local GT = setup()
+    local credited = {}
+    for _, credit in ipairs(GT.IconCredits) do
+        eq(credit.author ~= nil and credit.url:find("^https://www.flaticon.com/") ~= nil, true, credit.key .. ": Autor und Link")
+        credited[credit.key] = true
+    end
+    for _, icon in ipairs(GT.MarkerIcons) do eq(credited[icon.key], true, icon.key .. " hat einen Nachweis") end
+end)
+
+test("Tooltip: Bildnachweis für die Credits der Optionsseite", function()
+    local GT = setup()
+    stub.load("Glimpse_GatheringTooltip/Core/Options.lua", "Glimpse_GatheringTooltip")
+    local credits = GT:BuildCredits()
+    eq(#credits.images, #GT.IconCredits, "ein Eintrag je Symbol")
+    eq(credits.images[1]:find("Karacis |cff66ccff(", 1, true) ~= nil, true, "Autor und Flaticon")
+    eq(credits.images[1]:find("|cff66ccff(https://www.flaticon.com/", 1, true) ~= nil, true, "Link blau in Klammern")
+    eq(credits.images[1]:sub(-3), ")|r", "Klammer und Farbe geschlossen")
 end)

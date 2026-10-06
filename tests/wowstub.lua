@@ -87,6 +87,17 @@ function stub.newGlimpse()
     end
 
     -- Mitgelieferte Bibliotheken sind über stub.libs erreichbar (LibStub("LibDeflate", true))
+    -- Das Modul Locations gehört zum Kern und wird hier aus dem Nachbarordner Glimpse geladen (Kern und
+    -- Erweiterung liegen nebeneinander). Seine Blizzard-Funktionen stehen in Locations.api, die Tests ersetzen sie.
+    _G.LibStub = function() return { GetAddon = function() return Glimpse end } end
+    for _, file in ipairs({ "Locations", "Maps", "Position", "Distance", "Units", "Coords", "Waypoint" }) do
+        local chunk, err = loadfile(ROOT .. "/../Glimpse/Modules/Locations/" .. file .. ".lua")
+        assert(chunk, "Kern Glimpse fehlt neben diesem Ordner (Modul Locations): " .. tostring(err))
+        chunk("Glimpse")
+    end
+    Glimpse.db = { profile = {} }
+    Glimpse.modules.Locations.api = {}
+
     _G.LibStub = function(name)
         if name == "LibDeflate" then return stub.libs.LibDeflate end
         return { GetAddon = function() return Glimpse end }

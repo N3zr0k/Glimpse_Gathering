@@ -1,5 +1,6 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
+local function Locations() return LibStub():GetAddon():GetModule("Locations") end
 
 -- Nachbau der Schnittstelle von GatherMate2 (Aufbau wie im Quelltext: coord = x * 1e6 + y * 100 in 1/10000)
 local NODE_IDS = {
@@ -233,7 +234,7 @@ end)
 
 test("GatherMate2: nächste Fundorte nach Entfernung", function()
     local DB = setup(HERBS)
-    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
 
     local spots = DB:GetNearestSpots("node", 10)
     eq(spots[1].density, 3, "Haufen in der Nähe zuerst")
@@ -241,12 +242,12 @@ test("GatherMate2: nächste Fundorte nach Entfernung", function()
     eq(#spots, 3, "alle")
     eq(#DB:GetNearestSpots("node", 10, 1), 1, "limit")
 
-    DB.GetPlayerPosition = function() return { map = 99, x = 0.5, y = 0.5 } end
+    Locations().GetPlayerPosition = function() return { map = 99, x = 0.5, y = 0.5 } end
     eq(#DB:GetNearestSpots("node", 10, nil, true), 0, "andere Karte, nur aktuelle")
     eq(#DB:GetNearestSpots("node", 10), 3, "andere Karte, alle")
     eq(DB:GetNearestSpots("node", 10)[1].source, "own", "Reihenfolge wie GetSpots")
 
-    DB.GetPlayerPosition = function() return nil end
+    Locations().GetPlayerPosition = function() return nil end
     eq(#DB:GetNearestSpots("node", 10), 3, "ohne Position")
     eq(#DB:GetNearestSpots("node", 10, nil, true), 0, "ohne Position, nur aktuelle")
     teardown()
@@ -283,10 +284,10 @@ end)
 
 test("Debug: Fundort-Zeilen zeigen Karte, Koordinaten, Quelle und Entfernung", function()
     local DB = setup(HERBS)
-    DB.api = { GetMapInfo = function(map) return map == 37 and { name = "Elwynn" } or nil end }
+    Locations().api = { GetMapInfo = function(map) return map == 37 and { name = "Elwynn" } or nil end }
     stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
 
-    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
     local lines = DB:DebugSpotLines("node", { 10 })
     eq(lines[1][1], "Locations: 1 own, 2 from other addons", "Zahlen")
     eq(lines[2][1], "Position: Elwynn (37)", "Position")
@@ -298,7 +299,7 @@ test("Debug: Fundort-Zeilen zeigen Karte, Koordinaten, Quelle und Entfernung", f
     eq(lines[4][2]:find("1 finds", 1, true) ~= nil, true, "Funde")
     eq(#lines, 5, "alle Orte")
 
-    DB.GetPlayerPosition = function() return nil end
+    Locations().GetPlayerPosition = function() return nil end
     lines = DB:DebugSpotLines("node", { 10 })
     eq(lines[2][1], "Position: unknown", "ohne Position")
     eq(lines[3][2]:find("[own]", 1, true) ~= nil, true, "eigener Ort zuerst")
@@ -360,18 +361,18 @@ local function Vector(x, y) return { GetXY = function() return x, y end } end
 
 test("Entfernung: Yards aus der Kartengröße der Spielfunktion", function()
     local DB = setup(HERBS)
-    DB.api = { GetMapWorldSize = function(map) if map == 37 then return 5000, 3000 end end }
-    DB:ResetMapSizes()
+    Locations().api = { GetMapWorldSize = function(map) if map == 37 then return 5000, 3000 end end }
+    Locations():ResetCaches()
     stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
-    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
 
-    local w, h = DB:GetMapSize(37)
+    local w, h = Locations():GetMapSize(37)
     eq(w, 5000, "Breite")
     eq(h, 3000, "Höhe")
-    eq(DB:GetMapSize(99), nil, "unbekannte Karte")
+    eq(Locations():GetMapSize(99), nil, "unbekannte Karte")
 
     -- 0.022 * 5000 = 110, 0.002 * 3000 = 6
-    near(DB:GetMapDistance(37, 0.702, 0.302, 0.68, 0.30), math.sqrt(110 * 110 + 6 * 6), "Strecke in Yards")
+    near(Locations():GetMapDistance(37, 0.702, 0.302, 0.68, 0.30), math.sqrt(110 * 110 + 6 * 6), "Strecke in Yards")
 
     local spots = DB:GetNearestSpots("node", 10)
     eq(spots[1].distance ~= nil, true, "Yards am Ort")
@@ -386,14 +387,14 @@ end)
 test("Entfernung: Größe aus Weltpositionen, wenn GetMapWorldSize fehlt", function()
     local DB = setup(HERBS)
     _G.CreateVector2D = function(x, y) return { x = x, y = y } end
-    DB.api = {
+    Locations().api = {
         GetWorldPosFromMapPos = function(_, v)
             -- Welt: Karte ist 4000 breit (zweite Zahl) und 2000 hoch (erste Zahl), Ecke bei (1000, 2000)
             return 0, Vector(1000 - v.y * 2000, 2000 - v.x * 4000)
         end,
     }
-    DB:ResetMapSizes()
-    local w, h = DB:GetMapSize(37)
+    Locations():ResetCaches()
+    local w, h = Locations():GetMapSize(37)
     eq(w, 4000, "Breite")
     eq(h, 2000, "Höhe")
     _G.CreateVector2D = nil
@@ -402,11 +403,11 @@ end)
 
 test("Entfernung: ohne Kartengröße nur Anteil der Karte", function()
     local DB = setup(HERBS)
-    DB.api = {}
-    DB:ResetMapSizes()
+    Locations().api = {}
+    Locations():ResetCaches()
     stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
-    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
-    eq(DB:GetMapDistance(37, 0.1, 0.1, 0.2, 0.2), nil, "keine Yards")
+    Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    eq(Locations():GetMapDistance(37, 0.1, 0.1, 0.2, 0.2), nil, "keine Yards")
 
     local spots = DB:GetNearestSpots("node", 10)
     eq(spots[1].distance, nil, "kein Yards-Wert")
@@ -415,25 +416,54 @@ test("Entfernung: ohne Kartengröße nur Anteil der Karte", function()
     eq(lines[3][2]:find("% of the map away", 1, true) ~= nil, true, "Anzeige in Prozent")
 
     -- Fehler in der Spielfunktion werden abgefangen
-    DB.api = { GetMapWorldSize = function() error("kaputt") end }
-    eq(DB:GetMapSize(37), nil, "Fehler abgefangen")
+    Locations().api = { GetMapWorldSize = function() error("kaputt") end }
+    eq(Locations():GetMapSize(37), nil, "Fehler abgefangen")
     teardown()
 end)
 
 
--- Quellen eines Materials (Item 100) in vier Gruppen:
---   10 Silberblatt     eigener Ort auf Karte 37 (hier), 50 %
---   11 Kupfer          eigener Ort auf Karte 38 (woanders), 100 %
---   12 Friedensblume   kein eigener Ort, GatherMate2-Ort auf Karte 37, 100 %
---   13 Unbekannt       gar kein Ort, 100 %
-local function SourcesSetup()
+-- Welt für die Stufen: Karte 37 und 38 liegen auf Kontinent 1 (Welt 0, 2000 Yards auseinander), Karte 39 auf Kontinent 2.
+local MAP_INFO = {
+    [1] = { name = "Kontinent1", mapType = 2 },
+    [2] = { name = "Kontinent2", mapType = 2 },
+    [37] = { name = "Karte37", mapType = 3, parentMapID = 1 },
+    [38] = { name = "Karte38", mapType = 3, parentMapID = 1 },
+    [39] = { name = "Karte39", mapType = 3, parentMapID = 2 },
+}
+local WORLD = { [37] = { 0, 0, 0 }, [38] = { 0, 2000, 0 }, [39] = { 1, 0, 0 } } -- Welt, Ursprung x, y; jede Karte 1000 x 1000 Yards
+
+local function WorldApi(withContinents, withWorld)
+    local api = {}
+    api.GetMapInfo = function(map)
+        local info = MAP_INFO[map]
+        if not info then return nil end
+        if withContinents then return info end
+        return { name = info.name }
+    end
+    if withWorld then
+        _G.CreateVector2D = function(x, y) return { x = x, y = y, GetXY = function(self) return self.x, self.y end } end
+        api.GetWorldPosFromMapPos = function(map, vector)
+            local world = WORLD[map]
+            if not world then return nil end
+            return world[1], CreateVector2D(world[2] + vector.x * 1000, world[3] + vector.y * 1000)
+        end
+    end
+    return api
+end
+
+-- Quellen eines Materials (Item 100):
+--   10 Silberblatt     bestätigter Ort auf Karte 37 (hier, Stufe 1), 50 %
+--   11 Kupfer          bestätigter Ort auf Karte 38 (gleicher Kontinent, Stufe 2), 100 %
+--   12 Friedensblume   kein eigener Ort, GatherMate2-Ort auf Karte 37 (Stufe 1, extern), 100 %
+--   13 Unbekannt       gar kein Ort (Stufe 4), 100 %
+local function SourcesSetup(continents, world)
     local points = { ["Herb Gathering"] = { [37] = {
         { 0.70, 0.30, 4 },   -- Friedensblume, auf der Karte des Spielers
         { 0.20, 0.20, 1 },   -- Silberblatt
     } } }
     local DB = setup(points)
-    DB.api = { GetMapInfo = function(map) return { name = "Karte" .. map } end }
-    DB.GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
+    Locations().api = WorldApi(continents ~= false, world ~= false)
+    Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
     DB.data.nodes[10] = nil
     DB:RecordNode(10, { name = "Silberblatt", category = "herb" }, {}, { map = 37, x = 0.40, y = 0.50 })
     DB:RecordNode(10, nil, { [100] = 1 }, { map = 37, x = 0.40, y = 0.50 })
@@ -449,68 +479,179 @@ local function Ids(list)
     return table.concat(ids, ",")
 end
 
-test("Quellen nach Gebiet: eigenes Gebiet, andere Gebiete, externe, ohne Ort", function()
+test("Quellen: eigenes Gebiet, gleicher Kontinent, ohne Ort; bestätigt vor extern", function()
     local DB = SourcesSetup()
     local list = DB:GetLocatedItemSources(100)
 
-    eq(Ids(list), "10,11,12,13", "Reihenfolge")
-    eq(list[1].area, "here", "eigenes Gebiet")
-    eq(list[2].area, "elsewhere", "anderes Gebiet")
-    eq(list[3].area, "external", "nur externe Orte")
-    eq(list[4].area, "none", "ohne Ort")
-    eq(list[3].spots[1].source, "GatherMate2", "Orte der Quelle")
+    eq(Ids(list), "10,12,11,13", "Reihenfolge")
+    eq(list[1].tier, 1, "bestätigter Ort hier")
+    eq(list[1].area, "here", "Gebiet")
+    eq(list[1].group, "own", "bestätigt")
+    eq(list[2].tier, 1, "externer Ort hier: ebenfalls Stufe 1 (der Ort in der eigenen Zone zählt)")
+    eq(list[2].group, "external", "aber extern, deshalb hinter den bestätigten")
+    eq(list[2].spot.source, "GatherMate2", "bester Ort")
+    eq(list[3].tier, 2, "andere Karte, gleicher Kontinent")
+    eq(list[3].area, "nearby", "Gebiet")
+    eq(list[4].tier, 4, "ohne Ort")
+    eq(list[4].spot, nil, "kein Ort")
+    eq(list[4].group, nil, "keine Gruppe")
     eq(#DB:GetItemSources(100), 4, "GetItemSources bleibt unverändert")
-    eq(DB:GetItemSources(100)[1].area, nil, "und ohne Zusatzfelder")
+    eq(DB:GetItemSources(100)[1].tier, nil, "und ohne Zusatzfelder")
     teardown()
 end)
 
-test("Quellen nach Gebiet: innerhalb einer Gruppe die höchste Chance zuerst", function()
+test("Quellen: Stufe 2 nach Entfernung in Yards, Stufe 1 nach Chance", function()
     local DB = SourcesSetup()
-    DB:RecordNode(14, { name = "Zweite", category = "other" }, { [100] = 1 }, { map = 37, x = 0.9, y = 0.9 })
-    DB:RecordNode(14, nil, {}, { map = 37, x = 0.9, y = 0.9 }) -- 1 von 2 = 50 %
-    DB:RecordNode(15, { name = "Dritte", category = "other" }, { [100] = 1 }, { map = 37, x = 0.8, y = 0.8 }) -- 100 %
-    local list = DB:GetLocatedItemSources(100)
-    eq(Ids(list), "15,10,14,11,12,13", "hier: 100 % vor 50 %, dann der Rest")
+    -- Spieler auf Karte 37 bei (0.68, 0.30): Karte 38 liegt 2000 Yards weiter, Mitte der Karte 38 bei 2500
+    local kupfer = DB:GetLocatedItemSources(100)[3]
+    eq(kupfer.spot.map, 38, "Ort")
+    near(kupfer.spot.distance, math.sqrt((2500 - 680) ^ 2 + (500 - 300) ^ 2), "Luftlinie über die Weltpositionen")
+
+    -- zweite Quelle auf Karte 38, näher am Spieler, aber schlechtere Chance: kommt trotzdem vor Kupfer
+    DB:RecordNode(14, { name = "Zink", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.1, y = 0.3 })
+    DB:RecordNode(14, nil, {}, { map = 38, x = 0.1, y = 0.3 })
+    DB:RecordNode(14, nil, {}, { map = 38, x = 0.1, y = 0.3 }) -- 1 von 3
+    eq(Ids(DB:GetLocatedItemSources(100)), "10,12,14,11,13", "Stufe 2: der nähere Ort zuerst")
+
+    -- Stufe 1: höchste Chance zuerst
+    DB:RecordNode(15, { name = "Dritte", category = "other" }, { [100] = 1 }, { map = 37, x = 0.9, y = 0.9 }) -- 100 %
+    eq(Ids(DB:GetLocatedItemSources(100)), "15,10,12,14,11,13", "Stufe 1: 100 % vor 50 %")
     teardown()
 end)
 
-test("Quellen nach Gebiet: zusammengefasst zählen externe Orte wie eigene", function()
+test("Quellen: Mindestchance gilt nur in Stufe 2", function()
+    local DB = SourcesSetup()
+    DB:RecordNode(14, { name = "Zink", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.1, y = 0.3 })
+    for _ = 1, 9 do DB:RecordNode(14, nil, {}, { map = 38, x = 0.1, y = 0.3 }) end -- 1 von 10 = 10 %
+    DB:RecordNode(16, { name = "Eisen", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.2, y = 0.2 })
+    for _ = 1, 3 do DB:RecordNode(16, nil, {}, { map = 38, x = 0.2, y = 0.2 }) end -- 1 von 4 = 25 %
+    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    for _ = 1, 9 do DB:RecordNode(17, nil, {}, { map = 39, x = 0.5, y = 0.5 }) end -- 10 %, anderer Kontinent
+
+    eq(Ids(DB:GetLocatedItemSources(100)), "10,12,14,16,11,17,13", "ohne Mindestchance alle")
+    eq(Ids(DB:GetLocatedItemSources(100, nil, nil, 0.2)), "10,12,16,11,17,13", "Zink (10 %) entfällt in Stufe 2, Fern (10 %) in Stufe 3 bleibt")
+    eq(Ids(DB:GetLocatedItemSources(100, nil, nil, 0)), "10,12,14,16,11,17,13", "0 = alle")
+    teardown()
+end)
+
+test("Quellen: anderer Kontinent und Instanzen sind Stufe 3, nach Chance", function()
+    local DB = SourcesSetup()
+    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    local list = DB:GetLocatedItemSources(100)
+    eq(Ids(list), "10,12,11,17,13", "Fern hinter dem gleichen Kontinent")
+    eq(list[4].tier, 3, "Stufe 3")
+    eq(list[4].area, "elsewhere", "Gebiet")
+    eq(list[4].spot.distance, nil, "ohne Entfernung")
+    teardown()
+end)
+
+test("Quellen: ohne Kontinentangaben gelten andere Karten als Stufe 2, nach Chance", function()
+    local DB = SourcesSetup(false, false)
+    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    DB:RecordNode(18, { name = "Halb", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.5, y = 0.5 })
+    DB:RecordNode(18, nil, {}, { map = 38, x = 0.5, y = 0.5 }) -- 50 %
+    local list = DB:GetLocatedItemSources(100)
+    eq(Ids(list), "10,12,11,17,18,13", "Stufe 2: 100 % vor 50 %, ohne Entfernung nach Chance")
+    eq(list[3].tier, 2, "Karte 38")
+    eq(list[4].tier, 2, "Karte 39: Kontinent unbekannt")
+    eq(list[3].spot.distance, nil, "keine Entfernung ohne Weltpositionen")
+    teardown()
+end)
+
+test("Quellen: Kontinent aus den Weltpositionen, wenn die Karten keine Typen liefern", function()
+    local DB = SourcesSetup(false, true)
+    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    local list = DB:GetLocatedItemSources(100)
+    eq(list[3].tier, 2, "Karte 38: gleiche Welt")
+    near(list[3].spot.distance, math.sqrt((2500 - 680) ^ 2 + (500 - 300) ^ 2), "Entfernung")
+    eq(list[4].tier, 3, "Karte 39: andere Welt")
+    teardown()
+end)
+
+test("Quellen: eine Quelle in mehreren Zonen ergibt mehrere Einträge", function()
+    local DB = SourcesSetup()
+    -- Friedensblume hat zusätzlich einen bestätigten Ort auf Karte 38 und auf Karte 39 (anderer Kontinent)
+    DB:RecordNode(12, nil, { [100] = 1 }, { map = 38, x = 0.5, y = 0.5 })
+    DB:RecordNode(12, nil, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+
+    local list = DB:GetLocatedItemSources(100)
+    eq(Ids(list), "10,12,12,11,12,13", "Friedensblume in drei Zonen (Stufe 1, 2, 3), in Stufe 2 vor Kupfer: gleiche Entfernung, mehr Versuche")
+
+    eq(list[2].tier, 1, "hier: der Ort in der eigenen Zone zählt, auch wenn er nur extern belegt ist")
+    eq(list[2].group, "external", "extern, deshalb hinter dem bestätigten Silberblatt")
+    eq(list[2].spot.map, 37, "Ort")
+    eq(list[3].tier, 2, "gleicher Kontinent")
+    eq(list[3].group, "own", "dort bestätigt")
+    eq(list[3].spot.map, 38, "Ort")
+    eq(list[5].tier, 3, "anderer Kontinent")
+    eq(list[5].spot.map, 39, "Ort")
+    eq(list[2].place, "m37", "Schlüssel des Ortes")
+    eq(#DB:GetItemSources(100), 4, "GetItemSources bleibt unverändert: vier Quellen")
+    teardown()
+end)
+
+test("Quellen: mehrere Orte in derselben Zone sind ein Eintrag, der nächste bestätigte zählt", function()
+    local DB = SourcesSetup()
+    -- zweiter bestätigter Ort von Silberblatt weit weg vom ersten, ebenfalls Karte 37, näher am Spieler (0.68, 0.30)
+    DB:RecordNode(10, nil, { [100] = 1 }, { map = 37, x = 0.60, y = 0.30 })
+    local list = DB:GetLocatedItemSources(100)
+
+    local entries = 0
+    for _, source in ipairs(list) do if source.id == 10 then entries = entries + 1 end end
+    eq(entries, 1, "ein Eintrag für Karte 37")
+    eq(list[1].id, 10, "bestätigt vor extern")
+    eq(#list[1].spots, 3, "alle Orte der Zone (zwei bestätigte, einer von GatherMate2)")
+    near(list[1].spot.x, 0.60, "der nähere Ort")
+    teardown()
+end)
+
+test("Quellen: zusammengefasst zählen externe Orte wie bestätigte", function()
     local DB = SourcesSetup()
     local list = DB:GetLocatedItemSources(100, nil, false)
 
-    eq(Ids(list), "12,10,11,13", "Friedensblume (100 %, GatherMate2-Ort hier) vor Silberblatt (50 %)")
-    eq(list[1].area, "here", "externer Ort im eigenen Gebiet")
-    eq(list[4].area, "none", "ohne Ort")
-    for _, source in ipairs(list) do eq(source.area ~= "external", true, "keine externe Gruppe") end
+    eq(Ids(list), "12,10,11,13", "Friedensblume (100 %) vor Silberblatt (50 %), beide Stufe 1")
+    eq(list[1].group, "own", "keine Trennung")
+    eq(list[1].tier, 1, "Stufe")
 
-    eq(Ids(DB:GetLocatedItemSources(100, nil, true)), "10,11,12,13", "ausdrücklich getrennt")
-    eq(Ids(DB:GetLocatedItemSources(100)), "10,11,12,13", "ohne Angabe getrennt")
+    eq(Ids(DB:GetLocatedItemSources(100, nil, true)), "10,12,11,13", "ausdrücklich getrennt")
+    eq(Ids(DB:GetLocatedItemSources(100)), "10,12,11,13", "ohne Angabe getrennt")
     teardown()
 end)
 
-test("Quellen nach Gebiet: ohne Position gibt es kein eigenes Gebiet", function()
+test("Quellen: ohne externe Daten gibt es nur bestätigte Orte", function()
     local DB = SourcesSetup()
-    DB.GetPlayerPosition = function() return nil end
+    DB.db = { profile = { useExternalSpots = false } }
     local list = DB:GetLocatedItemSources(100)
-    eq(Ids(list), "11,10,12,13", "alles mit Ort steht in 'woanders', nach Chance")
-    eq(list[1].area, "elsewhere", "Gruppe")
+    eq(Ids(list), "10,11,12,13", "Friedensblume ohne Ort in Stufe 4")
+    for _, source in ipairs(list) do eq(source.group ~= "external", true, "keine externe Gruppe") end
+    eq(list[3].tier, 4, "Friedensblume")
     teardown()
 end)
 
-test("Quellen nach Gebiet: Debug-Zeilen für ein Material", function()
+test("Quellen: ohne Position gibt es kein eigenes Gebiet", function()
+    local DB = SourcesSetup()
+    Locations().GetPlayerPosition = function() return nil end
+    local list = DB:GetLocatedItemSources(100)
+    eq(Ids(list), "11,10,12,13", "alle Orte auf Karten sind Stufe 2, nach Chance")
+    eq(list[1].tier, 2, "Stufe 2")
+    eq(list[1].spot.distance, nil, "ohne Entfernung")
+    teardown()
+end)
+
+test("Quellen: Debug-Zeilen für ein Material", function()
     local DB = SourcesSetup()
     stub.load("Glimpse_GatheringDB/Debug/Debug.lua", "Glimpse_GatheringDB")
 
     local lines = DB:DebugItemLines(100)
-    eq(lines[1][1], "Sources: 4  (outside separate)", "Kopfzeile")
+    eq(lines[1][1], "Places: 4  (outside separate)", "Kopfzeile")
     eq(lines[2][1], "Silberblatt (node 10, gather)", "erste Quelle")
-    eq(lines[2][2]:find("[here]", 1, true) ~= nil, true, "Gebiet")
+    eq(lines[2][2]:find("[here, confirmed]", 1, true) ~= nil, true, "Gebiet und Gruppe")
     eq(lines[2][2]:find("50.0%", 1, true) ~= nil, true, "Chance")
     eq(lines[3][1], "  Karte37 (37)  40.0 / 50.0", "Ort darunter")
     eq(#DB:DebugItemLines(4711), 0, "Item ohne Quelle: nichts")
 
     local combined = DB:DebugItemLines(100, false)
-    eq(combined[1][1], "Sources: 4  (outside combined)", "zusammengefasst")
+    eq(combined[1][1], "Places: 4  (outside combined)", "zusammengefasst")
     eq(combined[2][1], "Friedensblume (node 12, gather)", "andere Reihenfolge")
 
     -- höchstens 5 Quellen, 2 Orte je Quelle

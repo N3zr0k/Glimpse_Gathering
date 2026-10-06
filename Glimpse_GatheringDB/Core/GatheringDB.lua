@@ -6,7 +6,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- account-weit, und zwar nur Handwerksmaterialien. Angezeigt wird nichts (außer im Debug-Modus),
 -- das übernehmen andere Addons (z. B. GatheringTooltip).
 --
--- Öffentliche Schnittstelle (API_VERSION 3), erreichbar über Glimpse.GatheringDB:
+-- Öffentliche Schnittstelle (API_VERSION 5), erreichbar über Glimpse.GatheringDB:
 --   :GetNode(id)               Eintrag eines Sammelknotens oder nil
 --   :GetNPC(id)                Eintrag einer Kreatur oder nil
 --   :GetNodeDrops(id)          Liste der Beute eines Knotens, dazu die Zahl der Versuche
@@ -27,9 +27,11 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --                              Fundorte, die nächsten auf der Karte des Spielers zuerst (distance)
 --   :GetItemSpots(itemID, minAttempts, limit, includeExternal)
 --                              Fundorte aller Quellen eines Items, wahrscheinlichste Quelle zuerst
---   :GetLocatedItemSources(itemID, minAttempts, externalSeparate)
---                              Quellen eines Items nach Fundort geordnet: eigenes Gebiet, andere Gebiete, nur fremde
---                              Orte, ohne Ort (jeweils höchste Chance zuerst); Felder area und spots dazu
+--   :GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)
+--                              Die Orte der Quellen eines Items, geordnet nach "wo findet man es am besten": je Quelle
+--                              und Zone ein Eintrag; Stufe 1 eigenes Gebiet, 2 gleicher Kontinent (nach Entfernung, ab
+--                              minChance), 3 sonst, 4 ohne Ort; bestätigte Orte vor externen. Felder tier, area, group,
+--                              spot, spots, place dazu
 --   :GetProviders()            Anbieter fremder Fundorte: { name, available, enabled }
 --   :RegisterProvider(name, provider)  weiteren Anbieter anmelden (siehe Data/Providers.lua)
 --   :GetMapName(map)           Name einer Karte (Zone) oder nil
@@ -41,7 +43,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- Aufbau in Data/Store.lua, Erfassung in Loot/Collect.lua, Debug-Anzeige in Debug/Debug.lua.
 local DB = Glimpse:NewModule("GatheringDB", nil, "AceEvent-3.0")
 DB.L = L
-DB.API_VERSION = 3
+DB.API_VERSION = 5
 DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
 
 -- Damit andere Addons ohne GetModule drankommen

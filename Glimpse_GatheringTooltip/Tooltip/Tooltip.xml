@@ -1,4 +1,5 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
     <Script file="Sources.lua"/>
+    <Script file="Waypoint.lua"/>
     <Script file="Tooltip.lua"/>
 </Ui>

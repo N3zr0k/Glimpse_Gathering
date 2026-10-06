@@ -1,5 +1,6 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
+local function Locations() return LibStub():GetAddon():GetModule("Locations") end
 
 -- Beute-Erfassung mit nachgebautem Beutefenster. Items: 100 = Kräuter, 101 = Erz, 102 = Edelstein,
 -- 200 = Rüstung (kein Material).
@@ -201,8 +202,8 @@ end)
 local function withPosition(e, pos)
     e.DB.db.profile.trackLocations = true
     e.pos = pos
-    e.DB.api.GetBestMapForUnit = function() return pos and pos.map end
-    e.DB.api.GetPlayerMapPosition = function()
+    Locations().api.GetBestMapForUnit = function() return pos and pos.map end
+    Locations().api.GetPlayerMapPosition = function()
         if not e.pos then return nil end
         return { GetXY = function() return e.pos.x, e.pos.y end }
     end
@@ -280,7 +281,7 @@ test("Collect: unbrauchbare Positionen werden verworfen", function()
     -- ohne Kartenfunktionen
     local e2 = setup()
     e2.DB.db.profile.trackLocations = true
-    e2.DB.api.GetBestMapForUnit, e2.DB.api.GetPlayerMapPosition = nil, nil
+    Locations().api.GetBestMapForUnit, Locations().api.GetPlayerMapPosition = nil, nil
     stub.now = 5
     e2.cast("Silberblatt")
     e2.loot({ { 100, NODE } })
@@ -293,8 +294,8 @@ end)
 -- ---------------------------------------------------------------------------
 
 local function inInstance(e, kind, id, name)
-    e.DB.api.IsInInstance = function() return kind ~= "none", kind end
-    e.DB.api.GetInstanceInfo = function() return name, kind, 1, "Normal", 5, 0, false, id end
+    Locations().api.IsInInstance = function() return kind ~= "none", kind end
+    Locations().api.GetInstanceInfo = function() return name, kind, 1, "Normal", 5, 0, false, id end
 end
 
 test("Collect: in einer Instanz ist die Instanz der Fundort, ohne Koordinaten", function()
@@ -311,7 +312,7 @@ test("Collect: in einer Instanz ist die Instanz der Fundort, ohne Koordinaten", 
     eq(spots[1].map, nil, "keine Karte")
     eq(spots[1].x, nil, "keine Koordinaten")
     eq(e.DB.data.instances[36], "Die Todesminen", "Name gemerkt")
-    eq(e.DB:GetPlayerPosition(), nil, "in der Instanz keine Position")
+    eq(Locations():GetPlayerPosition(), nil, "in der Instanz keine Position")
 end)
 
 test("Collect: gleiche Instanz zählt zusammen, andere Instanz und offene Welt getrennt", function()
@@ -342,13 +343,13 @@ end)
 test("Collect: unbrauchbare Instanzangaben ergeben keinen Fundort", function()
     local e = setup()
     e.DB.db.profile.trackLocations = true
-    e.DB.api.IsInInstance = function() return true, "party" end
-    e.DB.api.GetInstanceInfo = function() return "Etwas", "party", 1, "", 5, 0, false, nil end
-    eq(e.DB:GetPlayerInstance(), nil, "ohne Instanz-ID")
+    Locations().api.IsInInstance = function() return true, "party" end
+    Locations().api.GetInstanceInfo = function() return "Etwas", "party", 1, "", 5, 0, false, nil end
+    eq(Locations():GetPlayerInstance(), nil, "ohne Instanz-ID")
 
     -- ohne die Funktionen
-    e.DB.api.IsInInstance, e.DB.api.GetInstanceInfo = nil, nil
-    eq(e.DB:GetPlayerInstance(), nil, "ohne Spielfunktionen")
+    Locations().api.IsInInstance, Locations().api.GetInstanceInfo = nil, nil
+    eq(Locations():GetPlayerInstance(), nil, "ohne Spielfunktionen")
 
     -- Option aus: auch in Instanzen kein Ort
     inInstance(e, "party", 36, "Die Todesminen")
@@ -361,7 +362,7 @@ end)
 
 test("Collect: Debug-Ausgabe nennt Position und gespeicherten Fundort", function()
     local e = setup()
-    e.DB.api.GetMapInfo = function() return { name = "Elwynn" } end
+    Locations().api.GetMapInfo = function() return { name = "Elwynn" } end
     withPosition(e, { map = 37, x = 0.412, y = 0.568 })
     stub.now = 5
     e.cast("Silberblatt")
@@ -416,8 +417,8 @@ test("Collect: Debug-Ausgabe beim Gebietswechsel nennt Ort und Rohwerte", functi
 
     -- ohne Spielfunktionen oder mit Fehler
     e.DB.debugLines = {}
-    e.DB.api.IsInInstance = nil
-    e.DB.api.GetInstanceInfo = function() error("kaputt") end
+    Locations().api.IsInInstance = nil
+    Locations().api.GetInstanceInfo = function() error("kaputt") end
     e.DB:OnAreaChanged("ZONE_CHANGED_NEW_AREA")
     stub.flush()
     text = table.concat(e.DB.debugLines, "\n")

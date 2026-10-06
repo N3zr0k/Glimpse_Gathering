@@ -1,5 +1,6 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
+local Locations = Glimpse:GetModule("Locations")
 
 -- Fundorte aus anderen Addons (z. B. GatherMate2). Sie werden nie gespeichert und nie exportiert,
 -- sondern erst beim Abfragen (DB:GetSpots) hinter die eigenen Orte gehängt.
@@ -192,35 +193,68 @@ function DB:IsSpotHere(spot, area)
     return area.map ~= nil and spot.map == area.map
 end
 
---- Die nächsten Fundorte einer Quelle. Orte auf der Karte, auf der der Spieler steht, kommen zuerst und
--- sind nach Entfernung sortiert. Sie haben distance (Yards, nur wenn die Kartengröße bekannt ist) und
--- mapDistance (Bruchteil der Kartenbreite, immer). Orte auf anderen Karten folgen in der gewohnten
--- Reihenfolge (ohne Entfernung), oder fehlen, wenn currentMapOnly gesetzt ist. Steht der Spieler in einer
--- Instanz, kommt zuerst deren Fundort (ohne Entfernung). Ohne bekannte Position wie GetSpots.
+--- Die nächsten Fundorte einer Quelle. Jeder Ort bekommt eine Stufe (tier) im Verhältnis zum Spieler:
+--   1  im eigenen Gebiet (dieselbe Karte oder Instanz); auf einer Karte mit distance (Yards, nur wenn die
+--      Kartengröße bekannt ist) und mapDistance (Bruchteil der Kartenbreite, immer)
+--   2  auf einer anderen Karte desselben Kontinents, mit distance (Luftlinie in Yards, wenn der Client Weltpositionen
+--      liefert). Lässt sich der Kontinent nicht bestimmen (keine Position, in einer Instanz, keine Kartenfunktion),
+--      zählen alle Karten hierher
+--   3  auf einem anderen Kontinent oder in einer anderen Instanz
+-- Sortiert nach Stufe, innerhalb der Stufe 1 und 2 nach Entfernung (ohne Entfernung dahinter), sonst in der
+-- Reihenfolge von GetSpots. Steht der Spieler in einer Instanz, kommt zuerst deren Fundort (here = true, ohne
+-- Entfernung). currentMapOnly: nur Stufe 1. Ohne bekannte Position gilt Stufe 2 für Karten und 3 für Instanzen.
 function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
     local spots = self:GetSpots(kind, id)
-    local position = self:GetPlayerArea()
+    local position = Locations:GetPlayerArea()
     if not position then
         if currentMapOnly then return {} end
+        for _, spot in ipairs(spots) do spot.tier = spot.instance and 3 or 2 end
         if limit then while #spots > limit do tremove(spots) end end
         return spots
     end
 
+    -- Kontinent und Weltposition des Spielers (nur auf einer Karte, nicht in einer Instanz)
+    local playerContinent, playerWorld, playerA, playerB
+    if position.map and not currentMapOnly then
+        playerContinent = Locations:GetContinent(position.map)
+        playerWorld, playerA, playerB = Locations:GetWorldPosition(position.map, position.x, position.y)
+    end
+
     local inside, near, far = {}, {}, {}
-    for _, spot in ipairs(spots) do
+    for index, spot in ipairs(spots) do
         if spot.instance then
             -- eine Instanz hat keine Koordinaten, also auch keine Entfernung
             if self:IsSpotHere(spot, position) then
-                spot.here = true
+                spot.here, spot.tier = true, 1
                 tinsert(inside, spot)
-            elseif not currentMapOnly then tinsert(far, spot) end
+            elseif not currentMapOnly then
+                spot.tier = 3
+                tinsert(far, { spot = spot, index = index })
+            end
         elseif position.map and spot.map == position.map then
             local dx, dy = spot.x - position.x, spot.y - position.y
+            spot.tier = 1
             spot.mapDistance = math.sqrt(dx * dx + dy * dy)
-            spot.distance = self:GetMapDistance(spot.map, spot.x, spot.y, position.x, position.y)
+            spot.distance = Locations:GetMapDistance(spot.map, spot.x, spot.y, position.x, position.y)
             tinsert(near, spot)
         elseif not currentMapOnly then
-            tinsert(far, spot)
+            -- andere Karte: derselbe Kontinent (Stufe 2) oder ein anderer (Stufe 3)
+            local same
+            if position.map then
+                local continent = Locations:GetContinent(spot.map)
+                if playerContinent and continent then same = playerContinent == continent end
+
+                local world, a, b = Locations:GetWorldPosition(spot.map, spot.x, spot.y)
+                if playerWorld and world then
+                    if same == nil then same = playerWorld == world end
+                    if world == playerWorld then
+                        local da, db = a - playerA, b - playerB
+                        spot.distance = math.sqrt(da * da + db * db)
+                    end
+                end
+            end
+            spot.tier = same == false and 3 or 2
+            tinsert(far, { spot = spot, index = index })
         end
     end
     -- auf einer Karte haben alle Orte Yards oder keiner, die Karte selbst ist also immer vergleichbar
@@ -229,9 +263,16 @@ function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
         if da ~= db then return da < db end
         return a.count > b.count
     end)
+    table.sort(far, function(a, b)
+        if a.spot.tier ~= b.spot.tier then return a.spot.tier < b.spot.tier end
+        local da, db = a.spot.distance, b.spot.distance
+        if da and db and da ~= db then return da < db end
+        if (da ~= nil) ~= (db ~= nil) then return da ~= nil end
+        return a.index < b.index
+    end)
     -- in der Instanz, in der man steht, kommt sie vor allem anderen
     for index, spot in ipairs(inside) do tinsert(near, index, spot) end
-    for _, spot in ipairs(far) do tinsert(near, spot) end
+    for _, item in ipairs(far) do tinsert(near, item.spot) end
 
     if limit then while #near > limit do tremove(near) end end
     return near

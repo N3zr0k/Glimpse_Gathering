@@ -1,5 +1,6 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
+local Locations = Glimpse:GetModule("Locations")
 
 -- Speichern und Abfragen. Alles, was hier ohne lokales "local" steht, ist die öffentliche
 -- Schnittstelle (siehe Kopf von Core/GatheringDB.lua).
@@ -315,14 +316,6 @@ function DB:GetItemSources(itemID, minAttempts)
     return result
 end
 
---- Wo der Spieler gerade ist, als Fundort für die Beute und zum Vergleichen: { instance, name } in einer
--- Instanz, sonst { map, x, y } (siehe GetPlayerPosition), oder nil, wenn sich beides nicht bestimmen lässt.
-function DB:GetPlayerArea()
-    local instance = self.GetPlayerInstance and self:GetPlayerInstance()
-    if instance then return instance end
-    return self.GetPlayerPosition and self:GetPlayerPosition() or nil
-end
-
 --- Der Ort als kurzer Text für die Debug-Ausgabe: "Instanz Die Todesminen (36)" oder
 -- "Karte Elwynn (37) 41.2 / 56.8" (Koordinaten in Prozent), oder nil ohne Ort.
 function DB:DescribeArea(area)
@@ -332,8 +325,7 @@ function DB:DescribeArea(area)
         return format("Instanz %s (%d)", tostring(area.name or self:GetInstanceName(area.instance) or "?"), area.instance)
     end
     if type(area.map) == "number" and type(area.x) == "number" and type(area.y) == "number" then
-        local name = self.api and self.api.GetMapInfo and self.api.GetMapInfo(area.map)
-        return format("Karte %s (%d) %.1f / %.1f", tostring(name and name.name or "?"), area.map, area.x * 100, area.y * 100)
+        return format("Karte %s (%d) %.1f / %.1f", tostring(Locations:GetMapName(area.map) or "?"), area.map, area.x * 100, area.y * 100)
     end
 end
 
@@ -401,71 +393,9 @@ function DB:GetItemSpots(itemID, minAttempts, limit, includeExternal)
     return result
 end
 
--- Größe der Karten in Yards, einmal je Karte bestimmt
-local mapSizes = {}
-
-local function PositiveNumber(value)
-    return type(value) == "number" and value == value and value > 0 and value < 1e7
-end
-
-local function ReadMapSize(api, map)
-    -- Blizzard kennt die Größe direkt (nicht in jedem Client)
-    if api.GetMapWorldSize then
-        local width, height = api.GetMapWorldSize(map)
-        if PositiveNumber(width) and PositiveNumber(height) then return width, height end
-    end
-
-    -- sonst aus zwei Weltpositionen der Karte: Ecke oben links und Mitte, Strecke verdoppelt
-    -- (die Ecke unten rechts wird auf manchen Karten ungenau umgerechnet)
-    if api.GetWorldPosFromMapPos and CreateVector2D then
-        local _, corner = api.GetWorldPosFromMapPos(map, CreateVector2D(0, 0))
-        local _, center = api.GetWorldPosFromMapPos(map, CreateVector2D(0.5, 0.5))
-        if corner and center then
-            -- Weltkoordinaten: die erste Zahl läuft in Kartenrichtung "oben", die zweite "links"
-            local top, left = corner:GetXY()
-            local middleTop, middleLeft = center:GetXY()
-            local width, height = math.abs(left - middleLeft) * 2, math.abs(top - middleTop) * 2
-            if PositiveNumber(width) and PositiveNumber(height) then return width, height end
-        end
-    end
-end
-
---- Größe einer Karte in Yards: Breite, Höhe. Ohne Angabe (Instanzen, Städte ohne Weltposition, fehlende
--- Kartenfunktionen) nil. Benutzt nur die Spielfunktionen, keine anderen Addons.
-function DB:GetMapSize(map)
-    if type(map) ~= "number" then return nil end
-
-    local known = mapSizes[map]
-    if not known then
-        -- nur Erfolge merken: beim Laden kann die Größe noch fehlen, später klappt es
-        local ok, width, height = pcall(ReadMapSize, self.api or {}, map)
-        if not (ok and width) then return nil end
-        known = { width, height }
-        mapSizes[map] = known
-    end
-
-    return known[1], known[2]
-end
-
---- Entfernung zweier Punkte (x, y von 0 bis 1) auf derselben Karte in Yards, oder nil, wenn die
--- Kartengröße unbekannt ist.
-function DB:GetMapDistance(map, x1, y1, x2, y2)
-    local width, height = self:GetMapSize(map)
-    if not width then return nil end
-
-    local dx, dy = (x1 - x2) * width, (y1 - y2) * height
-    return math.sqrt(dx * dx + dy * dy)
-end
-
--- Für Tests: gemerkte Kartengrößen vergessen
-function DB:ResetMapSizes()
-    mapSizes = {}
-end
-
 --- Name einer Karte (Zone) oder nil.
 function DB:GetMapName(map)
-    local info = self.api.GetMapInfo and self.api.GetMapInfo(map)
-    return info and info.name or nil
+    return Locations:GetMapName(map)
 end
 
 -- ---------------------------------------------------------------------------

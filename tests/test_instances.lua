@@ -1,5 +1,6 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
+local function Locations() return LibStub():GetAddon():GetModule("Locations") end
 
 local function setup(compress)
     stub.libs.LibDeflate = nil
@@ -22,8 +23,9 @@ local function setup(compress)
 
     -- Wo der Spieler gerade ist: area = { instance, name } oder { map, x, y }
     DB.area = nil
-    DB.GetPlayerInstance = function(self) return self.area and self.area.instance and self.area or nil end
-    DB.GetPlayerPosition = function(self) return self.area and self.area.map and self.area or nil end
+    local Locations = Glimpse:GetModule("Locations")
+    Locations.GetPlayerInstance = function() return DB.area and DB.area.instance and DB.area or nil end
+    Locations.GetPlayerPosition = function() return DB.area and DB.area.map and DB.area or nil end
     return DB
 end
 
@@ -152,7 +154,8 @@ test("Instanzen: Auswertung hier, woanders und Debug-Anzeige", function()
     local list = DB:GetLocatedItemSources(100)
     eq(list[1].id, 10, "Quelle in dieser Instanz zuerst")
     eq(list[1].area, "here", "hier")
-    eq(list[2].area, "elsewhere", "woanders")
+    eq(list[2].area, "nearby", "Karte: der Kontinent ist in einer Instanz unbekannt, also Stufe 2")
+    eq(list[3].area, "elsewhere", "andere Instanz")
     eq(list[1].spots[1].here, true, "Ort als hier markiert")
 
     -- im Geschmolzenen Kern: Kern ist "hier", obwohl nur 50 %

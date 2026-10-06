@@ -21,9 +21,11 @@ Not recorded: chests, fishing (no loot source), anything that is not a crafting 
 
 ## Options (GatheringTooltip)
 
-* General: only learned professions, minimum number of attempts, only while Shift/Ctrl/Alt is held
-* Crafting materials: show sources on items, number of sources (your area first, then other areas, each the most likely first), list sources with outside locations (GatherMate2) separately or count them like your own, icons in front of the sources (bag for loot, profession icons, `?` for other nodes), the location of each source in brackets behind its name (nearest, or up to three different zones in separate lines; coordinates and distance), headings for loot and professions when the icons are off
+* General: only learned professions, minimum number of attempts,  only while Shift/Ctrl/Alt is held
+* Crafting materials: show sources on items, number of places (1 to 10, default 3; one line per source and zone; order: your area, then other zones on your continent by distance, then everything else), minimum chance for other zones, list sources with outside locations (GatherMate2) separately (confirmed finds first) or count them like your own, icons in front of the sources (bag for loot, profession icons, `?` for other nodes) or headings instead, hits and attempts behind the chance, a marker for your own place (five symbols to pick, five colours), the location of each source in brackets behind its name (coordinates and distance in your zone, otherwise zone and distance)
 * Target: nodes, creature loot, skinning loot, items per list
+
+Distances use the unit chosen in the Glimpse options (General): automatic by client language, yards or metres.
 
 ## Installation
 
@@ -42,6 +44,16 @@ lua tests/run.lua
 luacheck .
 python3 tools/check.py
 ```
+
+## Credits
+
+The marker icons (`Glimpse_GatheringTooltip/Media/Markers`) are from [Flaticon](https://www.flaticon.com), recolored and converted to TGA:
+
+- Pin: icon by Karacis from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/ort_5338544)
+- Solid pin: icon by Magnific from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/standort_3699580)
+- Outline pin: icon by Magnific from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/ort_2794702)
+- Person: icon by kawalanicon from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/weiblicher-benutzer_18851090)
+- Arrow: icon by Magnific from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/navigation_3699548)
 
 ## License
 

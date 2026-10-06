@@ -46,9 +46,14 @@ local function ItemName(itemID)
 end
 
 -- Rechte Spalte: Chance in Prozent und die durchschnittliche Menge je Fund
-local function ChanceText(drop)
-    return format("%d %%", math.floor(drop.chance * 100 + 0.5))
-        .. "  " .. GREY .. format(L["Avg. %.1f"], drop.average) .. "|r"
+-- Mit withAttempts (nur bei Quellen): dahinter Treffer und Versuche, z. B. (13/14), damit man sieht, wie
+-- belastbar die Chance ist (1 von 1 sind auch 100 %)
+local function ChanceText(drop, withAttempts)
+    local text = format("%d %%", math.floor(drop.chance * 100 + 0.5))
+    if withAttempts and drop.hits and drop.attempts then
+        text = text .. "  " .. GREY .. format("(%d/%d)", drop.hits, drop.attempts) .. "|r"
+    end
+    return text .. "  " .. GREY .. format(L["Avg. %.1f"], drop.average) .. "|r"
 end
 
 -- Fügt Überschrift und Item-Zeilen einer Beuteliste an rows an. Zu wenige Versuche: nichts.
@@ -145,76 +150,79 @@ local function IsRelevant(self, source)
     return true
 end
 
--- Zeilen einer Quelle: Symbol (Beutel, Beruf), Name (bei Kreaturen mit Stufe), Fundort in Klammern und
--- eigenen Farben, rechts die Chance. Weitere Zonen stehen in Folgezeilen darunter.
--- Ohne Symbole (Option) steht die Art der Quelle stattdessen in einer Überschrift über der Gruppe.
-local INDENT = "     "
-
-local function SourceRows(self, source)
+-- Eine Quelle für die Anzeige: Name (bei Kreaturen mit Stufe) und Fundorte. Ausgerichtet werden sie
+-- gemeinsam (GT:AlignLocations), damit Koordinaten und Zonen aller Quellen untereinander stehen.
+local function SourceItem(self, source)
     local name = source.name
     if not name then
         name = format(source.kind == "node" and L["Node %d"] or L["Creature %d"], source.id)
     end
-
-    local icons = self.db.profile.showSourceIcons
 
     -- Bei Kreaturen steht dahinter die Stufe (-1 = Boss, "??"). Knoten brauchen keinen Zusatz.
     if source.kind == "npc" and source.level then
         name = name .. " " .. GREY .. "(" .. format(L["Level %s"], source.level < 0 and "??" or source.level) .. ")|r"
     end
 
-    local locations = self:LocationList(source)
-    if locations[1] then name = name .. " " .. self:FormatLocation(locations[1]) end
-
-    local rows = { { name, ChanceText(source), 1, 1, 1, icon = icons and self:SourceIcon(source) or nil } }
-    for index = 2, #locations do
-        tinsert(rows, { INDENT .. self:FormatLocation(locations[index]) })
-    end
-    return rows
+    return { source = source, name = name, locations = self:LocationList(source) }
 end
 
--- Die besten Quellen eines Materials aus dem Index von GatheringDB
--- (nach Fundort sortiert: eigenes Gebiet, andere Gebiete, nur fremde Orte; je Gruppe die höchste Chance
--- zuerst), so viele wie in den Optionen eingestellt
+-- Zeile einer ausgerichteten Quelle: Symbol (Beutel, Beruf), Name mit Fundort, rechts die Chance
+local function SourceRow(self, item)
+    local icons = self.db.profile.showSourceIcons
+    return { item.text, ChanceText(item.source, self.db.profile.showAttempts), 1, 1, 1, icon = icons and self:SourceIcon(item.source) or nil }
+end
+
+-- Die besten Orte, um ein Material zu bekommen, aus dem Index von GatheringDB
+-- (nach Nähe sortiert: eigenes Gebiet, dann andere Zonen des Kontinents nach Entfernung, dann alles andere;
+-- bestätigte Orte vor externen), so viele wie in den Optionen eingestellt
 local function ItemLines(self, data)
     local profile = self.db.profile
     if not profile.showItemSource or not data.id then return nil end
 
     -- erst die Quellen wählen (so viele wie eingestellt), dann darstellen
     local chosen = {}
-    for _, source in ipairs(self.data:GetLocatedItemSources(data.id, profile.minAttempts, profile.externalSeparate)) do
+    for _, source in ipairs(self.data:GetLocatedItemSources(data.id, profile.minAttempts, profile.externalSeparate, profile.minChance / 100)) do
         if IsRelevant(self, source) then
             tinsert(chosen, source)
             if #chosen >= profile.maxSources then break end
         end
     end
-    if #chosen == 0 then return nil end
+    if #chosen == 0 then
+        self:SetWaypointTarget(nil)
+        return nil
+    end
+
+    -- Wegpunkt: der erste Fundort mit Koordinaten (Instanzen haben keine)
+    local first = chosen[1]
+    self:SetWaypointTarget(first.spot, first.name)
+
+    local items = {}
+    for index, source in ipairs(chosen) do items[index] = SourceItem(self, source) end
+    self:AlignLocations(items)
 
     local rows = {}
     if profile.showSourceIcons then
-        for _, source in ipairs(chosen) do
-            for _, row in ipairs(SourceRows(self, source)) do tinsert(rows, row) end
-        end
+        for _, item in ipairs(items) do tinsert(rows, SourceRow(self, item)) end
     else
         -- Gruppen in der Reihenfolge ihres ersten Auftretens, darin die Quellen in ihrer Reihenfolge
         local groups, titles, order = {}, {}, {}
-        for _, source in ipairs(chosen) do
-            local key, title = self:SourceGroup(source)
+        for _, item in ipairs(items) do
+            local key, title = self:SourceGroup(item.source)
             if not groups[key] then
                 groups[key], titles[key] = {}, title
                 tinsert(order, key)
             end
-            tinsert(groups[key], source)
+            tinsert(groups[key], item)
         end
         for _, key in ipairs(order) do
             tinsert(rows, { Colored(titles[key], unpack(GROUP_COLOR)) })
-            for _, source in ipairs(groups[key]) do
-                for _, row in ipairs(SourceRows(self, source)) do tinsert(rows, row) end
-            end
+            for _, item in ipairs(groups[key]) do tinsert(rows, SourceRow(self, item)) end
         end
     end
 
-    tinsert(rows, 1, { Colored(#chosen == 1 and L["Best source"] or L["Sources"], unpack(HEADER_COLOR)) })
+    tinsert(rows, 1, { Colored(#chosen == 1 and L["Best place"] or L["Places"], unpack(HEADER_COLOR)) })
+    local hint = self:WaypointHint()
+    if hint then tinsert(rows, { hint }) end
     return rows
 end
 

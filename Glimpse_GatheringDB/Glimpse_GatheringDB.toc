@@ -11,6 +11,7 @@
 
 ## Category: Tooltip
 ## IconTexture: Interface\AddOns\Glimpse_GatheringDB\Media\Icon
+## X-Glimpse-MinVersion: 0.2.0
 ## Dependencies: Glimpse
 ## OptionalDeps: GatherMate2
 ## SavedVariables: GlimpseGatheringDB
