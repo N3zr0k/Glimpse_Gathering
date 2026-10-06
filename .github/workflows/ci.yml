@@ -37,16 +37,19 @@ jobs:
           GLIMPSE_DIR: .glimpse
         run: lua tests/run.lua
 
-  # Neue Version in der TOC und alles grün -> Tag setzen und Release bauen.
-  # Steht im CHANGELOG nur [Unreleased], wird eine Vorabversion (vX.Y.Z-beta.1) gebaut.
-  # Nur auf main; Pull Requests und bereits getaggte Versionen werden übersprungen.
+  # Neue Version oder neue Stufe und alles grün -> Tag setzen und Release bauen. Die Stufe steht im CHANGELOG:
+  #   nur "## [Unreleased]"                 Alpha   vX.Y.Z-alpha.1  (Vorabversion)
+  #   "## [X.Y.Z] - Datum (beta)"           Beta    vX.Y.Z-beta.1   (richtiges Release, als Vorabversion veröffentlicht)
+  #   "## [X.Y.Z] - Datum"                  final   vX.Y.Z
+  # Nur auf main; Pull Requests und Stufen, die es für die Version schon gibt (oder höhere), werden übersprungen.
   tag:
     needs: check
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.make.outputs.tag }}
     permissions:
       contents: write
-      actions: write
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -54,30 +57,38 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Tag anlegen, wenn die TOC-Version neu ist
+      - name: Tag anlegen, wenn die Version oder ihre Stufe neu ist
+        id: make
         run: |
-          version="$(python3 tools/check.py --version)"
-          final="v$version"
-          if git rev-parse -q --verify "refs/tags/$final" > /dev/null; then
-            echo "Tag $final existiert schon, nichts zu tun."
-            exit 0
-          fi
-          if grep -Eq "^##[[:space:]]*\[?$(printf '%s' "$version" | sed 's/\./\\./g')\]?" CHANGELOG.md; then
-            tag="$final"                      # CHANGELOG-Abschnitt vorhanden: richtiges Release
-          elif grep -Eiq '^##[[:space:]]*\[?Unreleased\]?' CHANGELOG.md; then
-            if [ -n "$(git tag -l "$final-beta.*")" ]; then
-              echo "Für $version gibt es schon eine Vorabversion, nichts zu tun."
-              exit 0
+          # Die Stufe steht im CHANGELOG (siehe tools/check.py): Alpha, Beta oder final.
+          tag="$(python3 tools/check.py --next-tag)"
+          if [ -z "$tag" ]; then
+            # Gibt es das Tag schon, aber noch kein Release (z. B. ein früherer Lauf ist gescheitert), wird nur das
+            # Release gebaut. Sonst ist nichts zu tun.
+            current="$(python3 tools/check.py --current-tag)"
+            if [ -n "$current" ] && ! gh release view "$current" > /dev/null 2>&1; then
+              echo "Tag $current existiert, aber es gibt noch kein Release: es wird gebaut."
+              echo "tag=$current" >> "$GITHUB_OUTPUT"
+            else
+              echo "Für diese Version gibt es schon ein Tag dieser oder einer höheren Stufe, nichts zu tun."
             fi
-            tag="$final-beta.1"               # nur Unreleased: Vorabversion
-          else
-            tag="$final"                      # check.py meldet den fehlenden Abschnitt
+            exit 0
           fi
           # TOC-Versionen und CHANGELOG müssen zum Tag passen, sonst gibt es kein Tag
           python3 tools/check.py --tag "$tag"
           git tag "$tag" "$GITHUB_SHA"
           git push origin "refs/tags/$tag"
-          # Ein mit dem GITHUB_TOKEN gepushtes Tag startet keinen Push-Workflow. Der Release-Workflow
-          # wird deshalb ausdrücklich auf dem Tag gestartet (dispatch ist für das Token erlaubt).
-          gh workflow run release.yml --ref "$tag"
-          echo "Release-Workflow für $tag gestartet."
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Tag $tag angelegt, das Release wird im Job release gebaut."
+
+  # Ein mit dem GITHUB_TOKEN gepushtes Tag startet keinen Push-Workflow. Das Release wird deshalb hier
+  # gebaut: release.yml läuft als wiederverwendbarer Workflow und holt das Tag selbst aus dem Repo.
+  release:
+    needs: tag
+    if: needs.tag.outputs.tag != ''
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.tag.outputs.tag }}
+    secrets: inherit
