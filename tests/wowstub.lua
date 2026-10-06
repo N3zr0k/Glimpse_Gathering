@@ -18,6 +18,7 @@ end
 
 function stub.reset()
     -- Lua-5.1-Ausdrücke, die der Client mitbringt
+    _G.unpack = _G.unpack or table.unpack -- Lua 5.4 (CI) hat nur table.unpack, der Client bringt unpack mit
     _G.tinsert = table.insert
     _G.tremove = table.remove
     _G.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
