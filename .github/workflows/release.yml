@@ -48,6 +48,9 @@ jobs:
 
       - name: Paket bauen und veröffentlichen
         uses: BigWigsMods/packager@v2
+        with:
+          # Das Paket hat keine TOC im Hauptordner (zwei Addon-Ordner), deshalb steht die CurseForge-ID hier
+          args: -p 1730186
 
       - name: Zip prüfen
         run: |

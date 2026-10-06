@@ -8,6 +8,7 @@
 ## X-License: MIT
 ## X-Website: https://github.com/N3zr0k/Glimpse_Gathering
 ## X-Repo: https://github.com/N3zr0k/Glimpse_Gathering
+## X-Curse-Project-ID: 1730186
 
 ## Category: Tooltip
 ## IconTexture: Interface\AddOns\Glimpse_GatheringTooltip\Media\Icon
