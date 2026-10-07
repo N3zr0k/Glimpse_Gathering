@@ -91,3 +91,22 @@ L["TomTom detected: waypoints are set through TomTom."] = "TomTom erkannt: Wegpu
 L["TomTom not found: waypoints are set with the game marker."] = "TomTom nicht gefunden: Wegpunkte werden mit der Markierung des Spiels gesetzt."
 L["The key %s is already used in the game: %s"] = "Die Taste %s ist im Spiel schon belegt: %s"
 L["Error"] = "Fehler"
+
+-- Benötigter Skill
+L["Skill: %s - requires %s %d"] = "Stufe: %s - benötigt %s %d"
+L["Skill: %s - possibly requires %s %d"] = "Stufe: %s - eventuell benötigt %s %d"
+L["not learned - requires %s %d"] = "nicht gelernt - benötigt %s %d"
+L["Requires %s %d"] = "Benötigt %s %d"
+L["Show required skill on nodes"] = "Benötigten Skill an Knoten anzeigen"
+L["Show the skill a herb or ore node needs, your own skill and the colour in its tooltip."] = "Zeigt im Tooltip von Kräutern und Erzadern den benötigten Skill, deinen eigenen und die Farbe."
+L["Show required skill on creatures"] = "Benötigten Skill an Kreaturen anzeigen"
+L["Show the skinning skill a creature needs. Creatures with recorded skinning loot are shown for sure, beasts and dragonkin as a guess."] = "Zeigt den Kürschnerei-Skill, den eine Kreatur verlangt. Kreaturen mit aufgezeichneter Kürschner-Beute werden sicher angezeigt, Wildtiere und Drachkin als Vermutung."
+L["Skill only for learned professions"] = "Skill nur für gelernte Berufe"
+L["Only show the required skill if you have the profession."] = "Zeigt den benötigten Skill nur, wenn du den Beruf hast."
+L["Hide gray nodes"] = "Graue Knoten ausblenden"
+L["Do not show the skill for nodes and creatures that no longer raise your skill."] = "Zeigt den Skill nicht für Knoten und Kreaturen, die deinen Skill nicht mehr steigern."
+
+-- Angeln
+L["Fishing"] = "Angeln"
+L["%s %d/%d"] = "%s %d/%d"
+L["%s - not learned"] = "%s - nicht gelernt"

@@ -36,7 +36,7 @@ ln -s ~/dev/Glimpse_Gathering/Glimpse_GatheringTooltip "<AddOns>/Glimpse_Gatheri
 
 Änderungen sind dann nach `/reload` im Spiel.
 
-## Öffentliche Schnittstelle von GatheringDB (API_VERSION 6)
+## Öffentliche Schnittstelle von GatheringDB (API_VERSION 10)
 
 Erreichbar über `Glimpse.GatheringDB` (oder `Glimpse:GetModule("GatheringDB")`). Die zurückgegebenen
 Tabellen sind nur zum Lesen gedacht.
@@ -49,13 +49,19 @@ Tabellen sind nur zum Lesen gedacht.
 | `:GetNodeDropsByName(name)` | wie `GetNodeDrops`, über den Namen (mehrere IDs zusammengerechnet) |
 | `:FindNodeIDs(name)` / `:GetTooltipName(tooltip)` | Namenssuche für Weltobjekte ohne ID |
 | `:GetItemSources(itemID, minAttempts)` | alle Quellen eines Items, wahrscheinlichste zuerst |
-| `:GetStats()` | Knoten, Kreaturen, erfasste Beutefenster, Fundorte, Kills |
-| `:GetNPCKills(id)` | Zahl der Kills einer Kreatur (eigener Zähler, unabhängig von den Versuchen) |
+| `:GetStats()` | Knoten, Kreaturen, erfasste Beutefenster, Fundorte, Angelzonen, Angelwürfe (der Kill-Wert fiel mit API 10 weg, die späteren rücken auf) |
 | `:GetSpots(kind, id, includeExternal)` | Fundorte einer Quelle: Liste `{ map, x, y, count, source }` (x, y = 0..1); Beute aus Instanzen: `{ instance, name, count, source }` ohne `map`, `x`, `y` (kein Wegpunkt möglich). Erst die eigenen (`source = "own"`, häufigste zuerst), dann fremde (`source = "GatherMate2"`, `count = 0`, `density` = Punkte dort); `includeExternal = false` liefert nur eigene |
 | `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
 | `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung: `distance` in Yards (nur wenn die Kartengröße bekannt ist), `mapDistance` als Bruchteil der Kartenbreite |
 | `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
 | `:GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)` | Die Orte der Quellen eines Items, geordnet nach "wo findet man es am besten". Ein Eintrag ist eine Quelle an einem Ort (Zone oder Instanz): eine Quelle in drei Zonen ergibt drei Einträge, mehrere Orte derselben Zone einen (Kopien der Einträge von `GetItemSources` mit `tier`, `area`, `group`, `spot`, `spots`, `place`). Stufen: 1 `"here"` (Gebiet des Spielers: Karte oder Instanz), 2 `"nearby"` (andere Karte desselben Kontinents, nach Entfernung in Yards, ab `minChance` (0 bis 1)), 3 `"elsewhere"` (anderer Kontinent oder andere Instanz), 4 `"none"` (kein Ort, ein Eintrag je Quelle). Innerhalb einer Stufe zuerst `group = "own"` (bestätigter Ort), dann `"external"` (Ort nur von einem anderen Addon); danach in Stufe 1 und 3 die höchste Chance. Ein Ort in der eigenen Zone zählt auch, wenn er nur extern belegt ist. `spot` ist der beste Ort des Eintrags. `externalSeparate = false`: externe zählen wie bestätigte (Standard `true`; die Option dafür liegt in GatheringTooltip, Tab Handwerksmaterial) |
+| `:GetRequiredSkill(kind, id, level)` | Beruf (`"herb"`, `"ore"`, `"skinning"`), benötigter Skill, bei Kreaturen dazu, ob sie als kürschnerbar bekannt sind (Kürschner-Beute aufgezeichnet). `kind` = `"node"` (Objekt-ID) oder `"npc"` (Kreatur-ID, `level` = Stufe, ohne Angabe die gespeicherte). nil ohne Ergebnis (unbekannter Knoten, Boss-Stufe). Die Tabellen stehen in `Data/SkillData.lua` (Quellen dort im Kopf), nicht in den SavedVariables |
+| `:GetNodeSkill(id)` / `:GetSkinningSkill(level)` | dasselbe einzeln. Ein Knoten, der nicht in der Tabelle steht, aber aufgezeichnet ist, wird über sein Material zugeordnet, wenn alle Materialien denselben Skill verlangen |
+| `:GetSkillColor(required, current)` | `"red"` (reicht nicht), `"orange"` (ab `required`), `"yellow"` (+25), `"green"` (+50), `"gray"` (+100), dazu r, g, b |
+| `:GetPlayerSkill(profession)` | Skill mit Ausrüstungsbonus, Maximum, Name des Berufs im Client, Skill ohne Bonus; nil = nicht gelernt. Berufe werden über Skill-Linien-IDs gefunden, nicht über Namen; Cache, geleert bei `SKILL_LINES_CHANGED` und `PLAYER_EQUIPMENT_CHANGED` |
+| `:HasProfession(profession)` | true/false, nil wenn der Client die Berufe nicht auslesen lässt |
+| `:IsKnownSkinnable(id)` / `:GetCreatureTypeID(unit)` / `:IsSkinnableType(typeID)` | Kreatur mit Kürschner-Beute aufgezeichnet; Typ-ID einer Einheit (1 = Wildtier, 2 = Drachkin) unabhängig von der Clientsprache; Typ kann kürschnerbar sein |
+| `:GetFishing(map)` / `:GetFishingDrops(map)` | Angelzone (uiMapID): Rohdaten `{ attempts, items, spots }` bzw. Liste der Fänge wie bei `GetNodeDrops`, dazu die Zahl der Würfe. Jedes Auswerfen (Zauber "Fischen", erkannt über den Namen) zählt als Versuch, ein Beutefenster (`IsFishingLoot()`) macht ihn zum Treffer; ein Wurf ohne Fenster zählt sofort bei der Meldung `ERR_FISH_ESCAPED` (`UI_ERROR_MESSAGE`/`UI_INFO_MESSAGE`), sonst 4 s nach `UNIT_SPELLCAST_CHANNEL_STOP`, beim nächsten Wurf oder nach 45 s (ein spätes Fenster wird über `AddFishingItems` nachgetragen). Gespeichert werden nur Handwerksmaterialien. In `GetItemSources` und `GetLocatedItemSources` erscheint die Zone als Quelle mit `kind = "fishing"`, `mode = "fishing"`, `id` = Karte; `GetSpots("fishing", map)` liefert die Orte, an denen geangelt wurde |
 | `:GetProviders()` / `:RegisterProvider(name, provider)` | Anbieter fremder Fundorte abfragen (`{ name, available, enabled }`) bzw. anmelden |
 | `:GetMapName(map)` | Name der Karte (uiMapID) oder nil |
 | `:ExportData()` | Exporttext, `{ nodes, npcs, chars }` |
@@ -67,7 +73,7 @@ mode ("gather"|"loot"|"skinning"), name, level, category, attempts, hits, amount
 
 Nachricht bei jeder Änderung: `GLIMPSE_GATHERING_UPDATED (kind, id)` (`kind` = `"node"`, `"npc"` oder `"reset"`).
 
-Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 4 = `GetLocatedItemSources`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt; 6 = `GetNPCKills`, `GetStats` liefert die Kills als fünften Wert).
+Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 4 = `GetLocatedItemSources`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt; 6 = `GetNPCKills`, `GetStats` liefert die Kills als fünften Wert (beides mit 10 entfernt); 7 = Skill-Funktionen `GetRequiredSkill`, `GetSkillColor`, `GetPlayerSkill` und Verwandte). 9 = `IsFishing`, `IsBobber`, `GetPlayerSkill("fishing")`; 8 = Angeln (`GetFishing`, `GetFishingDrops`, Quelle `"fishing"`, `GetStats` liefert Zonen und Würfe als sechsten und siebten Wert, Datenversion 6, Export enthält `fishing`). 10 = der Kill-Zähler ist weg: `GetNPCKills` und `RecordKill` entfallen, `GetStats` liefert Angelzonen und Würfe als fünften und sechsten Wert. GatheringTooltip verlangt Version 8.
 
 Für TomTom: `GetSpots`/`GetItemSpots` liefern `map` (uiMapID) und `x`, `y` als Bruchteil 0..1, also direkt
 `TomTom:AddWaypoint(spot.map, spot.x, spot.y, { title = ... })`.
@@ -78,7 +84,7 @@ Eigene SavedVariable `GlimpseGatheringDB` (AceDB, `global`, account-weit):
 
 ```
 nodes[objectID] = { name, category ("herb"|"ore"|"other"), attempts, items = { [itemID] = { hits, amount } }, spots }
-npcs[npcID]     = { name, level, kills, loot = { attempts, items }, skinning = { attempts, items }, spots }
+npcs[npcID]     = { name, level, loot = { attempts, items }, skinning = { attempts, items }, spots }
 spots           = { { map = uiMapID, x, y (ganze Zahlen 1..10000 = 1/10000 der Karte), n = Funde },
                     { inst = instanceID, n = Funde } }   -- Beute in einer Instanz: ohne Karte und Koordinaten
 instances[id]   = Name der Instanz (zuletzt gesehen, nur für vorhandene Fundorte)
@@ -90,10 +96,10 @@ version         = Datenformat (DATA_VERSION = 5 in Core/GatheringDB.lua); fehlt 
   Orte näher als `DB.SPOT_RADIUS` (1 % der Karte) werden gewichtet zusammengefasst, je Quelle höchstens
   `MAX_SPOTS_NODE` (40) bzw. `MAX_SPOTS_NPC` (12); der schwächste Ort fällt zuerst weg.
 * Versionen: 1 Knoten und Kreaturen mit Beute; 2 dazu `spots` und `imports` (`migrations[1]`); 3 Instanzen als Fundort
-  und `instances` (`migrations[2]`); 4 und 5 `kills` je Kreatur (`migrations[3]` und `[4]`, beide füllen `kills` aus den
+  und `instances` (`migrations[2]`); 4 und 5 früher `kills` je Kreatur (`migrations[3]` und `[4]`, jetzt leer; füllten `kills` aus den
   Versuchen der Normalbeute auf, nie darunter).
-* `kills` zählt die Tode des Ziels, unabhängig von den Versuchen: jede gelootete Leiche zählt als Kill, auch wenn der Tod
-  nicht gesehen wurde, Kürschnern ist kein zweiter Kill. Abfrage mit `DB:GetNPCKills(id)`, Zählen in `DB:RecordKill`.
+* Früher gab es einen Kill-Zähler `kills` je Kreatur. Er wird nicht mehr geführt (Kills zählt Glimpse: Statistics); ein
+  vorhandener Wert wird beim Prüfen der Daten entfernt, ebenso eine Kreatur, die nur Kills hatte.
 * Die Version steht **nicht** in den AceDB-Defaults (AceDB lässt Werte weg, die dem Default gleichen, die Umstellung
   würde nie laufen). Eine fehlende Version gilt als 1, deshalb müssen alle Schritte in `migrations` wiederholbar sein.
 * Kreaturen werden nach ihrer ID gespeichert, nicht nach Stufe.
@@ -157,10 +163,12 @@ Struktur nach.
 * **Kreaturen** (`Creature`): Normalbeute zählt als Versuch und als Kill, auch ohne Material. Kürschnerbeute wird erkannt,
   wenn davor ein Zauber erfolgreich war oder die Leiche schon einmal gelootet wurde. Dieselbe Kreatur zählt 10 Minuten
   nicht erneut (`CREATURE_REPEAT`, Teilloot).
-* **Kills ohne Beutefenster:** Der Tod des Ziels wird über `UNIT_HEALTH`, Zielwechsel auf eine Leiche und das Ende des
-  Kampfes erkannt (das Kampflog ist für Addons gesperrt und wird nicht benutzt). Kommt 2 Minuten lang kein Beutefenster
-  (`KILL_FALLBACK`) und sagt `CanLootUnit` nicht, dass noch Beute da ist, zählt der Kill als Versuch. Beute, die danach
-  kommt, wird ohne zweiten Versuch ergänzt. Das Fenster hat immer Vorrang.
+* **Kills ohne Beutefenster:** Quelle ist das Ereignis `PARTY_KILL` (Killer-GUID, Opfer-GUID): Es zählt, wenn der Killer
+  der Spieler oder sein Haustier ist, auch ohne Ziel und ohne Beute (`DB:OnPartyKill`). Kennt der Client das Ereignis
+  nicht, bleibt der Tod des Ziels als Ersatz (`UNIT_HEALTH`, Zielwechsel auf eine Leiche, Kampfende), der Kills nach
+  einem Zielwechsel verpasst. Das Kampflog ist für Addons gesperrt und wird nicht benutzt. Kommt 2 Minuten lang kein
+  Beutefenster (`KILL_FALLBACK`) und sagt `CanLootUnit` nicht, dass noch Beute da ist, zählt der Kill als Versuch. Beute,
+  die danach kommt, wird ohne zweiten Versuch ergänzt. Das Fenster hat immer Vorrang.
 * Gespeichert werden nur Handwerkswaren und Edelsteine (Item-Klassen 7 und 3).
 
 Das sind Heuristiken. Im Debug-Modus schreibt `Collect.lua` pro Beutefenster eine Zeile

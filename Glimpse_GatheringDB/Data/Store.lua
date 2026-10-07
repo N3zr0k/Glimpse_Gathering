@@ -83,7 +83,7 @@ local MAX_INSTANCE_NAME = 100
 -- gibt es keine Koordinaten, die Instanz allein ist der Fundort). Ungültige Orte werden ignoriert.
 function DB:AddSpot(entry, kind, pos)
     if type(pos) ~= "table" then return end
-    local limit = kind == "node" and self.MAX_SPOTS_NODE or self.MAX_SPOTS_NPC
+    local limit = kind == "npc" and self.MAX_SPOTS_NPC or self.MAX_SPOTS_NODE
 
     if pos.instance ~= nil then
         local id = pos.instance
@@ -215,32 +215,24 @@ local function BuildDrops(section)
     return list, attempts
 end
 
---- Eintrag eines Sammelknotens (nur lesen!) oder nil.
---- Zählt einen Kill der Kreatur (eigener Zähler, unabhängig von den Beutefenstern und Versuchen).
-function DB:RecordKill(id, info)
-    id = tonumber(id)
-    if not id then return end
+--- Zählt einen Fang (Beutefenster beim Angeln) in der Zone map (uiMapID). items = { [itemID] = Menge }, auch leer
+-- (ein Wurf ohne Fang zählt als Versuch). pos = { map, x, y } ist der Ort des Spielers (optional, siehe AddSpot).
+function DB:RecordFishing(map, items, pos)
+    map = tonumber(map)
+    if not map or map < 1 then return end
 
-    local npc = self.data.npcs[id]
-    if not npc then
-        npc = {}
-        self.data.npcs[id] = npc
+    self.data.fishing = self.data.fishing or {}
+    local zone = self.data.fishing[map]
+    if not zone then
+        zone = {}
+        self.data.fishing[map] = zone
     end
 
-    if info then
-        npc.name = npc.name or info.name
-        npc.level = npc.level or info.level
-    end
-
-    npc.kills = (npc.kills or 0) + 1
+    CountAttempt(zone, items)
+    if pos then self:AddSpot(zone, "fishing", pos) end
     self:EnforceLimits()
-    self:SendMessage(self.MESSAGE_UPDATED, "npc", id)
-end
-
---- Zahl der Kills einer Kreatur (0, wenn keine gezählt wurden)
-function DB:GetNPCKills(id)
-    local npc = self:GetNPC(id)
-    return npc and npc.kills or 0
+    self.itemIndex = nil
+    self:SendMessage(self.MESSAGE_UPDATED, "fishing", map)
 end
 
 --- Fügt Beute zu einem Versuch hinzu, der schon gezählt wurde (Kill ohne Beutefenster, danach doch
@@ -259,6 +251,27 @@ function DB:GetNode(id)
     return self.data.nodes[tonumber(id)]
 end
 
+--- Fügt einem Wurf, der schon als leer gezählt wurde, den Fang hinzu (das Beutefenster kam doch noch). Zählt keinen
+-- neuen Versuch.
+function DB:AddFishingItems(map, items)
+    local zone = self:GetFishing(map)
+    if not zone then return end
+
+    AddItems(zone, items)
+    self.itemIndex = nil
+    self:SendMessage(self.MESSAGE_UPDATED, "fishing", tonumber(map))
+end
+
+--- Eintrag einer Angelzone (nur lesen!) oder nil, map = uiMapID.
+function DB:GetFishing(map)
+    return self.data.fishing and self.data.fishing[tonumber(map)]
+end
+
+--- Fänge einer Angelzone, wie GetNodeDrops: Liste und Zahl der Würfe.
+function DB:GetFishingDrops(map)
+    return BuildDrops(self:GetFishing(map))
+end
+
 --- Eintrag einer Kreatur (nur lesen!) oder nil.
 function DB:GetNPC(id)
     return self.data.npcs[tonumber(id)]
@@ -275,9 +288,16 @@ function DB:GetNPCDrops(id, kind)
     return BuildDrops(npc and npc[kind or "loot"])
 end
 
---- Anzahl Knoten, Anzahl Kreaturen, Gesamtzahl der erfassten Beutefenster, Zahl der Fundorte und Zahl der Kills.
+--- Anzahl Knoten, Anzahl Kreaturen, Gesamtzahl der erfassten Beutefenster, Zahl der Fundorte,
+-- Zahl der Angelzonen und der Angelwürfe (Würfe zählen nicht zu den Beutefenstern).
 function DB:GetStats()
-    local nodes, npcs, attempts, spots, kills = 0, 0, 0, 0, 0
+    local nodes, npcs, attempts, spots = 0, 0, 0, 0
+    local zones, casts = 0, 0
+    for _, zone in pairs(self.data.fishing or {}) do
+        zones = zones + 1
+        casts = casts + (zone.attempts or 0)
+        spots = spots + (zone.spots and #zone.spots or 0)
+    end
 
     for _, node in pairs(self.data.nodes) do
         nodes = nodes + 1
@@ -288,16 +308,16 @@ function DB:GetStats()
         npcs = npcs + 1
         attempts = attempts + (npc.loot and npc.loot.attempts or 0) + (npc.skinning and npc.skinning.attempts or 0)
         spots = spots + (npc.spots and #npc.spots or 0)
-        kills = kills + (npc.kills or 0)
     end
 
-    return nodes, npcs, attempts, spots, kills
+    return nodes, npcs, attempts, spots, zones, casts
 end
 
 --- Löscht alle gesammelten Daten. Die Tabellen bleiben dieselben, damit gemerkte Verweise gültig sind.
 function DB:ResetData()
     wipe(self.data.nodes)
     wipe(self.data.npcs)
+    if self.data.fishing then wipe(self.data.fishing) end
     if self.data.imports then wipe(self.data.imports) end
     if self.data.instances then wipe(self.data.instances) end
     self.itemIndex, self.nameIndex = nil, nil
@@ -333,12 +353,14 @@ local function BuildIndex(self)
         AddSource("npc", id, "loot", npc.name, npc.level, nil, npc.loot)
         AddSource("npc", id, "skinning", npc.name, npc.level, nil, npc.skinning)
     end
+    -- Angeln: die Quelle ist die Zone, der Name ihr Kartenname
+    for map, zone in pairs(self.data.fishing or {}) do AddSource("fishing", map, "fishing", Locations:GetMapName(map), nil, nil, zone) end
 
     return index
 end
 
 --- Alle Quellen, aus denen ein Item bisher kam, die wahrscheinlichste zuerst. Jeder Eintrag:
--- { kind ("node" | "npc"), id, mode ("gather" | "loot" | "skinning"), name, level (Kreaturen) und category (Knoten: "herb", "ore", "other"), können fehlen,
+-- { kind ("node" | "npc" | "fishing"), id (bei "fishing" die Karte), mode ("gather" | "loot" | "skinning" | "fishing"), name, level (Kreaturen) und category (Knoten: "herb", "ore", "other"), können fehlen,
 --   attempts, hits, amount, chance (0..1), average }.
 -- minAttempts (Standard 1) blendet Quellen mit zu wenig Versuchen aus.
 function DB:GetItemSources(itemID, minAttempts)
@@ -378,14 +400,15 @@ end
 -- Fundorte abfragen
 -- ---------------------------------------------------------------------------
 
---- Nur die eigenen Fundorte einer Quelle, kind = "node" oder "npc". Jeder Eintrag: { map (uiMapID),
+--- Nur die eigenen Fundorte einer Quelle, kind = "node", "npc" oder "fishing" (id = Karte). Jeder Eintrag: { map (uiMapID),
 -- x, y (0 bis 1), count (Beutefenster an diesem Ort), source = "own" }, die häufigsten zuerst. Das sind
 -- genau die Werte für TomTom: TomTom:AddWaypoint(map, x, y, { title = ... }). Beute aus einer Instanz hat
 -- stattdessen { instance (instanceID), name (kann fehlen), count, source = "own" } ohne map, x und y,
 -- dafür gibt es keinen Wegpunkt.
 function DB:GetOwnSpots(kind, id)
     local entry
-    if kind == "node" then entry = self:GetNode(id) elseif kind == "npc" then entry = self:GetNPC(id) end
+    if kind == "node" then entry = self:GetNode(id) elseif kind == "npc" then entry = self:GetNPC(id)
+    elseif kind == "fishing" then entry = self:GetFishing(id) end
 
     local list = {}
     for _, spot in ipairs(entry and entry.spots or {}) do
@@ -408,7 +431,7 @@ function DB:GetOwnSpots(kind, id)
     return list
 end
 
---- Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count, source }, x und y von 0 bis 1.
+--- Fundorte einer Quelle (kind = "node", "npc" oder "fishing"): { map, x, y, count, source }, x und y von 0 bis 1.
 -- Zuerst die eigenen Orte (source = "own", count = Zahl der Funde, häufigste zuerst), danach die von
 -- anderen Addons (source = Name des Anbieters, count = 0, density = Zahl der Punkte dort), sofern
 -- includeExternal nicht false ist und die Option aktiv ist (Data/Providers.lua).

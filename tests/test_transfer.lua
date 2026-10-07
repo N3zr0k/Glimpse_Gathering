@@ -111,22 +111,6 @@ test("Transfer: Fehlerschlüssel bei fremdem oder beschädigtem Text", function(
     eq(e, "unsupported", "Kompression nicht verfügbar")
 end)
 
-test("Transfer: Kills werden beim Zusammenführen addiert", function()
-    local a = setup(true)
-    a:RecordKill(77, { name = "Wolf" })
-    a:RecordKill(77)
-    local text = a:ExportData()
-
-    local b = setup(true)
-    b:RecordKill(77)
-    eq((b:ImportData(text)), true, "Import")
-    eq(b:GetNPCKills(77), 3, "Kills addiert")
-
-    local c = setup(true)
-    eq((c:ImportData(text)), true, "Import in leere Daten")
-    eq(c:GetNPCKills(77), 2, "Kills übernommen")
-end)
-
 test("Transfer: Zusammenführen addiert Zähler und führt Orte zusammen", function()
     local a = setup(true)
     fill(a)

@@ -158,71 +158,20 @@ test("Migrate: Obergrenze entfernt die Einträge mit den wenigsten Versuchen", f
     eq(DB.data.npcs[1], nil, "wenigste Versuche fällt weg")
 end)
 
-test("Store: Kills sind ein eigener Zähler, getrennt von den Versuchen", function()
-    local DB = setup()
-    DB:RecordKill(50, { name = "Wolf", level = 5 })
-    DB:RecordKill(50)
-    eq(DB:GetNPCKills(50), 2, "zwei Kills")
-    eq(DB:GetNPCKills(51), 0, "unbekannte Kreatur")
-    eq(DB:GetNPC(50).name, "Wolf", "Name aus dem Kill")
-    eq(DB:GetNPC(50).loot, nil, "kein Versuch")
-
-    DB:RecordNPC(50, "loot", nil, { [1] = 1 })
-    eq(DB:GetNPC(50).loot.attempts, 1, "Versuch zählt für sich")
-    eq(DB:GetNPCKills(50), 2, "Kills bleiben")
-
-    local _, npcs, attempts, _, kills = DB:GetStats()
-    eq(npcs, 1, "Kreaturen")
-    eq(attempts, 1, "Versuche")
-    eq(kills, 2, "Kills")
-end)
-
-test("Migrate: Kills werden geprüft, eine Kreatur nur mit Kills bleibt", function()
+test("Migrate: ein alter Kill-Zähler wird entfernt, eine Kreatur nur mit Kills fällt weg", function()
     local DB = setup()
     DB.data.npcs[6] = { kills = 5 }
-    DB.data.npcs[7] = { kills = -3 }
-    DB.data.npcs[8] = { kills = 2.7, skinning = { attempts = 1, items = {} } }
-    DB.data.npcs[9] = { kills = "viele", skinning = { attempts = 1, items = {} } }
+    DB.data.npcs[8] = { kills = 2, skinning = { attempts = 1, items = {} } }
+    DB.data.npcs[9] = { kills = "viele", loot = { attempts = 3, items = {} } }
 
     eq(DB:PrepareData(1), true, "Ergebnis")
-    eq(DB.data.npcs[6].kills, 5, "nur Kills")
-    eq(DB.data.npcs[7], nil, "negative Kills")
-    eq(DB.data.npcs[8].kills, 2, "ganze Zahl")
-    eq(DB.data.npcs[9].kills, nil, "kein Zahlenwert")
-end)
-
-test("Migrate: Kills alter Daten beginnen bei den Versuchen der Normalbeute", function()
-    local DB = setup()
-    DB.data.version = 3
-    DB.data.npcs[113] = { name = "Eber", loot = { attempts = 7, items = { [769] = { hits = 4, amount = 4 } } },
-        skinning = { attempts = 1, items = {} } }
-    DB.data.npcs[114] = { name = "Nur Kürschnern", skinning = { attempts = 2, items = {} } }
-    DB.data.npcs[115] = { name = "Schon gezählt", kills = 12, loot = { attempts = 5, items = {} } }
-
-    eq(DB:PrepareData(5), true, "Ergebnis")
-    eq(DB:GetNPCKills(113), 7, "Kills = Versuche der Beute")
-    eq(DB:GetNPCKills(114), 0, "Kürschnern allein ist kein Kill")
-    eq(DB:GetNPCKills(115), 12, "höhere Zahl bleibt")
-    eq(DB.data.version, 5, "Version")
-end)
-
-test("Migrate: Daten der Version 4 bekommen die Kills nachgerechnet", function()
-    local DB = setup()
-    DB.data.version = 4
-    DB.data.npcs[113] = { loot = { attempts = 7, items = {} } }
-    eq(DB:PrepareData(5), true, "Ergebnis")
-    eq(DB:GetNPCKills(113), 7, "Kills")
-end)
-
-test("Store: Kills gehören zur ID der Kreatur, nicht zur Stufe", function()
-    local DB = setup()
-    DB:RecordKill(113, { name = "Eber", level = 5 })
-    DB:RecordKill(113, { name = "Eber", level = 6 })
-    DB:RecordKill(113, { name = "Eber", level = 7 })
-    eq(DB:GetNPCKills(113), 3, "ein Zähler für alle Stufen")
-    local count = 0
-    for _ in pairs(DB.data.npcs) do count = count + 1 end
-    eq(count, 1, "ein Eintrag je ID")
+    eq(DB.data.npcs[6], nil, "nur Kills: weg")
+    eq(DB.data.npcs[8].kills, nil, "Zähler entfernt")
+    eq(DB.data.npcs[8].skinning.attempts, 1, "Versuche bleiben")
+    eq(DB.data.npcs[9].kills, nil, "auch ohne Zahlenwert")
+    eq(DB.data.npcs[9].loot.attempts, 3, "Versuche bleiben")
+    eq(DB.GetNPCKills, nil, "keine Abfrage mehr")
+    eq(DB.RecordKill, nil, "kein Zählen mehr")
 end)
 
 test("Migrate: ohne gespeicherte Version laufen alle Schritte (AceDB speichert keine Default-Werte)", function()
@@ -230,7 +179,6 @@ test("Migrate: ohne gespeicherte Version laufen alle Schritte (AceDB speichert k
     DB.data.version = nil -- so kommen die Daten an, wenn die Version einmal dem Default entsprach
     DB.data.npcs[113] = { loot = { attempts = 7, items = {} } }
     eq(DB:PrepareData(5), true, "Ergebnis")
-    eq(DB:GetNPCKills(113), 7, "Kills nachgerechnet")
     eq(DB.data.version, 5, "Version steht fest")
     eq(DB.data.imports ~= nil and DB.data.instances ~= nil, true, "Schritte 1 und 2 sind harmlos")
 end)

@@ -7,7 +7,7 @@ local DB = Glimpse:GetModule("GatheringDB")
 -- Aufbau eines Exporttexts:   GGDB<Format>:<Methode>:<Daten>
 --   Format   Version dieses Textformats (FORMAT), nicht zu verwechseln mit der Version der Daten
 --   Methode  "D" = Deflate-komprimiert und druckbar kodiert (LibDeflate), "R" = unkomprimierter Text
---   Daten    die Tabelle { format, version, created, id, nodes, npcs, instances } in einer eigenen, einfachen
+--   Daten    die Tabelle { format, version, created, id, nodes, npcs, fishing, instances } in einer eigenen, einfachen
 --            Textform (unten). Es wird nie Code geladen oder ausgeführt, nur gelesen und geprüft.
 --
 -- Beim Import wird die Datenversion (version) mit DATA_VERSION verglichen: ältere Daten werden mit
@@ -160,6 +160,7 @@ function DB:ExportData()
         id = NewExportID(),
         nodes = self.data.nodes,
         npcs = self.data.npcs,
+        fishing = self.data.fishing,
         instances = self.data.instances,
     }
     local text = self.Serialize(payload)
@@ -172,7 +173,7 @@ function DB:ExportData()
     end
 
     local result = MAGIC .. FORMAT .. ":" .. method .. ":" .. body
-    return result, { nodes = Count(self.data.nodes), npcs = Count(self.data.npcs), chars = #result }
+    return result, { nodes = Count(self.data.nodes), npcs = Count(self.data.npcs), fishing = Count(self.data.fishing or {}), chars = #result }
 end
 
 -- ---------------------------------------------------------------------------
@@ -246,7 +247,7 @@ local function MergeSpots(self, target, source, kind)
     if not source.spots then return end
 
     target.spots = target.spots or {}
-    local limit = kind == "node" and self.MAX_SPOTS_NODE or self.MAX_SPOTS_NPC
+    local limit = kind == "npc" and self.MAX_SPOTS_NPC or self.MAX_SPOTS_NODE
     for _, spot in ipairs(source.spots) do
         if spot.inst then
             self:MergeInstanceSpot(target.spots, spot.inst, spot.n, limit)
@@ -281,6 +282,17 @@ local function MergeData(self, incoming)
         end
     end
 
+    data.fishing = data.fishing or {}
+    for map, zone in pairs(incoming.fishing) do
+        local target = data.fishing[map]
+        if not target then
+            data.fishing[map] = zone
+        else
+            MergeSection(target, zone)
+            MergeSpots(self, target, zone, "fishing")
+        end
+    end
+
     for id, npc in pairs(incoming.npcs) do
         local target = data.npcs[id]
         if not target then
@@ -288,7 +300,6 @@ local function MergeData(self, incoming)
         else
             target.name = target.name or npc.name
             target.level = target.level or npc.level
-            if npc.kills then target.kills = math.min((target.kills or 0) + npc.kills, COUNT_MAX) end
             for _, kind in ipairs({ "loot", "skinning" }) do
                 if npc[kind] then
                     target[kind] = target[kind] or { attempts = 0, items = {} }
@@ -331,7 +342,7 @@ function DB:ImportData(text, mode)
 
     -- Dieselbe Umstellung und Prüfung wie bei den eigenen Daten, nur auf einer Kopie
     local incoming = {
-        version = payload.version, nodes = payload.nodes, npcs = payload.npcs, instances = payload.instances,
+        version = payload.version, nodes = payload.nodes, npcs = payload.npcs, fishing = payload.fishing, instances = payload.instances,
     }
     if not self:UpgradeData(incoming, self.DATA_VERSION) then return false, "dataNewer" end
     local removed = self:SanitizeData(incoming)
@@ -344,11 +355,14 @@ function DB:ImportData(text, mode)
     if mode == "replace" then
         wipe(data.nodes)
         wipe(data.npcs)
+        data.fishing = data.fishing or {}
+        wipe(data.fishing)
         data.instances = data.instances or {}
         wipe(data.instances)
         for id, name in pairs(incoming.instances) do data.instances[id] = name end
         for id, node in pairs(incoming.nodes) do data.nodes[id] = node end
         for id, npc in pairs(incoming.npcs) do data.npcs[id] = npc end
+        for map, zone in pairs(incoming.fishing) do data.fishing[map] = zone end
     else
         MergeData(self, incoming)
     end
@@ -360,7 +374,7 @@ function DB:ImportData(text, mode)
     self:SendMessage(self.MESSAGE_UPDATED, "import")
 
     return true, {
-        nodes = Count(incoming.nodes), npcs = Count(incoming.npcs),
+        nodes = Count(incoming.nodes), npcs = Count(incoming.npcs), fishing = Count(incoming.fishing),
         version = payload.version, migrated = payload.version < self.DATA_VERSION,
         removed = removed, mode = mode,
     }

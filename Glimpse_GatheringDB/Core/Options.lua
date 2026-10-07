@@ -69,12 +69,13 @@ function DB:BuildOptions()
                     type = "description", order = 1, fontSize = "medium",
                     -- als Funktion, damit die Zahlen beim Anzeigen aktuell sind
                     name = function()
-                        local nodes, npcs, attempts, spots = self:GetStats()
+                        local nodes, npcs, attempts, spots, zones, casts = self:GetStats()
                         return table.concat({
                             format(L["Gathering nodes: %d"], nodes),
                             format(L["Creatures: %d"], npcs),
                             format(L["Recorded loot windows: %d"], attempts),
                             format(L["Locations: %d"], spots),
+                            format(L["Fishing: %d zones, %d casts"], zones, casts),
                             self:ProviderStatistics(),
                         }, "\n")
                     end,

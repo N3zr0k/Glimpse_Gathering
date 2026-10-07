@@ -31,6 +31,10 @@ local defaults = {
         showCoords = true,
         showDistance = true,
         onlyLearned = false,
+        showNodeSkill = true, -- benötigter Skill im Tooltip von Kräutern und Erzadern
+        showMobSkill = true, -- benötigter Kürschnerei-Skill im Tooltip von Kreaturen
+        skillOnlyLearned = true, -- die Skill-Zeile nur, wenn der Spieler den Beruf hat
+        hideGraySkill = false, -- Knoten ausblenden, die keinen Skill mehr bringen
         maxItems = 8,
         minAttempts = 1,
         modShift = false,
@@ -49,7 +53,7 @@ end
 function GT:OnEnable()
     -- Die Datenbank ist Pflicht (## Dependencies), die Prüfung fängt nur eine zu alte Version ab
     self.data = Glimpse:GetModule("GatheringDB")
-    if (self.data.API_VERSION or 0) < 5 then
+    if (self.data.API_VERSION or 0) < 9 then
         self:Debug("GatheringDB ist zu alt")
         return
     end

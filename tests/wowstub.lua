@@ -74,7 +74,11 @@ function stub.reset()
         local frame = { events = {} }
         function frame:SetScript(_, func) self.onEvent = func end
         function frame:RegisterUnitEvent(event) self.events[event] = true end
-        function frame:RegisterEvent(event) self.events[event] = true end
+        function frame:RegisterEvent(event)
+            -- Standard: der Client kennt PARTY_KILL nicht (die Tests des Ersatzwegs); stub.partyKill = true schaltet es ein
+            if event == "PARTY_KILL" and not stub.partyKill then error("Attempt to register unknown event") end
+            self.events[event] = true
+        end
         function frame:UnregisterAllEvents() self.events = {} end
         stub.frames[#stub.frames + 1] = frame
         return frame

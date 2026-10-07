@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.5] - 2026-10-06
+
+### Changed
+- GatheringDB: kills are no longer stored: the per-creature kill counter (`GetNPCKills`, `RecordKill`, the kill count in `GetStats`, the line in the debug tooltip and in `/gli gatheringdb stats`) is removed; a kill is only used as an event for an attempt (API_VERSION 10). Old `kills` values are dropped when the data is checked
+- GatheringDB: kills without a loot window are recognized by the `PARTY_KILL` event (killer and victim): every kill of yours or your pet counts, also after a target switch and without loot; the death of the target stays as a fallback for clients that do not know the event
+
+## [0.2.3] - 2026-10-06
+
+### Added
+- GatheringDB: fishing is recorded per zone with the place you stood at; every cast is an attempt, a loot window makes it a catch (`GetFishing`, `GetFishingDrops`); included in export and import; data version 6, API_VERSION 8
+- GatheringTooltip: the tooltip of the fishing bobber shows your fishing skill (e.g. "Fishing 1/75"), and so does the tooltip of a fishing pole; the debug tooltip shows the casts and catches of the zone
+- GatheringTooltip: the tooltip of a fish shows where it was caught, with chance and amount
+- GatheringTooltip: required gathering skill on herb and ore nodes and on skinnable creatures, with your own skill and the colour (red, orange, yellow, green, gray); four options in the Target tab
+- GatheringDB: static skill tables (`GetRequiredSkill`, `GetSkillColor`, `GetPlayerSkill`), `/gli gatheringdb skill`; API_VERSION 7
+
 ## [0.2.2] - 2026-10-06
 
 ### Added

@@ -6,4 +6,6 @@
     <Script file="Providers.lua"/>
     <Script file="GatherMate2.lua"/>
     <Script file="Sources.lua"/>
+    <Script file="SkillData.lua"/>
+    <Script file="Skills.lua"/>
 </Ui>

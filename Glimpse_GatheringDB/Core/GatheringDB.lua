@@ -6,7 +6,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- account-weit, und zwar nur Handwerksmaterialien. Angezeigt wird nichts (außer im Debug-Modus),
 -- das übernehmen andere Addons (z. B. GatheringTooltip).
 --
--- Öffentliche Schnittstelle (API_VERSION 6), erreichbar über Glimpse.GatheringDB:
+-- Öffentliche Schnittstelle (API_VERSION 10), erreichbar über Glimpse.GatheringDB:
 --   :GetNode(id)               Eintrag eines Sammelknotens oder nil
 --   :GetNPC(id)                Eintrag einer Kreatur oder nil
 --   :GetNodeDrops(id)          Liste der Beute eines Knotens, dazu die Zahl der Versuche
@@ -16,10 +16,9 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --   :GetNodeDropsByName(name)  wie GetNodeDrops, über den Namen (mehrere IDs zusammengerechnet)
 --   :GetItemSources(itemID, minAttempts)
 --                              alle Quellen eines Items, die wahrscheinlichste zuerst
---   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster, Fundorte und Kills
---   :GetNPCKills(id)           Zahl der Kills einer Kreatur (eigener Zähler, unabhängig von den Versuchen)
+--   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster, Fundorte, Angelzonen und Würfe
 --   :GetSpots(kind, id, includeExternal)
---                              Fundorte einer Quelle (kind = "node" oder "npc"): { map, x, y, count, source };
+--                              Fundorte einer Quelle (kind = "node", "npc" oder "fishing", bei Angeln ist id die Karte): { map, x, y, count, source };
 --                              in Instanzen gelootet: { instance, name, count, source } ohne map, x und y,
 --                              eigene zuerst, danach die aus anderen Addons (source = "GatherMate2", count = 0);
 --                              includeExternal = false liefert nur die eigenen
@@ -33,6 +32,18 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --                              und Zone ein Eintrag; Stufe 1 eigenes Gebiet, 2 gleicher Kontinent (nach Entfernung, ab
 --                              minChance), 3 sonst, 4 ohne Ort; bestätigte Orte vor externen. Felder tier, area, group,
 --                              spot, spots, place dazu
+--   :GetRequiredSkill(kind, id, level)
+--                              Beruf ("herb", "ore", "skinning") und benötigter Skill eines Knotens (kind = "node") oder
+--                              einer Kreatur (kind = "npc", Stufe aus level oder der gespeicherten), bei Kreaturen dazu,
+--                              ob sie als kürschnerbar bekannt ist
+--   :GetNodeSkill(id)          dasselbe für einen Knoten (Objekt-ID); :GetSkinningSkill(level) für eine Kreaturenstufe
+--   :GetPlayerSkill(profession)  Skill des Spielers mit Bonus, Maximum, Name im Client, Skill ohne Bonus (nil: nicht gelernt)
+--   :GetSkillColor(required, current)
+--                              "red" (reicht nicht), "orange", "yellow", "green" oder "gray", dazu r, g, b
+--   :HasProfession(profession), :IsKnownSkinnable(id), :GetCreatureTypeID(unit), :IsSkinnableType(typeID)
+--   :GetFishing(map)           Eintrag einer Angelzone (uiMapID) oder nil: { attempts, items, spots }
+--   :GetFishingDrops(map)      Liste der Fänge einer Zone, dazu die Zahl der Würfe (wie GetNodeDrops)
+--   :IsFishing(), :IsBobber(name)  läuft ein Wurf; gehört der Objekt-Tooltip mit diesem Namen zum Schwimmer
 --   :GetProviders()            Anbieter fremder Fundorte: { name, available, enabled }
 --   :RegisterProvider(name, provider)  weiteren Anbieter anmelden (siehe Data/Providers.lua)
 --   :GetMapName(map)           Name einer Karte (Zone) oder nil
@@ -44,7 +55,7 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 -- Aufbau in Data/Store.lua, Erfassung in Loot/Collect.lua, Debug-Anzeige in Debug/Debug.lua.
 local DB = Glimpse:NewModule("GatheringDB", nil, "AceEvent-3.0")
 DB.L = L
-DB.API_VERSION = 6
+DB.API_VERSION = 10
 DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
 
 -- Damit andere Addons ohne GetModule drankommen
@@ -55,8 +66,9 @@ Glimpse.GatheringDB = DB
 --   1: Knoten und Kreaturen mit Beute
 --   2: dazu Fundorte (spots) und die Liste schon importierter Exporte (imports)
 --   3: Fundorte können auch eine Instanz sein ({ inst, n } statt { map, x, y, n }), instances = Namen der Instanzen
---   4, 5: Kreaturen zählen ihre Kills (kills), aufgefüllt aus den Versuchen der Normalbeute
-local DATA_VERSION = 5
+--   4, 5: früher ein Kill-Zähler je Kreatur (kills); er wird nicht mehr geführt und beim Prüfen der Daten entfernt
+--   6: Angeln (fishing), je Zone { attempts, items, spots }
+local DATA_VERSION = 6
 DB.DATA_VERSION = DATA_VERSION
 -- Die Version steht bewusst NICHT in den Defaults: AceDB lässt beim Speichern alle Werte weg, die dem Default
 -- gleichen. Mit einem Default wäre die gespeicherte Version nach dem Logout verschwunden und beim nächsten Laden
@@ -65,7 +77,8 @@ DB.DATA_VERSION = DATA_VERSION
 local dataDefaults = {
     global = {
         nodes = {}, -- [objectID] = { name, category, attempts, items = { [itemID] = { hits, amount } }, spots }
-        npcs = {},  -- [npcID] = { name, level, kills, loot = { attempts, items }, skinning = { attempts, items }, spots }
+        npcs = {},  -- [npcID] = { name, level, loot = { attempts, items }, skinning = { attempts, items }, spots }
+        fishing = {}, -- [uiMapID der Zone] = { attempts, items = { [itemID] = { hits, amount } }, spots }
         instances = {}, -- [instanceID] = Name der Instanz, für Fundorte in Instanzen
         imports = {}, -- [Export-ID] = Zeitpunkt, damit derselbe Export nicht zweimal zusammengeführt wird
     },
@@ -106,6 +119,7 @@ function DB:OnEnable()
     end
     self:RegisterDebugTooltips()
     self:WatchGatherMate2()
+    self:WatchSkills()
 end
 
 function DB:OnDisable()

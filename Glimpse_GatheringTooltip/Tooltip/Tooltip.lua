@@ -96,30 +96,37 @@ end
 
 -- Der Tooltip eines Knotens in der Welt bringt keine ID mit. Dann gilt der Name aus der ersten
 -- Zeile (GetNodeDropsByName), sonst die ID.
-local function NodeLines(self, id, name)
+local function NodeLines(self, id, name, tooltip)
     local profile = self.db.profile
-    if not profile.showNodes then return nil end
-
-    -- Kategorie des Knotens (Kräuter, Erz) entscheidet über den passenden Beruf
-    local node = self.data:GetNode(id or self.data:FindNodeIDs(name)[1])
-    if node and not self:IsLearned(node.category) then return nil end
 
     local rows = {}
-    local drops, attempts
-    if id then
-        drops, attempts = self.data:GetNodeDrops(id)
-    else
-        drops, attempts = self.data:GetNodeDropsByName(name)
+    local skill = self:NodeSkillRow(id, name, tooltip)
+    if skill then tinsert(rows, skill) end
+
+    if profile.showNodes then
+        -- Kategorie des Knotens (Kräuter, Erz) entscheidet über den passenden Beruf
+        local node = self.data:GetNode(id or self.data:FindNodeIDs(name)[1])
+        if not (node and not self:IsLearned(node.category)) then
+            local drops, attempts
+            if id then
+                drops, attempts = self.data:GetNodeDrops(id)
+            else
+                drops, attempts = self.data:GetNodeDropsByName(name)
+            end
+            AddSection(rows, L["Gathered"], drops, attempts, profile)
+        end
     end
-    AddSection(rows, L["Gathered"], drops, attempts, profile)
 
     if #rows > 0 then return rows end
 end
 
-local function UnitLines(self, id)
+local function UnitLines(self, id, data, tooltip)
     local profile = self.db.profile
 
     local rows = {}
+    local skill = self:UnitSkillRow(id, data, tooltip)
+    if skill then tinsert(rows, skill) end
+
     if profile.showLoot then
         local drops, attempts = self.data:GetNPCDrops(id, "loot")
         AddSection(rows, L["Loot"], drops, attempts, profile)
@@ -138,11 +145,18 @@ local function SourceLines(self, data, isObject, tooltip)
     waitingForNames = false
 
     local kind, id = SourceOf(data, isObject)
-    if kind == "node" then return NodeLines(self, id) end
-    if kind == "npc" then return UnitLines(self, id) end
+    if kind == "node" then return NodeLines(self, id, nil, tooltip) end
+    if kind == "npc" then return UnitLines(self, id, data, tooltip) end
 
-    -- Objekt ohne ID: über den Namen suchen
-    if isObject then return NodeLines(self, nil, self.data:GetTooltipName(tooltip)) end
+    -- Objekt ohne ID: über den Namen suchen. Während eines Wurfs ist es meist der Schwimmer (er hat keine ID).
+    if isObject then
+        local name = self.data:GetTooltipName(tooltip)
+        if self.data:IsBobber(name) then
+            local row = self:FishingRow()
+            return row and { row } or nil
+        end
+        return NodeLines(self, nil, name, tooltip)
+    end
 end
 
 -- Wahrscheinlichste Quelle eines Items (Knoten oder Kreatur) aus dem Index von GatheringDB
@@ -150,6 +164,7 @@ end
 -- Kürschnerbeute braucht Kürschnerei, normale Beute braucht nichts.
 local function IsRelevant(self, source)
     if source.kind == "node" then return self:IsLearned(source.category) end
+    if source.kind == "fishing" then return self:IsLearned("fishing") end
     if source.mode == "skinning" then return self:IsLearned("skinning") end
     return true
 end
@@ -158,6 +173,8 @@ end
 -- gemeinsam (GT:AlignLocations), damit Koordinaten und Zonen aller Quellen untereinander stehen.
 local function SourceItem(self, source)
     local name = source.name
+    -- Beim Angeln ist die Quelle die Zone. Ihr Name steht schon als Ort dahinter, vorn steht die Tätigkeit.
+    if source.kind == "fishing" then name = L["Fishing"] end
     if not name then
         name = format(source.kind == "node" and L["Node %d"] or L["Creature %d"], source.id)
     end
@@ -242,6 +259,29 @@ local function ItemLines(self, data)
     return rows
 end
 
+-- Angelruten (Waffe, Unterklasse Angelrute) zeigen deinen Angel-Skill wie der Schwimmer. Fallback-Zahlen, falls die Enums fehlen.
+local WEAPON_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Weapon or 2
+local FISHING_POLE = Enum and Enum.ItemWeaponSubclass and Enum.ItemWeaponSubclass.Fishingpole or 20
+
+local function PoleLines(self, data)
+    if not data.id or not GetItemInfoInstant then return nil end
+
+    local _, _, _, _, _, classID, subClassID = GetItemInfoInstant(data.id)
+    if classID ~= WEAPON_CLASS or subClassID ~= FISHING_POLE then return nil end
+
+    local row = self:FishingRow()
+    return row and { row } or nil
+end
+
+-- Angelrute: Skill-Zeile; sonst die Quellen eines Materials (eine Angelrute hat keine, beides zusammen ist nur der Vollständigkeit halber)
+local function ItemTooltipLines(self, data)
+    local pole, sources = PoleLines(self, data), ItemLines(self, data)
+    if not (pole and sources) then return pole or sources end
+
+    for _, row in ipairs(sources) do tinsert(pole, row) end
+    return pole
+end
+
 function GT:RegisterTooltips()
     local types = Enum.TooltipDataType
 
@@ -261,7 +301,7 @@ function GT:RegisterTooltips()
         return SourceLines(module, data, false, tooltip)
     end))
     -- Item-Tooltips: die Namen kommen aus der Datenbank, hier muss nichts nachgeladen werden
-    self:RegisterTooltipLine(types.Item, Gated(ItemLines))
+    self:RegisterTooltipLine(types.Item, Gated(ItemTooltipLines))
 end
 
 -- Baut den sichtbaren Tooltip neu auf, z. B. nach einer geänderten Option

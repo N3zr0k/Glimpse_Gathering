@@ -10,15 +10,13 @@ L["Statistics"] = true
 L["Gathering nodes: %d"] = true
 L["Creatures: %d"] = true
 L["Recorded loot windows: %d"] = true
-L["Kills: %d"] = true
-L["Kills"] = true
 L["Reset data"] = true
 L["Deletes all collected gathering data."] = true
 L["Really delete all collected gathering data?"] = true
 
 -- Slash-Befehl
-L["Shows statistics, exports, imports or resets the gathering data, checks GatherMate2 (stats | export | import | reset | gm2)"] = true
-L["Usage: /gli gatheringdb stats | export | import | reset | gm2"] = true
+L["Shows statistics, exports, imports or resets the gathering data, checks GatherMate2 and your gathering skills (stats | export | import | reset | gm2 | skill)"] = true
+L["Usage: /gli gatheringdb stats | export | import | reset | gm2 | skill"] = true
 L["Gathering data deleted."] = true
 
 -- Debug-Anzeige im Tooltip
@@ -28,6 +26,11 @@ L["Level"] = true
 L["Category"] = true
 L["Loot"] = true
 L["Skinning"] = true
+L["Mining"] = true
+L["Herbalism"] = true
+L["%s: skill %d, bonus %d, maximum %d (%s)"] = true
+L["%s: not learned"] = true
+L["Target: creature type %s, level %s, skinning skill %s"] = true
 L["%d attempts"] = true
 L["%d hits, %d total"] = true
 L["... %d more"] = true
@@ -96,3 +99,15 @@ L["The export is compressed, but the compression library is missing."] = true
 L["The text is damaged or incomplete. Was it copied completely?"] = true
 L["The data comes from a newer version of the addon. Please update the addon."] = true
 L["This export has already been imported."] = true
+
+-- Angeln
+L["Fishing: %d zones, %d casts"] = true
+L["Fishing zones: %d."] = true
+L["%d fishing zones"] = true
+L["Fishing this session: %d casts, %d loot windows, %d without catch"] = true
+L["Fishing"] = true
+L["fishing bobber"] = true
+L["Zone"] = true
+L["No zone known"] = true
+L["Casts in this zone: %d"] = true
+L["Casts in total: %d (%d zones)"] = true

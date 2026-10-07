@@ -8,7 +8,7 @@ from while you play, and show it in tooltips: how often a node or creature drops
 | Addon | Role |
 | --- | --- |
 | **Glimpse: GatheringDB** | Records gathering nodes and creature loot (crafting materials and gems, every attempt counts) account-wide and offers the data to other addons through a small API. Shows nothing by itself, except raw numbers in debug mode. |
-| **Glimpse: GatheringTooltip** | Shows drop chances and average amounts in the tooltips of nodes, creatures and crafting materials, including the best places to get an item. Requires GatheringDB. |
+| **Glimpse: GatheringTooltip** | Shows drop chances and average amounts in the tooltips of nodes, creatures and crafting materials, including the best places to get an item (also fishing spots). Requires GatheringDB. |
 
 ## Contents
 
@@ -60,11 +60,11 @@ GatheringDB reads every loot window and keeps what is useful for crafting. Every
 | Gathering nodes (herbs, ore, ...) | Every gathering cast that yields a crafting material. Mining the same node several times in a row, or after it respawned, counts every time. Chests do not count. |
 | Creature loot | Every looted creature is one attempt, even without a crafting material (otherwise the chances would be too high). The same corpse does not count twice. |
 | Skinning | Skinning is recognized by the spell that was just cast, or by a corpse that was already looted. |
-| Kills | Counted separately for every creature, independent of the attempts. A kill without a loot window counts as an attempt after 2 minutes, but only if the corpse has no loot left. |
+| Fishing | Every cast counts as an attempt for the zone you are in, together with the place you stood at. A loot window of a catch (recognized by the game) makes it a hit. The click on the bobber itself cannot be read by addons, but the end of the fishing spell can: the message "the fish got away" ends the attempt at once, and a cast without a loot window counts 4 seconds after the spell ended (or when the next cast starts, or after 45 seconds). A catch that shows up late is added to that attempt. A cancelled cast counts too. Only crafting materials are stored. |
+| Kills | Not stored. A kill (the `PARTY_KILL` event) without a loot window counts as an attempt after 2 minutes, but only if the corpse has no loot left. The kills themselves are counted by Glimpse: Statistics. |
 
-* Only crafting materials and gems are stored; armour, weapons and junk are ignored. Fishing cannot be recorded
-  (no loot source).
-* Creatures are stored by their ID, nodes by their object ID.
+* Only crafting materials and gems are stored; armour, weapons and junk are ignored (fishing: see above).
+* Creatures are stored by their ID, nodes by their object ID, fishing by zone.
 * Damaged entries are cleaned up automatically and the data has a size limit (2000 nodes, 6000 creatures).
 * Data from a newer version is never touched, recording pauses until you update the addon.
 
@@ -85,7 +85,7 @@ Open them with `/gli config`, then Glimpse > Gathering.
 
 * Record gathering data (on/off), Record locations
 * Use locations from other addons, with one switch per source (GatherMate2)
-* Statistics (nodes, creatures, loot windows, kills, locations), Reset data
+* Statistics (nodes, creatures, loot windows, locations), Reset data
 * Export and import (see below)
 
 **GatheringTooltip** (tabs)
@@ -100,7 +100,8 @@ Open them with `/gli config`, then Glimpse > Gathering.
   * Marker for your own place: five symbols and five colours to pick from, or off
   * Waypoint: the key (any combination of Ctrl, Shift, Alt and a key, checked against the game key bindings),
     optional hint line at the end of the tooltip
-* **Target:** show nodes, creature loot, skinning loot, number of items per list
+* **Target:** show nodes, creature loot, skinning loot, number of items per list; required skill on nodes and on
+  creatures (own skill, coloured), only for learned professions, hide gray nodes
 
 Distances use the unit chosen in the Glimpse options (General): automatic by client language, yards or metres.
 
@@ -108,10 +109,11 @@ Distances use the unit chosen in the Glimpse options (General): automatic by cli
 
 | Command | Does |
 | --- | --- |
-| `/gli gatheringdb stats` | Prints nodes, creatures, loot windows, kills and locations |
+| `/gli gatheringdb stats` | Prints nodes, creatures, loot windows and locations |
 | `/gli gatheringdb export` | Shows all data as text to copy |
 | `/gli gatheringdb import` | Opens the import window |
 | `/gli gatheringdb reset` | Deletes all data |
+| `/gli gatheringdb skill` | Prints your mining, herbalism and skinning skill with equipment bonus, and the target's creature type and skinning skill |
 | `/gli gatheringdb gm2` | Checks the GatherMate2 data and lists which of your nodes find a match |
 
 With `/gli debug on` the tooltips of nodes, creatures and items show the raw recorded numbers and locations, and the

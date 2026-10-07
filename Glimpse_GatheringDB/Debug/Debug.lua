@@ -215,7 +215,6 @@ local function UnitLines(module, id)
 
     tinsert(lines, Line(L["Name"] .. ": " .. tostring(npc.name or "?")))
     if npc.level then tinsert(lines, Line(L["Level"] .. ": " .. npc.level)) end
-    if npc.kills then tinsert(lines, Line(L["Kills"] .. ": " .. npc.kills)) end
 
     for _, kind in ipairs({ "loot", "skinning" }) do
         if npc[kind] then
@@ -279,6 +278,28 @@ local function NodeNameLines(module, name, data, hidden)
     return lines
 end
 
+-- Der Schwimmer: Würfe und Fänge der Zone, in der man steht, und die Würfe insgesamt
+local function BobberLines(module, name)
+    local lines = { Header(module), Line(L["Name"] .. ": " .. name .. " (" .. L["fishing bobber"] .. ")") }
+
+    local area = Locations:GetPlayerArea()
+    local map = type(area) == "table" and area.map
+    if not map then
+        tinsert(lines, Line(L["No zone known"]))
+        return lines
+    end
+
+    local drops, casts = DB:GetFishingDrops(map)
+    tinsert(lines, Line(L["Zone"] .. ": " .. MapLabel(map)))
+    tinsert(lines, Line(format(L["Casts in this zone: %d"], casts)))
+    AddItems(lines, drops)
+
+    local _, _, _, _, zones, total = DB:GetStats()
+    tinsert(lines, Line(format(L["Casts in total: %d (%d zones)"], total, zones)))
+    AddSpotLines(lines, "fishing", { map })
+    return lines
+end
+
 local function SourceLines(module, data, hidden, isObject, tooltip)
     -- Der Schalter wird bei jedem Tooltip geprüft, damit man Debug live umschalten kann
     if not Glimpse:IsDebug() then return nil end
@@ -286,7 +307,11 @@ local function SourceLines(module, data, hidden, isObject, tooltip)
     local kind, id = SourceOf(data, isObject)
     if kind == "node" then return NodeLines(module, id) end
     if kind == "npc" then return UnitLines(module, id) end
-    if isObject then return NodeNameLines(module, DB:GetTooltipName(tooltip), data, hidden) end
+    if isObject then
+        local name = DB:GetTooltipName(tooltip)
+        if DB:IsBobber(name) then return BobberLines(module, name) end
+        return NodeNameLines(module, name, data, hidden)
+    end
 end
 
 -- Handwerksmaterial: seine Quellen mit Fundorten. Nur wenn Debug an ist und es Quellen gibt, sonst bleibt der

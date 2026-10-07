@@ -10,6 +10,7 @@ local SKILL_LINES = {
     herb = 182,     -- Kräuterkunde
     ore = 186,      -- Bergbau
     skinning = 393, -- Kürschnerei
+    fishing = 356,  -- Angeln (https://warcraft.wiki.gg/wiki/TradeSkillLineID)
 }
 
 --- true, wenn der Spieler den Beruf zu dieser Kategorie gelernt hat.

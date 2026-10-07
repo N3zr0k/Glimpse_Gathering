@@ -34,6 +34,7 @@ end
 
 local function SummaryText(info)
     local text = format(L["Imported: %d gathering nodes, %d creatures."], info.nodes, info.npcs)
+    if (info.fishing or 0) > 0 then text = text .. " " .. format(L["Fishing zones: %d."], info.fishing) end
     if info.migrated then text = text .. " " .. format(L["Data converted from version %d."], info.version) end
     if info.removed > 0 then text = text .. " " .. format(L["Removed entries: %d."], info.removed) end
     return text
@@ -99,7 +100,8 @@ function DB:ShowExport()
     local text, info = self:ExportData()
 
     local frame = Open(L["Export gathering data"])
-    frame:SetStatusText(format(L["%d gathering nodes, %d creatures, %d characters"], info.nodes, info.npcs, info.chars))
+    frame:SetStatusText(format(L["%d gathering nodes, %d creatures, %d characters"], info.nodes, info.npcs, info.chars) ..
+        ((info.fishing or 0) > 0 and (", " .. format(L["%d fishing zones"], info.fishing)) or ""))
     AddLabel(frame, L["Select the text (Ctrl+A), copy it (Ctrl+C) and paste it into the import window on the other account or computer."])
 
     local edit = AddEditBox(frame, "")

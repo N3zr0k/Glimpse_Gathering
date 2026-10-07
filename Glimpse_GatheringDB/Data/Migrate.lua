@@ -9,13 +9,7 @@ local DB = Glimpse:GetModule("GatheringDB")
 -- Über der Grenze fallen die Einträge mit den wenigsten Versuchen zuerst weg.
 DB.MAX_NODES = 2000
 DB.MAX_NPCS = 6000
-
-local function BackfillKills(data)
-    for _, npc in pairs(data.npcs or {}) do
-        local looted = type(npc) == "table" and type(npc.loot) == "table" and tonumber(npc.loot.attempts) or 0
-        if looted > 0 then npc.kills = math.max(tonumber(npc.kills) or 0, looted) end
-    end
-end
+DB.MAX_FISHING = 600 -- Zonen mit Angelfängen
 
 -- Umstellungen: [n] hebt Daten von Version n auf n + 1 (in der Tabelle selbst, ohne Rückgabe).
 -- Neue Version: DATA_VERSION in Core/GatheringDB.lua erhöhen und hier den Schritt ergänzen.
@@ -29,10 +23,14 @@ local migrations = {
     [2] = function(data)
         data.instances = data.instances or {}
     end,
-    -- 3 -> 4 und 4 -> 5: Kreaturen haben einen eigenen Zähler für Kills (kills, optional). Jede Beute einer
-    -- Kreatur war ein Kill, deshalb beginnt der Zähler bei den Versuchen der Normalbeute (nie darunter).
-    [3] = function(data) BackfillKills(data) end,
-    [4] = function(data) BackfillKills(data) end,
+    -- 3 -> 4 und 4 -> 5: früher ein Kill-Zähler je Kreatur (kills). Er wird nicht mehr geführt (Kills zählt Glimpse:
+    -- Statistics); ein vorhandener Wert wird beim Prüfen der Daten entfernt.
+    [3] = function() end,
+    [4] = function() end,
+    -- 5 -> 6: Angelfänge je Zone (fishing)
+    [5] = function(data)
+        data.fishing = data.fishing or {}
+    end,
 }
 
 local function IsCount(value)
@@ -102,12 +100,9 @@ local function CleanNPC(npc)
     end
     CleanSpots(npc, DB.MAX_SPOTS_NPC)
 
-    -- Kills: ganze Zahl, sonst weg
-    if npc.kills ~= nil then
-        npc.kills = IsCount(npc.kills) and math.floor(npc.kills) or nil
-        if npc.kills == 0 then npc.kills = nil end
-    end
-    return npc.loot ~= nil or npc.skinning ~= nil or npc.kills ~= nil
+    -- der frühere Kill-Zähler gehört nicht mehr in die Daten
+    npc.kills = nil
+    return npc.loot ~= nil or npc.skinning ~= nil
 end
 
 -- Namen der Instanzen prüfen: Nummer als Schlüssel, Text als Wert
@@ -127,7 +122,7 @@ end
 -- Namen von Instanzen, zu denen kein Fundort mehr gehört, fallen weg
 local function DropUnusedInstances(data)
     local used = {}
-    for _, group in ipairs({ data.nodes, data.npcs }) do
+    for _, group in ipairs({ data.nodes, data.npcs, data.fishing or {} }) do
         for _, entry in pairs(group) do
             for _, spot in ipairs(entry.spots or {}) do
                 if spot.inst then used[spot.inst] = true end
@@ -178,12 +173,13 @@ function DB:UpgradeData(data, currentVersion)
     return true
 end
 
---- Entfernt defekte Einträge und stellt sicher, dass nodes, npcs, imports und instances Tabellen sind.
+--- Entfernt defekte Einträge und stellt sicher, dass nodes, npcs, fishing, imports und instances Tabellen sind.
 -- Gibt die Zahl der entfernten Einträge zurück.
 function DB:SanitizeData(data)
     if type(data.nodes) ~= "table" then data.nodes = {} end
     if type(data.npcs) ~= "table" then data.npcs = {} end
     if type(data.imports) ~= "table" then data.imports = {} end
+    if type(data.fishing) ~= "table" then data.fishing = {} end
     CleanInstances(data)
 
     local removed = 0
@@ -199,12 +195,19 @@ function DB:SanitizeData(data)
             removed = removed + 1
         end
     end
+    for map, zone in pairs(data.fishing) do
+        if type(map) ~= "number" or map < 1 or map ~= math.floor(map) or map >= 1e6 or not CleanNode(zone) then
+            data.fishing[map] = nil
+            removed = removed + 1
+        end
+    end
     return removed
 end
 
 --- Hält die Zahl der Einträge unter den Obergrenzen. Gibt die Zahl der entfernten Einträge zurück.
 function DB:PruneData()
     local removed = Prune(self.data.nodes, self.MAX_NODES, true) + Prune(self.data.npcs, self.MAX_NPCS, false)
+        + Prune(self.data.fishing or {}, self.MAX_FISHING, true)
     DropUnusedInstances(self.data)
     return removed
 end

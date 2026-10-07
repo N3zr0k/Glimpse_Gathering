@@ -245,6 +245,7 @@ local function sourceRows(profile, kind, data)
 
     local callbacks = {}
     function GT:RegisterTooltipLine(k, func) callbacks[k] = func end
+    GT.NodeSkillRow, GT.UnitSkillRow = function() end, function() end -- die Skill-Zeilen testet test_skills.lua
     stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
     GT:RegisterTooltips()
     return callbacks[kind == "node" and 1 or 2](GT, data, {})

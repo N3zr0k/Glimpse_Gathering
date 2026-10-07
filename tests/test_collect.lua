@@ -232,7 +232,7 @@ test("Collect: Kill ohne Beutefenster zählt als Ersatz erst nach der Wartezeit"
     withCombatLog(WOLF)
     stub.now = 101.6
     stub.flush()
-    eq(e.DB:GetNPC(179891).loot, nil, "Beutefenster hat Vorrang, noch nichts gezählt")
+    eq(e.DB:GetNPC(179891), nil, "Beutefenster hat Vorrang, noch nichts gezählt")
     stub.now = 230
     stub.flush()
     _G.CanLootUnit = nil
@@ -247,7 +247,7 @@ test("Collect: Kill einer Leiche mit Beute zählt erst beim Looten", function()
     stub.now = 101.6
     stub.flush()
     _G.CanLootUnit = nil
-    eq(e.DB:GetNPC(179891).loot, nil, "noch nichts gezählt")
+    eq(e.DB:GetNPC(179891), nil, "noch nichts gezählt")
     stub.now = 105
     e.loot({ { 102, WOLF } })
     eq(e.DB:GetNPC(179891).loot.attempts, 1, "ein Versuch durch das Beutefenster")
@@ -259,7 +259,7 @@ test("Collect: der Kill zählt nach der Wartezeit, ein Beutefenster davor hat Vo
     withCombatLog(WOLF)
     stub.now = 101.6
     stub.flush()
-    eq(e.DB:GetNPC(179891).loot, nil, "wartet noch")
+    eq(e.DB:GetNPC(179891), nil, "wartet noch")
     stub.now = 230
     stub.flush()
     eq(e.DB:GetNPC(179891).loot.attempts, 1, "nach der Wartezeit gezählt")
@@ -293,45 +293,46 @@ test("Collect: Beute nach einem als leer gezählten Kill kommt dazu, ohne neuen 
     eq(npc.skinning, nil, "kein Kürschnern")
 end)
 
-test("Collect: Kills werden getrennt von den Versuchen gezählt", function()
+test("Collect: ein Kill wird nicht gespeichert, nur der Versuch nach der Wartezeit", function()
     local e = setup()
     stub.now = 100
     withCombatLog(WOLF)
     stub.now = 101.6
     stub.flush()
-    eq(e.DB:GetNPCKills(179891), 1, "Kill gezählt, noch ohne Versuch")
-    eq(e.DB:GetNPC(179891).loot, nil, "kein Versuch")
+    eq(e.DB:GetNPC(179891), nil, "der Kill allein speichert nichts")
 
-    -- dieselbe Leiche stirbt im Event mehrfach (UNIT_HEALTH kommt oft): ein Kill
+    -- dieselbe Leiche stirbt im Event mehrfach (UNIT_HEALTH kommt oft): ein Versuch
     stub.now = 102
     withCombatLog(WOLF)
+    stub.now = 230
     stub.flush()
-    eq(e.DB:GetNPCKills(179891), 1, "weiter ein Kill")
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "ein Versuch")
+    eq(e.DB:GetNPC(179891).kills, nil, "kein Kill-Zähler")
 
-    -- zweite Leiche gleicher Art (andere GUID)
+    -- zweite Leiche gleicher Art (andere GUID): eigener Versuch
     local other = "Creature-0-3131-2552-14367-179891-0000A5C2B2"
-    stub.now = 110
+    stub.now = 240
     withCombatLog(other)
+    stub.now = 241.6
     stub.flush()
-    eq(e.DB:GetNPCKills(179891), 2, "zwei Kills")
-    local _, _, _, _, kills = e.DB:GetStats()
-    eq(kills, 2, "Kills in den Statistiken")
+    stub.now = 400
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot.attempts, 2, "zwei Versuche")
 end)
 
-test("Collect: gelootete Leiche zählt auch als Kill, auch ohne Kill im Ziel", function()
+test("Collect: gelootete Leiche ist ein Versuch, Kürschnern kein zweiter", function()
     local e = setup()
     stub.now = 100
     e.loot({ { 102, WOLF } })
-    eq(e.DB:GetNPCKills(179891), 1, "Kill durch das Beutefenster")
     eq(e.DB:GetNPC(179891).loot.attempts, 1, "Versuch")
 
     stub.now = 140
     e.cast()
     e.loot({ { 100, WOLF } }) -- Kürschnern derselben Leiche
-    eq(e.DB:GetNPCKills(179891), 1, "Kürschnern ist kein zweiter Kill")
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "Kürschnern ist kein zweiter Versuch")
 end)
 
-test("Collect: Kill im Ziel und anschließendes Looten zählen den Kill nur einmal", function()
+test("Collect: Kill im Ziel und anschließendes Looten zählen nur einen Versuch", function()
     local e = setup()
     stub.now = 100
     withCombatLog(WOLF)
@@ -339,18 +340,19 @@ test("Collect: Kill im Ziel und anschließendes Looten zählen den Kill nur einm
     stub.flush()
     stub.now = 105
     e.loot({ { 102, WOLF } })
-    eq(e.DB:GetNPCKills(179891), 1, "ein Kill")
     eq(e.DB:GetNPC(179891).loot.attempts, 1, "ein Versuch")
 end)
 
-test("Collect: ohne Aufzeichnung keine Kills", function()
+test("Collect: ohne Aufzeichnung kein Versuch durch Kills", function()
     local e = setup()
     e.DB.db.profile.recording = false
     stub.now = 100
     withCombatLog(WOLF)
     stub.now = 102
     stub.flush()
-    eq(e.DB:GetNPCKills(179891), 0, "nichts gezählt")
+    stub.now = 230
+    stub.flush()
+    eq(next(e.DB.data.npcs), nil, "nichts gespeichert")
 end)
 
 test("Collect: Kill wird auch beim Zielwechsel auf eine Leiche und am Kampfende erkannt", function()
@@ -362,12 +364,20 @@ test("Collect: Kill wird auch beim Zielwechsel auf eine Leiche und am Kampfende 
     stub.now = 100
     stub.units.target = { guid = WOLF, dead = true }
     frame.onEvent(frame, "PLAYER_TARGET_CHANGED")
-    eq(e.DB:GetNPCKills(179891), 1, "Zielwechsel auf die Leiche")
+    stub.now = 101.6
+    stub.flush()
+    stub.now = 230
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "Zielwechsel auf die Leiche")
 
     local other = "Creature-0-3131-2552-14367-555-0000A5C2B1"
     stub.units.target = { guid = other, dead = true }
     frame.onEvent(frame, "PLAYER_REGEN_ENABLED")
-    eq(e.DB:GetNPCKills(555), 1, "Kampfende")
+    stub.now = 231.6
+    stub.flush()
+    stub.now = 400
+    stub.flush()
+    eq(e.DB:GetNPC(555).loot.attempts, 1, "Kampfende")
 end)
 
 test("Collect: geschützte GUID im Kampf: die zuletzt lesbare GUID des Ziels gilt", function()
@@ -383,14 +393,20 @@ test("Collect: geschützte GUID im Kampf: die zuletzt lesbare GUID des Ziels gil
     frame.onEvent(frame, "PLAYER_TARGET_CHANGED")       -- GUID lesbar, Ziel lebt
     stub.units.target = { guid = "SECRET", dead = true } -- im Kampf geschützt, Ziel stirbt
     frame.onEvent(frame, "UNIT_HEALTH", "target")
-    eq(e.DB:GetNPCKills(179891), 1, "Kill mit der gemerkten GUID")
+    stub.now = 101.6
+    stub.flush()
+    stub.now = 230
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "Kill mit der gemerkten GUID")
 
     -- anderes Ziel mit geschützter GUID: nichts raten
     stub.units.target = { guid = "SECRET", dead = false }
     frame.onEvent(frame, "PLAYER_TARGET_CHANGED")
     stub.units.target = { guid = "SECRET", dead = true }
     frame.onEvent(frame, "UNIT_HEALTH", "target")
-    eq(e.DB:GetNPC(179891).kills, 1, "kein zweiter Kill durch die alte GUID")
+    stub.now = 400
+    stub.flush()
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "kein zweiter Versuch durch die alte GUID")
     local text = table.concat(e.DB.debugLines, "\n")
     eq(text:find("GUID ist unbekannt", 1, true) ~= nil, true, "Debug nennt den Grund")
 end)
@@ -706,4 +722,71 @@ test("Collect: Debug-Ausgabe beim Gebietswechsel nennt Ort und Rohwerte", functi
     text = table.concat(e.DB.debugLines, "\n")
     eq(text:find("IsInInstance: nicht vorhanden", 1, true) ~= nil, true, "fehlende Funktion")
     eq(text:find("GetInstanceInfo: Fehler:", 1, true) ~= nil, true, "Fehler abgefangen")
+end)
+
+-- PARTY_KILL (Killer, Opfer): die Quelle für Kills, wenn der Client das Ereignis kennt
+local function setupPartyKill()
+    stub.partyKill = true
+    local e = setup()
+    stub.units.player = { guid = "Player-1-A" }
+    stub.units.pet = { guid = "Creature-0-1-2-3-999-PET" }
+    e.frame = stub.frames[#stub.frames]
+    eq(e.frame.events.PARTY_KILL, true, "PARTY_KILL angemeldet")
+    eq(e.frame.events.UNIT_HEALTH, nil, "Tod des Ziels nicht angemeldet")
+    return e
+end
+
+test("Collect: PARTY_KILL zählt Kills von uns und dem Haustier, ohne Ziel und ohne Beute", function()
+    local e = setupPartyKill()
+    local frame = e.frame
+    _G.CanLootUnit = function() return false, false end
+    stub.now = 100
+    frame.onEvent(frame, "PARTY_KILL", "Player-1-A", WOLF)
+
+    -- Haustier
+    local other = "Creature-0-3131-2552-14367-555-0000A5C2B1"
+    frame.onEvent(frame, "PARTY_KILL", "Creature-0-1-2-3-999-PET", other)
+
+    -- fremder Kill und Spieler als Opfer: nichts
+    local third = "Creature-0-3131-2552-14367-777-0000A5C2B1"
+    frame.onEvent(frame, "PARTY_KILL", "Player-9-Z", third)
+    frame.onEvent(frame, "PARTY_KILL", "Player-1-A", "Player-2-B")
+
+    -- derselbe Kill nochmal (z. B. zweites Ereignis): ein Versuch
+    frame.onEvent(frame, "PARTY_KILL", "Player-1-A", WOLF)
+
+    -- ohne Beutefenster zählt er nach der Wartezeit als Versuch
+    stub.now = 101.6
+    stub.flush()
+    eq(e.DB:GetNPC(179891), nil, "wartet noch, der Kill allein speichert nichts")
+    stub.now = 230
+    stub.flush()
+    _G.CanLootUnit = nil
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "Versuch ohne Beute, nur einer")
+    eq(e.DB:GetNPC(555).loot.attempts, 1, "Kill des Haustiers als Versuch")
+    eq(e.DB:GetNPC(777), nil, "fremder Kill zählt nicht")
+    local count = 0
+    for _ in pairs(e.DB.data.npcs) do count = count + 1 end
+    eq(count, 2, "nur die beiden eigenen Kreaturen gespeichert")
+end)
+
+test("Collect: mit PARTY_KILL ist der Tod des Ziels nur Ersatz und zählt nicht", function()
+    local e = setupPartyKill()
+    stub.now = 100
+    withCombatLog(WOLF)  -- UNIT_HEALTH eines toten Ziels
+    stub.now = 102
+    stub.flush()
+    stub.now = 230
+    stub.flush()
+    eq(e.DB:GetNPC(179891), nil, "ohne PARTY_KILL kein Versuch")
+end)
+
+test("Collect: PARTY_KILL und Looten zählen den Kill nur einmal", function()
+    local e = setupPartyKill()
+    local frame = e.frame
+    stub.now = 100
+    frame.onEvent(frame, "PARTY_KILL", "Player-1-A", WOLF)
+    stub.now = 105
+    e.loot({ { 102, WOLF } })
+    eq(e.DB:GetNPC(179891).loot.attempts, 1, "ein Versuch")
 end)

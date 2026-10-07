@@ -18,11 +18,13 @@ local ICONS = {
     skinning = "INV_Misc_Pelt_Wolf_01",
     herb = "Trade_Herbalism",
     ore = "Trade_Mining",
+    fishing = "Trade_Fishing",
     other = "INV_Misc_QuestionMark", -- Gas, Schätze, Holz ...
 }
 
--- Welche Gruppe eine Quelle hat: Beute, Kürschnern, Kräuterkunde, Bergbau oder "other" für die übrigen Knoten
+-- Welche Gruppe eine Quelle hat: Beute, Kürschnern, Kräuterkunde, Bergbau, Angeln oder "other" für die übrigen Knoten
 local function GroupKey(source)
+    if source.kind == "fishing" then return "fishing" end
     if source.kind == "node" then
         return ICONS[source.category] and source.category or "other"
     end
@@ -40,7 +42,7 @@ end
 function GT:SourceGroup(source)
     local key = GroupKey(source)
     local titles = {
-        loot = L["Loot"], skinning = L["Skinning"], herb = L["Herbalism"], ore = L["Mining"], other = L["Gathering"],
+        loot = L["Loot"], skinning = L["Skinning"], herb = L["Herbalism"], ore = L["Mining"], fishing = L["Fishing"], other = L["Gathering"],
     }
     return key, titles[key]
 end

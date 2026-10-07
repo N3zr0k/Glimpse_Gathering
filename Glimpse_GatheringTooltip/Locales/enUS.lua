@@ -90,3 +90,22 @@ L["TomTom detected: waypoints are set through TomTom."] = true
 L["TomTom not found: waypoints are set with the game marker."] = true
 L["The key %s is already used in the game: %s"] = true
 L["Error"] = true
+
+-- Benötigter Skill
+L["Skill: %s - requires %s %d"] = true
+L["Skill: %s - possibly requires %s %d"] = true
+L["not learned - requires %s %d"] = true
+L["Requires %s %d"] = true
+L["Show required skill on nodes"] = true
+L["Show the skill a herb or ore node needs, your own skill and the colour in its tooltip."] = true
+L["Show required skill on creatures"] = true
+L["Show the skinning skill a creature needs. Creatures with recorded skinning loot are shown for sure, beasts and dragonkin as a guess."] = true
+L["Skill only for learned professions"] = true
+L["Only show the required skill if you have the profession."] = true
+L["Hide gray nodes"] = true
+L["Do not show the skill for nodes and creatures that no longer raise your skill."] = true
+
+-- Angeln
+L["Fishing"] = true
+L["%s %d/%d"] = true
+L["%s - not learned"] = true

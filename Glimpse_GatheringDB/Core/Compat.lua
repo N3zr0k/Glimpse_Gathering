@@ -14,6 +14,21 @@ DB.api = {
     GetLootSlotType = (C_Loot and C_Loot.GetLootSlotType) or GetLootSlotType,
     GetLootSlotLink = (C_Loot and C_Loot.GetLootSlotLink) or GetLootSlotLink,
     GetLootSourceInfo = (C_Loot and C_Loot.GetLootSourceInfo) or GetLootSourceInfo,
+
+    -- Angeln: erkennt das Beutefenster eines Fangs (für Forever dokumentiert, https://warcraft.wiki.gg/wiki/API_IsFishingLoot).
+    -- Nicht in NAMES: fehlt sie, bleibt nur die Angelbeute unerfasst.
+    IsFishingLoot = IsFishingLoot,
+
+    -- Berufe und Skill (Data/Skills.lua). Nicht in NAMES: ohne sie gibt es nur keine Skill-Anzeige, die Aufzeichnung
+    -- läuft weiter. Je nach Clientstand gibt es GetProfessionInfo oder (Classic) GetSkillLineInfo.
+    GetProfessions = GetProfessions,
+    GetProfessionInfo = GetProfessionInfo,
+    GetNumSkillLines = GetNumSkillLines,
+    GetSkillLineInfo = GetSkillLineInfo,
+    GetSpellName = C_Spell and C_Spell.GetSpellName or nil,
+    GetSpellInfo = GetSpellInfo,
+    UnitCreatureType = UnitCreatureType,
+    GetCreatureTypeInfo = C_CreatureInfo and C_CreatureInfo.GetCreatureTypeInfo or nil,
 }
 
 -- Karten, Position und Entfernungen kommen aus dem Glimpse-Modul Locations.

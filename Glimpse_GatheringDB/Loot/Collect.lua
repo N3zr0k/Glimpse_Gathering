@@ -10,8 +10,11 @@ local api = DB.api
 --
 -- Gespeichert werden nur Handwerksmaterialien (Handwerkswaren und Edelsteine), alles andere
 -- (Rüstung, Waffen, Müll) fällt weg. Jede gelootete Kreatur zählt trotzdem als Versuch, auch wenn
--- kein Material dabei war, sonst wäre die Chance zu hoch. Angelbeute lässt sich nicht erfassen,
--- weil sie keine Quelle hat.
+-- kein Material dabei war, sonst wäre die Chance zu hoch.
+--
+-- Angelbeute hat keine feste Quelle (die Quelle des Beutefensters ist der Schwimmer oder ein Schwarm). Sie wird über
+-- IsFishingLoot erkannt und je Zone gezählt (siehe ProcessFishing). Gespeichert werden auch hier nur Handwerksmaterialien.
+-- Jedes Auswerfen zählt als Versuch, der Fang macht ihn zum Treffer (OnFishingStart).
 
 -- Zeitfenster in Sekunden: so kurz muss ein Zauber vor dem Beutefenster erfolgreich gewesen sein,
 -- damit das Fenster als Ergebnis dieses Zaubers gilt (Kürschnern, Pflücken, Bergbau)
@@ -77,9 +80,6 @@ local looted = {}
 local pendingKills = {}
 local killCounted = {}
 
--- Kills, die schon in den Kill-Zähler der Kreatur eingingen (GUID -> Zeitpunkt)
-local killSeen = {}
-
 local function Clean(value)
     if value ~= nil and Glimpse:IsSecret(value) then return nil end
     return value
@@ -131,6 +131,21 @@ local function ReadLoot()
     return bySource
 end
 
+-- Liest das Beutefenster eines Fangs: { [itemID] = Menge }, nur Handwerksmaterialien. Die Quelle ist egal.
+local function ReadFishingLoot()
+    local items = {}
+
+    for slot = 1, api.GetNumLootItems() do
+        local itemID = api.GetLootSlotType(slot) == LOOT_ITEM and ItemID(api.GetLootSlotLink(slot)) or nil
+        if itemID and IsMaterial(itemID) then
+            local amount = tonumber(Clean(select(2, api.GetLootSourceInfo(slot)))) or 1
+            items[itemID] = (items[itemID] or 0) + amount
+        end
+    end
+
+    return items
+end
+
 -- Kategorie eines Knotens aus seiner Beute: Kräuter, Erz oder sonst
 local function CategoryOf(items)
     local category = "other"
@@ -170,7 +185,6 @@ local function Remember(key, window, now)
             wipe(counted)
             wipe(looted)
             wipe(killCounted)
-            wipe(killSeen)
             wipe(nodeMark)
             nodeMarkSize = 0
             countedSize = 1
@@ -214,6 +228,14 @@ function DB:OnLootOpened()
 
     local opened = GetTime()
 
+    -- Angeln: eigener Weg, das Beutefenster hat keine Kreatur oder keinen Knoten als Quelle
+    local fishing = false
+    if api.IsFishingLoot then
+        local asked, value = pcall(api.IsFishingLoot)
+        fishing = asked and Clean(value) == true
+    end
+    if fishing then return self:OnFishingLoot(opened) end
+
     -- Fehler hier dürfen weder das Looten noch andere Addons stören: abfangen und merken
     local ok, sources = pcall(ReadLoot)
     if not ok then return self:ReportError("ReadLoot", sources) end
@@ -235,6 +257,196 @@ function DB:OnLootOpened()
         local done, err = pcall(self.ProcessLoot, self, sources, opened, position)
         if not done then self:ReportError("ProcessLoot", err) end
     end)
+end
+
+-- Ein Fang: Items und Ort sofort lesen, ausgewertet wird wie bei den übrigen Beutefenstern etwas später.
+-- Der Fang gehört zur Zone (uiMapID), in der der Spieler steht, der genaue Ort kommt als Fundort dazu.
+function DB:OnFishingLoot(opened)
+    local ok, items = pcall(ReadFishingLoot)
+    if not ok then return self:ReportError("ReadFishingLoot", items) end
+
+    -- Die Zone braucht es immer, die Koordinaten nur mit der Option "Fundorte aufzeichnen"
+    local found, area = pcall(Locations.GetPlayerArea, Locations)
+    if not found then
+        self:ReportError("GetPlayerArea", area)
+        area = nil
+    end
+
+    C_Timer.After(EVALUATE_DELAY, function()
+        local done, err = pcall(self.ProcessFishing, self, items, opened, area)
+        if not done then self:ReportError("ProcessFishing", err) end
+    end)
+end
+
+-- Das Auswerfen der Angel zählt als Versuch, auch ohne Fang. Ob sich ein Beutefenster öffnet, ist erst später klar, deshalb
+-- läuft es wie bei den Kills: Das Auswerfen wird vorgemerkt (Zone und Ort zu diesem Zeitpunkt). Öffnet sich ein Beutefenster
+-- eines Fangs, wird der Versuch mit dem Fang gezählt. Sonst zählt er nach FISHING_TIMEOUT Sekunden ohne Fang, oder sofort,
+-- wenn schon ausgeworfen wird. Ein abgebrochener Wurf zählt deshalb auch als Versuch.
+--
+-- Den Klick auf den Schwimmer kann ein Addon nicht abfangen, wohl aber das Ende des Zaubers (UNIT_SPELLCAST_CHANNEL_STOP,
+-- der Zauber ist ein Kanalzauber): Nach FISHING_GRACE Sekunden ohne Beutefenster ist der Wurf ohne Fang beendet, ohne
+-- die 45 Sekunden abzuwarten. Kommt das Fenster doch noch (FISHING_LATE), wird der Fang dem schon gezählten Wurf zugerechnet.
+local FISHING_TIMEOUT = 45
+local FISHING_GRACE = 4
+local FISHING_LATE = 10
+
+-- Der Zauber "Fischen" (Rang 1: 7620) und seine Ränge heißen alle gleich. Erkannt wird er über den Namen, damit es in jeder
+-- Sprache und für jeden Rang klappt. Die übrigen IDs sind die weiteren Ränge und der Zauber ab Mists of Pandaria.
+local FISHING_SPELLS = { 7620, 7731, 7732, 18248, 33095, 51294, 88868, 110410, 131474 }
+local fishingIDs, fishingNames
+
+local function IsFishingSpell(spellID)
+    if type(spellID) ~= "number" then return false end
+
+    if not fishingIDs then
+        fishingIDs, fishingNames = {}, {}
+        for _, id in ipairs(FISHING_SPELLS) do fishingIDs[id] = true end
+    end
+    if fishingIDs[spellID] then return true end
+
+    -- Der Name des Zaubers von Rang 1 gilt für alle Ränge. Erst jetzt nachschlagen: beim Laden kennt der Client ihn noch nicht immer.
+    local lookup = api.GetSpellName or api.GetSpellInfo
+    if not lookup then return false end
+    local ok, name = pcall(lookup, 7620)
+    local cast
+    ok, cast = pcall(lookup, spellID)
+    if not ok or type(name) ~= "string" or type(cast) ~= "string" or Glimpse:IsSecret(cast) then return false end
+    return name == cast
+end
+
+local pendingCast, castCounter = nil, 0
+-- Zähler dieser Sitzung (nicht gespeichert): ausgeworfen, Beutefenster, Würfe ohne Fang. Zu sehen im Debug-Chat und in
+-- /gli gatheringdb stats.
+DB.fishingSession = { casts = 0, windows = 0, misses = 0 }
+
+local function SessionText()
+    local session = DB.fishingSession
+    return format("%d ausgeworfen, %d Beutefenster, %d ohne Fang", session.casts, session.windows, session.misses)
+end
+local lastMiss -- zuletzt als leer gezählter Wurf: { area, time }
+
+local function Area(self)
+    local found, area = pcall(Locations.GetPlayerArea, Locations)
+    if not found then
+        self:ReportError("GetPlayerArea", area)
+        return nil
+    end
+    return area
+end
+
+-- Zählt einen Versuch in der Zone des Ortes. items = Fang oder nichts.
+function DB:CountFishing(area, items, how)
+    if type(area) ~= "table" or type(area.map) ~= "number" then
+        self:Debug("Wurf übersprungen: keine Karte (Instanz oder Ort unbekannt)")
+        return
+    end
+
+    self:RecordFishing(area.map, items or {}, self.db.profile.trackLocations and area or nil)
+    if DebugOn() then
+        self:Debug("Gespeichert: Angeln in Zone", tostring(area.map), how, "Fundort:", self:DescribeArea(area) or "keiner")
+    end
+end
+
+--- Läuft gerade ein Wurf (ausgeworfen, noch kein Fang und kein Ende)?
+function DB:IsFishing()
+    return pendingCast ~= nil
+end
+
+--- Gehört dieser Objekt-Tooltip (Name aus der ersten Zeile) wahrscheinlich zum Schwimmer? Der Schwimmer hat in den
+-- Tooltip-Daten keine ID, nur einen Namen (je nach Sprache verschieden). Deshalb gilt: Es läuft ein Wurf und der Name
+-- gehört zu keinem bekannten Sammelknoten.
+function DB:IsBobber(name)
+    return pendingCast ~= nil and type(name) == "string" and #self:FindNodeIDs(name) == 0
+end
+
+--- Eine Angel wurde ausgeworfen (UNIT_SPELLCAST_SENT mit der ID des Zaubers).
+function DB:OnFishingStart(spellID)
+    if not self.db.profile.recording or not IsFishingSpell(spellID) then return end
+
+    -- Der vorige Wurf ist zu Ende, ohne dass ein Fang kam
+    if pendingCast then self:FinishFishingMiss(pendingCast) end
+
+    castCounter = castCounter + 1
+    local mine = { id = castCounter, area = Area(self) }
+    pendingCast = mine
+    self.fishingSession.casts = self.fishingSession.casts + 1
+    if DebugOn() then self:Debug("Angel ausgeworfen, Wurf", self.fishingSession.casts, "dieser Sitzung (" .. SessionText() .. ")") end
+
+    C_Timer.After(FISHING_TIMEOUT, function()
+        if pendingCast ~= mine then return end
+        self:FinishFishingMiss(mine)
+    end)
+end
+
+-- Der Wurf blieb ohne Beutefenster: als Versuch ohne Fang zählen und für ein spätes Fenster merken
+function DB:FinishFishingMiss(cast)
+    pendingCast = nil
+    self.fishingSession.misses = self.fishingSession.misses + 1
+    local done, err = pcall(self.CountFishing, self, cast.area, nil, "(Wurf ohne Fang)")
+    if not done then return self:ReportError("CountFishing", err) end
+    lastMiss = { area = cast.area, time = GetTime() }
+end
+
+--- Eine Bildschirmmeldung (UI_ERROR_MESSAGE, UI_INFO_MESSAGE) während eines Wurfs. "Der Fisch ist entkommen"
+-- (ERR_FISH_ESCAPED) heißt: Er hat gebissen, der Klick kam zu spät. Der Wurf ist dann ohne Fang zu Ende. Die Texte stammen
+-- aus den globalen Zeichenketten des Clients, nicht aus einer festen Übersetzung. "Keine Fische angebissen"
+-- (ERR_FISH_NOT_HOOKED) zählt hier nicht: Der Zauber läuft danach womöglich weiter. Im Debug-Modus steht jede Meldung im
+-- Chat, damit sich die Texte im Spiel prüfen lassen.
+function DB:OnFishingMessage(...)
+    local cast = pendingCast
+    if not cast or not self.db.profile.recording then return end
+
+    for index = 1, select("#", ...) do
+        local text = select(index, ...)
+        if type(text) == "string" and not Glimpse:IsSecret(text) then
+            if DebugOn() then self:Debug("Meldung beim Angeln:", text) end
+            if _G.ERR_FISH_ESCAPED and text == _G.ERR_FISH_ESCAPED then
+                self:Debug("Fisch entkommen: Wurf ohne Fang")
+                self:FinishFishingMiss(cast)
+                return
+            end
+        end
+    end
+end
+
+--- Der Fischen-Zauber ist zu Ende (UNIT_SPELLCAST_CHANNEL_STOP: Klick auf den Schwimmer, Abbruch oder Ablauf).
+-- Gibt es kurz danach kein Beutefenster, war der Wurf ohne Fang.
+function DB:OnFishingStop(spellID)
+    local cast = pendingCast
+    if not cast or not self.db.profile.recording or not IsFishingSpell(spellID) then return end
+
+    self:Debug("Fischen beendet, warte", FISHING_GRACE, "Sekunden auf das Beutefenster")
+    C_Timer.After(FISHING_GRACE, function()
+        if pendingCast == cast then self:FinishFishingMiss(cast) end
+    end)
+end
+
+function DB:ProcessFishing(items, _, area)
+    if not self.db.profile.recording then return end
+
+    -- Wie bei Knoten: ein Fang zählt einmal je Wurf, ein erneut geöffnetes Fenster nicht
+    if not NewNodeCast("fishing") then
+        self:Debug("Fang übersprungen: gleicher Wurf, Beutefenster erneut geöffnet")
+        return
+    end
+
+    self.fishingSession.windows = self.fishingSession.windows + 1
+
+    -- Der Wurf wurde schon als leer gezählt, das Fenster kam spät: der Fang gehört dazu
+    local cast = pendingCast
+    if not cast and lastMiss and (GetTime() - lastMiss.time) <= FISHING_LATE and type(lastMiss.area) == "table" and lastMiss.area.map then
+        local late = lastMiss
+        lastMiss = nil
+        self.fishingSession.misses = math.max(self.fishingSession.misses - 1, 0)
+        self:AddFishingItems(late.area.map, items)
+        self:Debug("Fang dem zuvor gezählten Wurf zugerechnet, Zone", tostring(late.area.map))
+        return
+    end
+
+    -- Der vorgemerkte Wurf liefert die Zone und den Ort vom Auswerfen, sonst gilt der Ort jetzt
+    pendingCast = nil
+    lastMiss = nil
+    self:CountFishing(cast and cast.area or area, items, "(Fang)")
 end
 
 -- Beim Betreten oder Wechseln eines Gebiets (Ladebildschirm, Instanz, neue Zone) zeigt der Debug-Modus,
@@ -324,9 +536,6 @@ function DB:ProcessLoot(sources, opened, position)
             local again = seen and (opened - seen) <= CREATURE_REPEAT
             local mode = (afterCast or again) and "skinning" or "loot"
 
-            -- Eine Leiche, die gelootet wird, wurde auch getötet (Kill nicht im Ziel, z. B. Flächenschaden)
-            if mode == "loot" then self:CountKill(guid, opened) end
-
             if mode == "loot" and killCounted[guid] then
                 -- Der Kill zählte schon als Versuch (die Leiche schien leer), jetzt kommt die Beute dazu
                 if Remember(guid .. "|killitems", CREATURE_REPEAT, opened) then
@@ -374,24 +583,11 @@ function DB:CommitKill(guid, position)
     end
 end
 
--- Zählt den Kill im eigenen Zähler der Kreatur, einmal je Leiche (GUID)
-function DB:CountKill(guid, now)
-    local kind, id = ParseGUID(guid)
-    if kind ~= "Creature" or not id then return end
-
-    local seen = killSeen[guid]
-    if seen and (now - seen) <= CREATURE_REPEAT then return end
-    killSeen[guid] = now
-
-    self:RecordKill(id, UnitInfo(guid))
-    if DebugOn() then self:Debug("Kill gezählt:", tostring(id)) end
-end
-
 function DB:OnKill(guid)
     if not self.db.profile.recording then return end
     if type(guid) ~= "string" or ParseGUID(guid) ~= "Creature" then return end
 
-    self:CountKill(guid, GetTime())
+    if DebugOn() then self:Debug("Kill erkannt:", tostring(select(2, ParseGUID(guid)))) end
 
     -- Schon als Versuch gezählt (Beutefenster oder früherer Kill derselben Leiche)
     local now = GetTime()
@@ -420,9 +616,9 @@ function DB:OnKill(guid)
 end
 
 local frame = CreateFrame("Frame")
--- Stirbt das Ziel, das wir gerade anvisieren, ist es ein Kill von uns, sofern nicht ein anderer Spieler
--- das Tap hat. Kills außerhalb des Ziels (Flächenschaden, Haustier) fehlen, der Kill ist nur der Ersatz
--- für das Beutefenster. Der Kampflog (COMBAT_LOG_EVENT_UNFILTERED) ist für Addons gesperrt und löst
+-- Ersatz ohne PARTY_KILL: Stirbt das Ziel, das wir gerade anvisieren, ist es ein Kill von uns, sofern nicht ein
+-- anderer Spieler das Tap hat. Kills außerhalb des Ziels (Flächenschaden, Haustier) fehlen dabei, der Kill ist nur der
+-- Ersatz für das Beutefenster. Der Kampflog (COMBAT_LOG_EVENT_UNFILTERED) ist für Addons gesperrt und löst
 -- eine Blockmeldung aus, deshalb wird er nicht verwendet.
 --
 -- Geprüft wird bei UNIT_HEALTH des Ziels, beim Wechsel des Ziels (auch auf eine Leiche) und am Ende des
@@ -438,7 +634,27 @@ local function RefreshTargetGUID(reset)
     end
 end
 
+-- PARTY_KILL (Killer-GUID, Opfer-GUID) meldet jeden Kill von uns, Gruppenmitgliedern und Haustieren, auch ohne Ziel und
+-- ohne Beute. Kennt der Client das Ereignis, ist es die Quelle; der Tod des Ziels (CheckTargetKill) ist nur der Ersatz
+-- für Clients ohne dieses Ereignis, weil er Kills nach einem Zielwechsel oder ohne Todesmeldung verpasst.
+local partyKillActive = false
+
+--- Kill laut PARTY_KILL: zählt, wenn der Killer der Spieler selbst oder sein Haustier ist.
+function DB:OnPartyKill(killer, victim)
+    killer, victim = Clean(killer), Clean(victim)
+    if type(killer) ~= "string" or type(victim) ~= "string" then return end
+
+    local mine = killer == Clean(UnitGUID("player")) or killer == Clean(UnitGUID("pet"))
+    if not mine then
+        if DebugOn() then self:Debug("Kill-Erkennung: PARTY_KILL von jemand anderem, nicht gezählt") end
+        return
+    end
+    if DebugOn() then self:Debug("Kill-Erkennung: PARTY_KILL", victim) end
+    self:OnKill(victim)
+end
+
 local function CheckTargetKill()
+    if partyKillActive then return end
     local ok, dead = pcall(UnitIsDead, "target")
     if not ok then return end
     if dead ~= nil and Glimpse:IsSecret(dead) then
@@ -468,12 +684,22 @@ end
 frame:SetScript("OnEvent", function(_, event, ...)
     if event == "UNIT_SPELLCAST_SENT" then
         -- (unit, zielName, castGUID, spellID)
-        local _, target = ...
+        local _, target, _, spellID = ...
         lastSent = GetTime()
+        DB:OnFishingStart(Clean(spellID))
         target = Clean(target)
         if type(target) == "string" and target ~= "" then
             lastTarget, lastTargetTime = target, GetTime()
         end
+    elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+        -- (unit, castGUID, spellID)
+        local _, _, spellID = ...
+        DB:OnFishingStop(Clean(spellID))
+    elseif event == "UI_ERROR_MESSAGE" or event == "UI_INFO_MESSAGE" then
+        DB:OnFishingMessage(...)
+    elseif event == "PARTY_KILL" then
+        local killer, victim = ...
+        DB:OnPartyKill(killer, victim)
     elseif event == "UNIT_HEALTH" then
         RefreshTargetGUID(false)
         CheckTargetKill()
@@ -493,8 +719,14 @@ function DB:StartCollecting()
     self:RegisterEvent("ZONE_CHANGED_NEW_AREA", "OnAreaChanged")
     frame:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
     frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
+    frame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
+    frame:RegisterEvent("UI_ERROR_MESSAGE")
+    frame:RegisterEvent("UI_INFO_MESSAGE")
 
-    -- Tod des Ziels: Ersatz für Kreaturen ohne Beutefenster
+    -- Kills ohne Beutefenster: PARTY_KILL, sonst als Ersatz der Tod des Ziels
+    partyKillActive = pcall(frame.RegisterEvent, frame, "PARTY_KILL")
+    if partyKillActive then return end
+
     frame:RegisterUnitEvent("UNIT_HEALTH", "target")
     frame:RegisterEvent("PLAYER_TARGET_CHANGED")
     frame:RegisterEvent("PLAYER_REGEN_ENABLED")
