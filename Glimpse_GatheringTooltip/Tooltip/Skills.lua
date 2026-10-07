@@ -101,25 +101,6 @@ function GT:BuildSkillRow(profession, required, guess, color)
     return { text, "", 1, 1, 1, icon = icon }, label
 end
 
---- Zeile für den Schwimmer: Symbol, Beruf und dein Angel-Skill mit Maximum, z. B. "Angeln 1/75".
-function GT:FishingRow()
-    local profile, db = self.db.profile, self.data
-    if not profile.showNodeSkill then return nil end
-
-    local current, maximum, clientName = db:GetPlayerSkill("fishing")
-    local learned = db:HasProfession("fishing")
-    if learned == false and profile.skillOnlyLearned then return nil end
-
-    local label = clientName or L["Fishing"]
-    local text = label
-    if current then
-        text = format(L["%s %d/%d"], label, current, maximum)
-    elseif learned == false then
-        text = format(L["%s - not learned"], label)
-    end
-    return { text, "", 1, 1, 1, icon = self:SourceIcon({ kind = "fishing" }) }
-end
-
 --- Zeile für einen Knoten (Objekt-ID oder Name, wenn der Tooltip keine ID mitbringt), nil wenn nichts anzuzeigen ist.
 function GT:NodeSkillRow(id, name, tooltip)
     if not self.db.profile.showNodeSkill then return nil end

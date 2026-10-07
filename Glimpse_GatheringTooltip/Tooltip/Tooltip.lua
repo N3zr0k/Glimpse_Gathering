@@ -148,14 +148,9 @@ local function SourceLines(self, data, isObject, tooltip)
     if kind == "node" then return NodeLines(self, id, nil, tooltip) end
     if kind == "npc" then return UnitLines(self, id, data, tooltip) end
 
-    -- Objekt ohne ID: über den Namen suchen. Während eines Wurfs ist es meist der Schwimmer (er hat keine ID).
+    -- Objekt ohne ID: über den Namen suchen. (Den Schwimmer, der ebenfalls keine ID hat, zeigt jetzt Glimpse: Professions.)
     if isObject then
-        local name = self.data:GetTooltipName(tooltip)
-        if self.data:IsBobber(name) then
-            local row = self:FishingRow()
-            return row and { row } or nil
-        end
-        return NodeLines(self, nil, name, tooltip)
+        return NodeLines(self, nil, self.data:GetTooltipName(tooltip), tooltip)
     end
 end
 
@@ -259,29 +254,6 @@ local function ItemLines(self, data)
     return rows
 end
 
--- Angelruten (Waffe, Unterklasse Angelrute) zeigen deinen Angel-Skill wie der Schwimmer. Fallback-Zahlen, falls die Enums fehlen.
-local WEAPON_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Weapon or 2
-local FISHING_POLE = Enum and Enum.ItemWeaponSubclass and Enum.ItemWeaponSubclass.Fishingpole or 20
-
-local function PoleLines(self, data)
-    if not data.id or not GetItemInfoInstant then return nil end
-
-    local _, _, _, _, _, classID, subClassID = GetItemInfoInstant(data.id)
-    if classID ~= WEAPON_CLASS or subClassID ~= FISHING_POLE then return nil end
-
-    local row = self:FishingRow()
-    return row and { row } or nil
-end
-
--- Angelrute: Skill-Zeile; sonst die Quellen eines Materials (eine Angelrute hat keine, beides zusammen ist nur der Vollständigkeit halber)
-local function ItemTooltipLines(self, data)
-    local pole, sources = PoleLines(self, data), ItemLines(self, data)
-    if not (pole and sources) then return pole or sources end
-
-    for _, row in ipairs(sources) do tinsert(pole, row) end
-    return pole
-end
-
 function GT:RegisterTooltips()
     local types = Enum.TooltipDataType
 
@@ -301,7 +273,7 @@ function GT:RegisterTooltips()
         return SourceLines(module, data, false, tooltip)
     end))
     -- Item-Tooltips: die Namen kommen aus der Datenbank, hier muss nichts nachgeladen werden
-    self:RegisterTooltipLine(types.Item, Gated(ItemTooltipLines))
+    self:RegisterTooltipLine(types.Item, Gated(ItemLines))
 end
 
 -- Baut den sichtbaren Tooltip neu auf, z. B. nach einer geänderten Option

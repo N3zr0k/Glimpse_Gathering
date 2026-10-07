@@ -108,5 +108,3 @@ L["Do not show the skill for nodes and creatures that no longer raise your skill
 
 -- Angeln
 L["Fishing"] = "Angeln"
-L["%s %d/%d"] = "%s %d/%d"
-L["%s - not learned"] = "%s - nicht gelernt"

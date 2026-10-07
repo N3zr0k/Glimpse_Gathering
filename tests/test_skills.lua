@@ -230,21 +230,7 @@ test("Tooltip: Häutbar-Zeile des Clients macht sicher und liefert die Farbe", f
     _G.UNIT_SKINNABLE_LEATHER = nil
 end)
 
-test("Tooltip: Schwimmer zeigt Angeln mit Skill und Maximum", function()
-    local GT = setupTooltip({}, { { "Angeln", 1, 75, 356 } })
-    eq(GT:FishingRow()[1], "Angeln 1/75", "Skill/Maximum")
-    eq(GT:FishingRow().icon, "Interface\\Icons\\Trade_Fishing", "Symbol")
-
-    local ohne = setupTooltip({}, { { "Bergbau", 100, 150, 186 } })
-    eq(ohne:FishingRow(), nil, "nicht gelernt: keine Zeile")
-    ohne.db.profile.skillOnlyLearned = false
-    eq(ohne:FishingRow()[1], "Fishing - not learned", "nicht gelernt, aber gewünscht")
-
-    GT.db.profile.showNodeSkill = false
-    eq(GT:FishingRow(), nil, "Option aus")
-end)
-
-test("Tooltip: Angelrute zeigt den Angel-Skill", function()
+test("Tooltip: Angelrute bleibt unverändert (der Angel-Skill steht bei Glimpse: Professions)", function()
     local GT = setupTooltip({}, { { "Angeln", 1, 75, 356 } })
     _G.C_Item = { GetItemInfoInstant = function(id) return id, "", "", "", "", id == 6256 and 2 or 7, id == 6256 and 20 or 8 end }
     LibStub():GetAddon().ModifiersHeld = function() return true end
@@ -260,7 +246,7 @@ test("Tooltip: Angelrute zeigt den Angel-Skill", function()
     GT:RegisterTooltips()
 
     local rows = callbacks[3](GT, { id = 6256 }, {})
-    assert(rows and rows[1][1] == "Angeln 1/75", "Skill-Zeile auf der Angelrute")
+    eq(rows, nil, "keine Skill-Zeile auf der Angelrute")
     eq(callbacks[3](GT, { id = 2589 }, {}), nil, "andere Items unverändert")
     _G.C_Item, _G.GetItemInfoInstant = nil, nil
 end)

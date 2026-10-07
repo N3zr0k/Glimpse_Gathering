@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.2.8] - 2026-10-07
+
+### Removed
+- GatheringTooltip: the skill line on the tooltip of fishing poles is gone as well (the bobber was done in 0.2.7); Glimpse: Professions shows the fishing skill. `FishingRow` and its texts are removed
+
+## [0.2.7] - 2026-10-07
+
+### Removed
+- GatheringTooltip: the tooltip of the fishing bobber (the line "Angeln 1/75") is gone; Glimpse: Professions shows the fishing skill there now. The fishing rod keeps its skill line
+
 ## [0.2.6] - 2026-10-07
 
 ### Fixed
