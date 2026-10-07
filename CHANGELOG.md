@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.6] - 2026-10-07
+
+### Fixed
+- luacheck warnings: `IsFishingLoot` declared as a read-only global, unused variables and assignments removed (Collect.lua, Tooltip/Skills.lua)
+
 ## [0.2.5] - 2026-10-06
 
 ### Changed

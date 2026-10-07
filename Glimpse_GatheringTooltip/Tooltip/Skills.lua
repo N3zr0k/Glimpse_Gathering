@@ -10,8 +10,6 @@ local L = GT.L
 -- Zahlen, Farben und der Skill des Spielers liefert GatheringDB (GetRequiredSkill, GetSkillColor, GetPlayerSkill),
 -- hier wird nur die Zeile gebaut.
 
-local GREY = { 0.60, 0.60, 0.60 }
-
 local PROFESSION_LABEL = { herb = "Herbalism", ore = "Mining", skinning = "Skinning", fishing = "Fishing" }
 
 local function Colored(text, r, g, b)
@@ -155,9 +153,7 @@ function GT:UnitSkillRow(id, data, tooltip)
     -- "Häutbar" im Tooltip des Clients: sicher kürschnerbar, und der Client gibt die Farbe vor
     local native = NativeSkinnable(tooltip)
     local guess = false
-    if native then
-        known = true
-    elseif not known then
+    if not native and not known then
         -- unbekannt: nur bei einem Typ, der Kürschnerei erlauben kann
         if not (unit and db:IsSkinnableType(db:GetCreatureTypeID(unit))) then return nil end
         guess = true

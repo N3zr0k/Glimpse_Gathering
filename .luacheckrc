@@ -24,7 +24,7 @@ read_globals = {
     "GetActionInfo", "GetMacroInfo", "GetMacroBody", "GetShapeshiftForm", "GetBonusBarOffset",
     "GetActionBarPage", "GetOverrideBarIndex", "HasVehicleActionBar", "HasOverrideActionBar",
     "HasBonusActionBar", "GetNumShapeshiftForms", "InCombatLockdown", "GetCVar",
-    "CanLootUnit", "UnitIsDead", "UnitIsTapDenied",
+    "CanLootUnit", "UnitIsDead", "UnitIsTapDenied", "IsFishingLoot",
     "GetNumSkillLines", "GetSkillLineInfo", "GetSpellInfo", "UnitCreatureType", "C_CreatureInfo",
     "tinsert", "tremove", "wipe", "format", "strsplit", "strjoin", "strmatch", "strtrim", "strlower",
     "strupper", "strfind", "gsub", "strsub", "tostringall", "date", "time", "ceil", "floor",

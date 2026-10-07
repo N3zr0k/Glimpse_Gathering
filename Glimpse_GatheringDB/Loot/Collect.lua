@@ -293,13 +293,13 @@ local FISHING_LATE = 10
 -- Der Zauber "Fischen" (Rang 1: 7620) und seine Ränge heißen alle gleich. Erkannt wird er über den Namen, damit es in jeder
 -- Sprache und für jeden Rang klappt. Die übrigen IDs sind die weiteren Ränge und der Zauber ab Mists of Pandaria.
 local FISHING_SPELLS = { 7620, 7731, 7732, 18248, 33095, 51294, 88868, 110410, 131474 }
-local fishingIDs, fishingNames
+local fishingIDs
 
 local function IsFishingSpell(spellID)
     if type(spellID) ~= "number" then return false end
 
     if not fishingIDs then
-        fishingIDs, fishingNames = {}, {}
+        fishingIDs = {}
         for _, id in ipairs(FISHING_SPELLS) do fishingIDs[id] = true end
     end
     if fishingIDs[spellID] then return true end
@@ -307,10 +307,9 @@ local function IsFishingSpell(spellID)
     -- Der Name des Zaubers von Rang 1 gilt für alle Ränge. Erst jetzt nachschlagen: beim Laden kennt der Client ihn noch nicht immer.
     local lookup = api.GetSpellName or api.GetSpellInfo
     if not lookup then return false end
-    local ok, name = pcall(lookup, 7620)
-    local cast
-    ok, cast = pcall(lookup, spellID)
-    if not ok or type(name) ~= "string" or type(cast) ~= "string" or Glimpse:IsSecret(cast) then return false end
+    local okName, name = pcall(lookup, 7620)
+    local ok, cast = pcall(lookup, spellID)
+    if not (okName and ok) or type(name) ~= "string" or type(cast) ~= "string" or Glimpse:IsSecret(cast) then return false end
     return name == cast
 end
 
