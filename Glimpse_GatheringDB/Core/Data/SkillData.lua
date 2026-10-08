@@ -1,27 +1,19 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 
--- Statische Skill-Daten für Sammelknoten. Nichts davon landet in den SavedVariables.
--- Die Logik dazu steht in Data/Skills.lua.
+-- Statische Skill-Daten für Sammelknoten (nicht in SavedVariables), Logik in Core/Data/Skills.lua.
 --
--- Quellen (Stand 2026-10-06, Werte von Classic Era / Vanilla 1.12, die Forever-Inhalte sind dieselben, eine
--- Abweichung ist mir nirgends begegnet, geprüft habe ich sie aber nicht ingame):
---   * Wowhead-Classic-Objektseiten https://www.wowhead.com/classic/object=<ID> (Zeile "Requires Herbalism/Mining (X)").
---     Damit belegt sind die Einträge unter "A".
---   * Alle übrigen Einträge ("B"): warcraft.wiki.gg (Seiten der einzelnen Kräuter und Knoten, dort stehen auch die
---     Objekt-IDs), Wowhead-Guides zu Bergbau und Kräuterkunde (1-300) und icy-veins.com (Kräuterkunde), bei einzelnen
---     Objekten auch Wowhead-Seiten anderer Spielversionen (Retail, WotLK, TBC, MoP Classic). Die Werte passen zu den
---     Classic-Werten, sind aber nicht auf einer Classic-Era-Seite gegengeprüft.
---   * Widersprüchliche Quellen: Bruiseweed 85 (wiki.gg) gegen 100 (Wowhead Classic, Guides): 100 gilt; Fadeleaf 150
---     (Retail-Seite) gegen 160 (Classic, Forever-Itemseite): 160; Goldthorn 150 gegen 170 (Classic): 170; Khadgar's
---     Whisker 160 gegen 185 (Classic): 185.
---   * Weggelassen, weil nicht belegt: Objekt 176644 (Rich Thorium Vein, die Seite nennt 215 und keinen Fundort).
---     Dünne Stelle: ein Guide nennt für Thorium abweichende Werte (250/275), die Objektseiten sagen 245 und 275.
+-- Quellen (Werte von Classic Era / 1.12, für Forever ungeprüft übernommen):
+--   A: Wowhead-Classic-Objektseiten https://www.wowhead.com/classic/object=<ID> ("Requires Herbalism/Mining (X)")
+--   B: warcraft.wiki.gg (Kräuter-/Knotenseiten mit Objekt-IDs), Wowhead-Guides Bergbau/Kräuterkunde 1-300,
+--      icy-veins.com, vereinzelt Wowhead anderer Versionen. Passt zu Classic, nicht auf Classic-Era-Seiten geprüft.
+--   Konflikte: Bruiseweed 85 (wiki.gg) / 100 (Wowhead Classic) -> 100, Fadeleaf 150 (Retail) / 160 (Classic) -> 160,
+--   Goldthorn 150 / 170 -> 170, Khadgar's Whisker 160 / 185 -> 185.
+--   Weggelassen: 176644 (Rich Thorium Vein, Seite nennt 215 ohne Fundort). Thorium unsicher: ein Guide nennt
+--   250/275, die Objektseiten 245/275.
 --
--- Schlüssel sind die Objekt-IDs aus der GUID ("GameObject-0-...-1731-..."), nicht die Namen, die der Client
--- lokalisiert. Wert: { Beruf, benötigter Skill }, Beruf = "herb" oder "ore" (wie die Kategorie der Knoten).
--- Zusätzlich stehen unten die Items, die ein Knoten liefert: Für Objekte, die hier fehlen (Varianten anderer
--- Spielversionen), aber schon aufgezeichnet wurden, reicht dann die Beute zur Zuordnung.
+-- Schlüssel: Objekt-ID aus der GUID (Namen sind lokalisiert). Wert: { Beruf ("herb"/"ore"), Skill }.
+-- DB.ItemSkills ordnet nicht gelistete, aber aufgezeichnete Knoten (Varianten) über ihre Beute zu.
 
 local HERB, ORE = "herb", "ore"
 
@@ -51,7 +43,7 @@ DB.NodeSkills = {
     [177388] = { ORE, 275 },   -- Ooze Covered Rich Thorium Vein
     [180215] = { ORE, 275 },   -- Hakkari Thorium Vein
 
-    -- B: übrige Quellen, siehe oben
+    -- B: übrige Quellen
     [1617] = { HERB, 1 },      -- Silverleaf
     [1620] = { HERB, 50 },     -- Mageroyal
     [1624] = { HERB, 125 },    -- Kingsblood
@@ -93,9 +85,8 @@ DB.NodeSkills = {
     [123848] = { ORE, 245 },   -- Ooze Covered Thorium Vein
 }
 
--- Das Material, das ein Knoten liefert, und der Skill, den der Knoten dafür verlangt. Thorium fehlt mit Absicht
--- (Small Thorium Vein 245, Rich Thorium Vein 275: das Item sagt nicht, welcher Knoten es war). Herkunft wie oben;
--- ein paar Item-IDs standen nur in Suchergebnissen der Datenbanken, nicht in einer abgerufenen Seite.
+-- Material -> Skill des Knotens. Thorium fehlt absichtlich (245 oder 275, das Item verrät den Knoten nicht).
+-- Einige Item-IDs nur aus Suchergebnissen der Datenbanken.
 DB.ItemSkills = {
     -- Kräuter
     [765] = { HERB, 1 }, [2447] = { HERB, 1 }, [2449] = { HERB, 15 }, [785] = { HERB, 50 }, [2450] = { HERB, 70 },
@@ -111,10 +102,9 @@ DB.ItemSkills = {
     [7911] = { ORE, 230 }, [11370] = { ORE, 230 },
 }
 
--- Abstände der Farben zum benötigten Skill: orange ab dem Wert, gelb ab +25, grün ab +50, grau ab +100.
--- Quelle: Wowhead-Guide Bergbau 1-300 (Classic), Kräuter nach icy-veins.com in demselben Muster. Für Kürschnerei habe
--- ich keine Zahlen gefunden, die Allakhazam-FAQ fasst alle drei Berufe zusammen (orange 100 %, gelb mittel, grün selten,
--- grau nie), darum gilt dort dasselbe.
+-- Farbabstände zum benötigten Skill: orange ab Wert, gelb +25, grün +50, grau +100. Quelle: Wowhead-Guide
+-- Bergbau 1-300 (Classic), Kräuter laut icy-veins.com gleich. Für Kürschnerei keine Zahlen, die
+-- Allakhazam-FAQ beschreibt für alle drei Berufe dasselbe Muster.
 DB.SKILL_YELLOW = 25
 DB.SKILL_GREEN = 50
 DB.SKILL_GRAY = 100
@@ -128,15 +118,13 @@ DB.SkillColors = {
     gray = { 0.50, 0.50, 0.50 },
 }
 
--- Kürschnerei: benötigter Skill nach Kreaturenstufe (Classic Era). Stufe 1-10: 1, Stufe 11-20: (Stufe - 10) * 10,
--- ab Stufe 21: Stufe * 5. Quellen: https://warcraft.wiki.gg/wiki/Skinnable ("lvl * 5" ab Stufe 21),
--- https://wowpedia.fandom.com/wiki/Skinning (Stufe 11-20: 10 mal Stufe minus 100), beide stimmen überein. Bossen und
--- manchen Raid-Tieren genügt das nicht (Guides nennen 310 bis 315), dafür gibt es hier keine Zahlen.
+-- Kürschnerei nach Kreaturenstufe (Classic Era): 1-10: 1, 11-20: (Stufe - 10) * 10, ab 21: Stufe * 5.
+-- Quellen: https://warcraft.wiki.gg/wiki/Skinnable, https://wowpedia.fandom.com/wiki/Skinning.
+-- Bosse und manche Raid-Tiere brauchen mehr (Guides: 310-315), dafür gibt es keine Zahlen.
 DB.SKINNING_FREE_LEVEL = 10
 DB.SKINNING_STEP_LEVEL = 20
 
--- Kreaturentypen, die Kürschnerei erlauben können: Wildtier und Drachkin (warcraft.wiki.gg/wiki/Skinning). Das Typ-Flag
--- reicht nicht, nicht jedes Tier ist kürschnerbar (die meisten Vögel nicht), deshalb nur als Hinweis. IDs nach
--- https://warcraft.wiki.gg/wiki/API_C_CreatureInfo.GetCreatureTypeInfo
+-- Typen, die kürschnerbar sein können: Wildtier, Drachkin. Nur ein Hinweis (die meisten Vögel nicht).
+-- IDs: https://warcraft.wiki.gg/wiki/API_C_CreatureInfo.GetCreatureTypeInfo
 DB.CREATURE_BEAST = 1
 DB.CREATURE_DRAGONKIN = 2

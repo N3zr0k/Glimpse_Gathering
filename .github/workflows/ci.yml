@@ -69,7 +69,7 @@ jobs:
               echo "Tag $current existiert, aber es gibt noch kein Release: es wird gebaut."
               gh workflow run release.yml --ref "refs/tags/$current"
             else
-              echo "Für diese Version gibt es schon ein Tag dieser oder einer höheren Stufe, nichts zu tun."
+              echo "Für diese Version gibt es schon ein Tag dieser oder einer höheren Stufe (nur Suffix-Zahl neu = nur Repo geändert), kein Release."
             fi
             exit 0
           fi

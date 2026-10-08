@@ -134,12 +134,23 @@ def current_tag(version):
 
 
 def next_tag(version):
-    """Das Tag, das jetzt angelegt werden soll, oder "" wenn keins fällig ist."""
-    base, stage, number = split_version(version)
-    for other, other_number, _ in existing_tags(base):
-        if (STAGES.index(other), other_number) >= (STAGES.index(stage), number):
+    """Das Tag, das jetzt angelegt werden soll, oder "" wenn keins fällig ist.
+    Gibt es die Basisversion schon in dieser oder einer höheren Stufe, ist keins fällig: eine neue Suffix-Zahl
+    (-beta.N, -alpha.N) heißt, nur das Repo hat sich geändert, nicht das Addon."""
+    base, stage, _ = split_version(version)
+    for other, _, _ in existing_tags(base):
+        if STAGES.index(other) >= STAGES.index(stage):
             return ""
     return f"v{version}"
+
+
+def suffix_only(tag):
+    """Ein älteres Tag mit gleicher Basisversion und Stufe, nur andere Suffix-Zahl, sonst ""."""
+    base, stage, number = split_version(tag.lstrip("v"))
+    if stage == "final":
+        return ""
+    older = [t for other, n, t in existing_tags(base) if other == stage and n != number]
+    return sorted(older)[0] if older else ""
 
 
 def main():
@@ -148,7 +159,12 @@ def main():
     parser.add_argument("--version", action="store_true", help="gemeinsame TOC-Version ausgeben")
     parser.add_argument("--next-tag", action="store_true", help="das jetzt fällige Tag ausgeben (leer: keins)")
     parser.add_argument("--current-tag", action="store_true", help="das vorhandene Tag der höchsten Stufe ausgeben")
+    parser.add_argument("--suffix-only", metavar="TAG", help="älteres Tag ausgeben, das sich nur in der Suffix-Zahl unterscheidet (leer: keins)")
     args = parser.parse_args()
+
+    if args.suffix_only:
+        print(suffix_only(args.suffix_only))
+        return
 
     versions = {}
     for path in walk("."):

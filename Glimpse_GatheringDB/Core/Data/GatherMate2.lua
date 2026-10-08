@@ -1,20 +1,18 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 
--- Anbieter für Fundorte aus GatherMate2 (wenn installiert). Wir lesen nur, wir schreiben nichts in
--- GatherMate2 und kopieren nichts in unsere Daten.
---
--- Benutzt wird die Schnittstelle von GatherMate2 (Stand der Quelle, Oktober 2026):
+-- Fundorte aus GatherMate2 (falls installiert), nur lesend. Nichts wird geschrieben oder übernommen.
+-- Genutzte API:
 --   GatherMate2:GetNodesForZone(map, typ, true)   Iterator über coord, nodeID einer Karte
 --   GatherMate2:DecodeLoc(coord)                  x, y (0 bis 1)
 --   GatherMate2:GetIDForNode(typ, name)           Knoten-ID zu einem (lokalisierten) Namen
 --   GatherMate2.HBD:GetAllMapIDs()                alle Karten (sonst: die Speicher von GatherMate2 selbst)
--- Die Karten-IDs sind uiMapIDs wie bei uns. Fehlt etwas davon, meldet sich der Anbieter als nicht
--- verfügbar, und Fehler beim Lesen werden vom Aufrufer abgefangen (DB:AddExternalSpots).
+-- Karten-IDs sind uiMapIDs. Fehlt etwas, gilt der Anbieter als nicht verfügbar; Lesefehler fängt
+-- DB:AddExternalSpots ab.
 
 local NAME = "GatherMate2"
 local CELL = 100          -- Rasterzellen von 1 % der Karte (wie SPOT_RADIUS), Punkte darin werden ein Ort
-local REFRESH = 30        -- Sekunden, so lange bleibt ein veralteter Index nach Änderungen in GatherMate2 bestehen
+local REFRESH = 30        -- max. Alter (s) des Index nach Änderungen in GatherMate2
 
 -- Welche GatherMate2-Typen zu unserer Kategorie passen
 local TYPES = {
@@ -42,8 +40,7 @@ local function IsAvailable()
         and type(gm.GetIDForNode) == "function" and type(gm.gmdbs) == "table"
 end
 
--- Die Speicher (Tabellen karte -> coord -> nodeID) von GatherMate2 für einen Typ: der Hauptspeicher
--- und die der nachladbaren Datenaddons
+-- Speicher (karte -> coord -> nodeID) eines Typs: Hauptspeicher plus nachladbare Datenaddons
 local function Stores(gm, typ)
     local stores = {}
     local db = gm.gmdbs[typ]
@@ -60,8 +57,7 @@ local function Stores(gm, typ)
     return stores
 end
 
--- Alle Karten, auf denen GatherMate2 Daten haben kann: die von HereBeDragons plus alle, für die in den
--- Speichern etwas steht (falls HereBeDragons eine Karte nicht kennt)
+-- Karten von HereBeDragons plus alle aus den Speichern (falls HBD eine nicht kennt)
 local function AllMaps(gm)
     local seen, maps = {}, {}
     local function Add(map)
@@ -108,8 +104,7 @@ local function Build(gm, typ)
     index[typ], builtAt[typ] = nodes, Now()
 end
 
--- Ein leerer Index gilt als nicht fertig und wird nach REFRESH Sekunden neu gelesen (z. B. wenn die Daten
--- beim ersten Zugriff noch nicht da waren)
+-- Leerer Index gilt als nicht fertig, Neuaufbau nach REFRESH (Daten evtl. noch nicht geladen)
 local function Index(gm, typ)
     local current = index[typ]
     local stale = (dirty or (current and next(current) == nil)) and (Now() - (builtAt[typ] or 0)) >= REFRESH
@@ -124,10 +119,9 @@ end
 local provider = { name = NAME }
 provider.IsAvailable = IsAvailable
 
--- GatherMate2 vergibt eigene Knoten-IDs (Kupfervorkommen 201, Silberblatt 402 ...), nicht die Objekt-IDs des Spiels.
--- Der Abgleich läuft deshalb über den Namen des Knotens. Zuerst der genaue Name (GetIDForNode), dann ohne Groß-/Kleinschreibung
--- und Sonderzeichen, zuletzt, falls GatherMate2 den Knoten leicht anders schreibt (z. B. "Kupferader" statt "Kupfervorkommen"):
--- der einzige Name des Typs, der mit denselben ersten Buchstaben beginnt (mindestens PREFIX).
+-- GatherMate2 hat eigene Knoten-IDs (Kupfervorkommen 201 ...), Abgleich daher über den Namen: exakt
+-- (GetIDForNode), dann normalisiert, zuletzt der einzige Name des Typs mit gleichem Anfang (min. PREFIX
+-- Zeichen), z. B. "Kupferader" statt "Kupfervorkommen".
 local PREFIX = 5
 
 local function Normalize(text)
@@ -190,9 +184,8 @@ function provider.GetSpots(kind, _, entry)
         Collect(typ)
     end
 
-    -- Fehlt die Kategorie oder steht sie auf "other" (beim ersten Fund war nichts Eindeutiges dabei, z. B. nur ein
-    -- Edelstein), passt vielleicht ein Kräuter- oder Erzknoten: dann zählt der Name in den übrigen Typen. Bei
-    -- "herb" und "ore" ist die Kategorie sicher (aus der Beute), dort wird nicht geraten.
+    -- Kategorie fehlt oder "other" (z. B. nur Edelstein gefunden): auch Kräuter- und Erztypen probieren.
+    -- "herb"/"ore" stammen aus der Beute und sind sicher.
     if #result == 0 and (entry.category == nil or entry.category == "other") then
         for _, typ in ipairs(ALL_TYPES) do
             if not tried[typ] then Collect(typ) end
@@ -262,7 +255,7 @@ function DB:DiagnoseGatherMate2()
     end
     Add(format("Own nodes with a match in GatherMate2: %d of %d", matched, ours))
 
-    -- Welche Knoten finden einen Partner und welche nicht (mit Kategorie, sie wählt den Typ in GatherMate2)
+    -- Treffer und Fehlschläge je Knoten, mit Kategorie (bestimmt den GatherMate2-Typ)
     local ids = {}
     for id in pairs(DB.data.nodes) do tinsert(ids, id) end
     table.sort(ids)
@@ -298,8 +291,8 @@ end
 
 DB:RegisterProvider(NAME, provider)
 
--- Änderungen in GatherMate2 merken (neuer Index spätestens nach REFRESH Sekunden). Die Nachrichten
--- laufen über AceEvent, das alle Addons gemeinsam benutzen.
+-- Änderungen in GatherMate2 merken (Neuaufbau spätestens nach REFRESH). Die Nachrichten laufen über
+-- das gemeinsame AceEvent.
 function DB:WatchGatherMate2()
     if not IsAvailable() then return end
     for _, message in ipairs({ "GatherMate2NodeAdded", "GatherMate2NodeDeleted", "GatherMate2Cleanup" }) do

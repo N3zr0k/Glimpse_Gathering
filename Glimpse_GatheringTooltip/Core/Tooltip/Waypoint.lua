@@ -2,9 +2,8 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local GT = Glimpse:GetModule("GatheringTooltip")
 local L = GT.L
 
--- Wegpunkt zum besten Fundort eines Materials. Ein Tooltip lässt sich nicht anklicken, deshalb löst eine
--- Taste aus (Option "Taste", Standard Strg+G), solange der Tooltip des Materials angezeigt wird.
--- Der Wegpunkt kommt aus dem Glimpse-Modul Locations: TomTom, wenn es installiert ist, sonst die Markierung des Spiels.
+-- Wegpunkt zum besten Fundort eines Materials. Tooltips sind nicht klickbar, daher per Taste (Standard
+-- Strg+G), solange der Material-Tooltip sichtbar ist. Gesetzt über Locations (TomTom oder Spiel-Markierung).
 
 local target -- { map, x, y, title }, solange ein Tooltip mit Fundort sichtbar ist
 local listener
@@ -37,9 +36,8 @@ local function PressedKey(key)
 end
 GT.PressedKey = PressedKey
 
---- Wofür die Kombination im Spiel schon belegt ist: Name der Aktion (z. B. "Vorwärts") oder nil, wenn sie frei ist.
--- Prüft die Tastenbelegung des Spiels (Optionen > Tastenbelegung). Zuerst die direkte Abfrage, danach ein Vergleich mit
--- allen Belegungen, weil die Schreibweise von Sondertasten (Ü, Ö, Ä ...) je nach Tastaturlayout abweichen kann.
+--- Belegung der Kombination im Spiel: Name der Aktion (z. B. "Vorwärts") oder nil wenn frei. Erst direkte
+-- Abfrage, dann Vergleich mit allen Belegungen (Sondertasten wie Ü, Ö, Ä je nach Layout anders geschrieben).
 function GT:FindBindingConflict(chord)
     if not chord or chord == "off" then return nil end
 
@@ -47,8 +45,7 @@ function GT:FindBindingConflict(chord)
         return _G["BINDING_NAME_" .. action] or action
     end
 
-    -- direkt abfragen (mit checkOverride, damit auch Belegungen anderer Addons zählen), Groß- und Kleinschreibung
-    -- und Umlaute können je nach Client abweichen
+    -- checkOverride: auch Belegungen anderer Addons. Schreibweise und Umlaute können je nach Client abweichen.
     if GetBindingAction then
         for _, variant in ipairs({ chord, chord:upper() }) do
             local ok, action = pcall(GetBindingAction, variant, true)
@@ -71,8 +68,8 @@ function GT:FindBindingConflict(chord)
     return nil
 end
 
---- Stellt die Taste ein. Gibt true zurück oder false und den Namen der Belegung, wenn die Kombination im Spiel
--- schon benutzt wird (dann bleibt die alte Taste). "off" schaltet die Taste aus.
+--- Stellt die Taste ein. true, oder false und Belegungsname, wenn die Kombination belegt ist (alte Taste
+-- bleibt). "off" schaltet aus.
 function GT:SetWaypointKey(chord)
     local conflict = self:FindBindingConflict(chord)
     if conflict then return false, conflict end
@@ -87,8 +84,7 @@ local POPUP = "GLIMPSE_GATHERINGTOOLTIP_KEY_IN_USE"
 
 local errorFrame
 
--- Eigenes Fenster in der Bildschirmmitte: Überschrift, Text, Knopf. Wirft einen Fehler, wenn der Client die
--- nötigen Funktionen nicht hat (dann greift der Ersatz mit StaticPopup).
+-- Eigenes Fenster in Bildschirmmitte. Wirft einen Fehler ohne nötige Client-API (Fallback: StaticPopup).
 local function ShowErrorFrame(title, text)
     if not errorFrame then
         local frame = CreateFrame("Frame", "GlimpseGatheringTooltipErrorFrame", UIParent, "BackdropTemplate")
@@ -145,8 +141,8 @@ end
 
 local capture
 
---- Wartet auf die nächste Tastenkombination (für die Optionen). Escape bricht ab, Entf oder Rücktaste schaltet
--- die Taste aus. callback(chord oder nil bei Abbruch) wird einmal aufgerufen.
+--- Wartet auf die nächste Kombination (Optionen). Escape bricht ab, Entf/Rücktaste schaltet aus.
+-- callback(chord oder nil) wird einmal aufgerufen.
 function GT:CaptureKey(callback)
     if not CreateFrame then return end
     if capture and capture.active then capture.callback(nil) end
@@ -176,8 +172,7 @@ function GT:IsCapturingKey()
     return capture ~= nil and capture.active == true
 end
 
---- Das Ziel für die Taste setzen: spot = Fundort mit map, x, y (Instanzen haben keine Koordinaten); title = Name
--- der Quelle. Ohne gültigen Fundort fällt das Ziel weg.
+--- Ziel für die Taste: spot = Fundort mit map, x, y (Instanzen haben keine), title = Quellenname. Ungültig: kein Ziel.
 function GT:SetWaypointTarget(spot, title)
     if spot and type(spot.map) == "number" and type(spot.x) == "number" and type(spot.y) == "number" then
         target = { map = spot.map, x = spot.x, y = spot.y, title = title }
@@ -209,7 +204,7 @@ function GT:SetWaypoint()
     return false
 end
 
--- Tastaturabfrage nur, solange ein Ziel da ist. Die Taste wird weitergegeben, sie sperrt also nichts anderes.
+-- Tastaturabfrage nur mit Ziel. Tasten werden weitergegeben, nichts wird blockiert.
 function GT:UpdateWaypointListener()
     if not CreateFrame then return end
     if not listener then
@@ -223,9 +218,8 @@ function GT:UpdateWaypointListener()
         end
     end
 
-    -- Im Kampf sind Tastatur-Aufrufe geschützt (der Client meldet sonst "Interface-Aktion aufgrund eines
-    -- Addons fehlgeschlagen"; ein pcall unterdrückt diese Meldung nicht). Dann bleibt der Zustand, wie er ist,
-    -- und PLAYER_REGEN_ENABLED stellt ihn nach dem Kampf nach.
+    -- Tastatur-Aufrufe sind im Kampf geschützt ("Interface-Aktion fehlgeschlagen", pcall hilft nicht). Zustand
+    -- bleibt, PLAYER_REGEN_ENABLED stellt ihn danach nach.
     if InCombatLockdown and InCombatLockdown() then return end
 
     local wanted = self:HasWaypointTarget()

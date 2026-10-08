@@ -15,8 +15,8 @@ local function setup(compress)
     DB.data = { version = 3, nodes = {}, npcs = {}, imports = {}, instances = {} }
     DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
     DB.api = {}
-    for _, file in ipairs({ "Data/Store.lua", "Data/Migrate.lua", "Data/Transfer.lua", "Data/Providers.lua",
-        "Data/Sources.lua", "Debug/Debug.lua" }) do
+    for _, file in ipairs({ "Core/Data/Spots.lua", "Core/Data/Store.lua", "Core/Data/Names.lua", "Core/Data/Migrate.lua",
+        "Core/Data/Transfer.lua", "Core/Data/Providers.lua", "Core/Data/Sources.lua", "Modules/Debug/Debug.lua" }) do
         stub.load("Glimpse_GatheringDB/" .. file, "Glimpse_GatheringDB")
     end
 

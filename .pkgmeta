@@ -8,6 +8,13 @@ move-folders:
   Glimpse_Gathering/Glimpse_GatheringDB: Glimpse_GatheringDB
   Glimpse_Gathering/Glimpse_GatheringTooltip: Glimpse_GatheringTooltip
 
+# Beziehungen auf CurseForge (Kurznamen der Projekte); externe Addons werden nicht gemeldet
+required-dependencies:
+  - glimpse
+
+embedded-libraries:
+  - libdeflate
+
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown

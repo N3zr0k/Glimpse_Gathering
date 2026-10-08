@@ -1,19 +1,16 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 
--- Wo man ein Material am besten findet (für Anzeigen wie GatheringTooltip): die Quellen des Materials, aufgeteilt
--- nach Orten und danach geordnet.
+-- Wo man ein Material am besten findet (für Anzeigen wie GatheringTooltip).
 --
--- Ein Eintrag ist eine Quelle an einem Ort (Zone oder Instanz). Eine Quelle, die in drei Zonen vorkommt, ergibt
--- drei Einträge, mehrere Orte derselben Zone werden zu einem (der nächste). Eine Quelle ohne bekannten Ort
--- ergibt einen Eintrag ohne Ort. Jeder Eintrag hat eine Stufe:
+-- Ein Eintrag = eine Quelle an einem Ort (Zone oder Instanz). Mehrere Orte einer Zone ergeben einen
+-- Eintrag (der nächste), Quellen ohne Ort einen ohne Ort. Stufen:
 --   1  "here"      im eigenen Gebiet (Karte oder Instanz des Spielers)
 --   2  "nearby"    auf einer anderen Karte desselben Kontinents
 --   3  "elsewhere" auf einem anderen Kontinent oder in einer anderen Instanz
 --   4  "none"      kein bekannter Ort
--- Innerhalb einer Stufe stehen bestätigte (eigene) Orte vor Orten, die nur von anderen Addons kommen (group
--- "own" vor "external", nur bei externalSeparate). Danach in Stufe 1 und 3 die höchste Chance zuerst, in Stufe 2
--- die kleinste Entfernung (ohne bekannte Entfernung dahinter, nach Chance).
+-- Je Stufe bestätigte (own) vor externen Orten (nur mit externalSeparate). Danach Stufe 1 und 3 nach
+-- Chance, Stufe 2 nach Entfernung (ohne Entfernung dahinter, nach Chance).
 
 local AREAS = { "here", "nearby", "elsewhere", "none" }
 
@@ -21,12 +18,10 @@ local function PlaceKey(spot)
     return spot.instance and ("i" .. spot.instance) or ("m" .. spot.map)
 end
 
---- Die Einträge zu einem Material. Jeder ist eine Kopie der Quelle aus GetItemSources (nicht verändern) mit
--- zusätzlichen Feldern:
+--- Einträge zu einem Material: Kopie der Quelle aus GetItemSources (nicht verändern) plus:
 --   tier    1 bis 4 (siehe oben), area = "here" | "nearby" | "elsewhere" | "none"
---   group   "own" | "external" (nil bei Stufe 4): ob der Ort bestätigt ist oder nur von anderen Addons kommt
---   spot    der beste Ort an dieser Stelle (ein Eintrag aus GetNearestSpots: der nächste bestätigte, gibt es keinen,
---           der nächste externe), nil bei Stufe 4
+--   group   "own" | "external" (nil bei Stufe 4)
+--   spot    bester Ort aus GetNearestSpots (nächster bestätigter, sonst nächster externer), nil bei Stufe 4
 --   spots   alle Fundorte der Quelle an diesem Ort (Zone oder Instanz)
 --   place   Schlüssel des Ortes ("m37" für Karte 37, "i36" für Instanz 36), nil bei Stufe 4
 -- externalSeparate (Standard true): bestätigte Orte vor externen. false: externe zählen wie eigene.

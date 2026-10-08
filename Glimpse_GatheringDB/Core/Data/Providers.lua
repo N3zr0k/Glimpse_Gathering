@@ -2,15 +2,15 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local Locations = Glimpse:GetModule("Locations")
 
--- Fundorte aus anderen Addons (z. B. GatherMate2). Sie werden nie gespeichert und nie exportiert,
--- sondern erst beim Abfragen (DB:GetSpots) hinter die eigenen Orte gehängt.
+-- Fundorte aus anderen Addons (z. B. GatherMate2). Nie gespeichert oder exportiert, nur bei
+-- DB:GetSpots hinter die eigenen Orte gehängt.
 --
 -- Ein Anbieter ist eine Tabelle mit:
 --   IsAvailable()                        true, wenn das andere Addon da und benutzbar ist
 --   GetSpots(kind, id, entry)            Liste { map, x, y, density } (x, y von 0 bis 1) oder nil;
 --                                        entry = gespeicherter Knoten bzw. Kreatur
 --   GetInfo()  (optional)                { points = Zahl der Punkte, ... } für die Statistik
--- Fehler in einem Anbieter werden abgefangen und gemeldet, dann fehlen nur dessen Orte.
+-- Fehler eines Anbieters werden abgefangen, es fehlen dann nur dessen Orte.
 
 DB.EXTERNAL_LIMIT = 60 -- höchstens so viele fremde Orte je Quelle (der beste jeder Karte zuerst)
 
@@ -36,7 +36,7 @@ local function Available(provider)
     return ok and result and true or false
 end
 
---- Hat der Spieler diesen Anbieter in den Optionen zugelassen? (Standard: ja, auch ohne Einstellungen.)
+--- Anbieter in den Optionen zugelassen? Standard ja, auch ohne Einstellungen.
 function DB:IsProviderEnabled(name)
     local profile = self.db and self.db.profile
     local chosen = profile and profile.externalSources
@@ -59,7 +59,7 @@ function DB:GetProviders()
     return list
 end
 
---- Ist die Option "Daten anderer Addons verwenden" an? (Ohne Einstellungen, z. B. in Tests: ja.)
+--- Option "Daten anderer Addons verwenden" an? Ohne Einstellungen (Tests) ja.
 function DB:UseExternalSpots()
     local profile = self.db and self.db.profile
     return not profile or profile.useExternalSpots ~= false
@@ -89,8 +89,7 @@ function DB:HasAvailableProvider()
     return false
 end
 
---- Zeilen für die Statistik, z. B. "GatherMate2: 1234 Punkte" (leer, wenn kein Anbieter da ist oder die
--- Option aus ist).
+--- Statistikzeilen wie "GatherMate2: 1234 Punkte", leer ohne Anbieter oder bei Option aus.
 function DB:ProviderStatistics()
     if not self:UseExternalSpots() then return "" end
 
@@ -121,8 +120,8 @@ local function Near(list, map, x, y, radius2)
     return false
 end
 
---- Hängt die Orte der Anbieter an list an (von DB:GetSpots aufgerufen). Fremde Orte, die nahe an einem
--- eigenen liegen, fallen weg. Eintrag: { map, x, y, count = 0, density, source = Name des Anbieters }.
+--- Hängt Orte der Anbieter an list an (aus DB:GetSpots). Fremde Orte nahe an eigenen fallen weg.
+-- Eintrag: { map, x, y, count = 0, density, source = Anbieter }.
 function DB:AddExternalSpots(list, kind, id)
     if #providers == 0 or not self:UseExternalSpots() then return end
 
@@ -161,8 +160,8 @@ function DB:AddExternalSpots(list, kind, id)
                     return a.y < b.y
                 end)
 
-                -- Erst der beste Ort jeder Karte, dann die übrigen nach Dichte: So bleibt jede Zone, in der es
-                -- die Quelle gibt, erhalten, auch wenn eine andere viel dichter ist. Insgesamt höchstens EXTERNAL_LIMIT.
+                -- Erst der beste Ort jeder Karte, dann der Rest nach Dichte, damit keine Zone verdrängt wird.
+                -- Insgesamt max. EXTERNAL_LIMIT.
                 local firsts, rest, seenMap = {}, {}, {}
                 for _, spot in ipairs(added) do
                     if seenMap[spot.map] then
@@ -185,24 +184,20 @@ function DB:AddExternalSpots(list, kind, id)
     end
 end
 
---- Liegt der Fundort im Gebiet des Spielers? area = Ergebnis von GetPlayerArea: dieselbe Karte oder
--- dieselbe Instanz.
+--- Fundort im Gebiet des Spielers (gleiche Karte oder Instanz)? area = GetPlayerArea().
 function DB:IsSpotHere(spot, area)
     if not area then return false end
     if spot.instance then return area.instance == spot.instance end
     return area.map ~= nil and spot.map == area.map
 end
 
---- Die nächsten Fundorte einer Quelle. Jeder Ort bekommt eine Stufe (tier) im Verhältnis zum Spieler:
---   1  im eigenen Gebiet (dieselbe Karte oder Instanz); auf einer Karte mit distance (Yards, nur wenn die
---      Kartengröße bekannt ist) und mapDistance (Bruchteil der Kartenbreite, immer)
---   2  auf einer anderen Karte desselben Kontinents, mit distance (Luftlinie in Yards, wenn der Client Weltpositionen
---      liefert). Lässt sich der Kontinent nicht bestimmen (keine Position, in einer Instanz, keine Kartenfunktion),
---      zählen alle Karten hierher
---   3  auf einem anderen Kontinent oder in einer anderen Instanz
--- Sortiert nach Stufe, innerhalb der Stufe 1 und 2 nach Entfernung (ohne Entfernung dahinter), sonst in der
--- Reihenfolge von GetSpots. Steht der Spieler in einer Instanz, kommt zuerst deren Fundort (here = true, ohne
--- Entfernung). currentMapOnly: nur Stufe 1. Ohne bekannte Position gilt Stufe 2 für Karten und 3 für Instanzen.
+--- Nächste Fundorte einer Quelle, mit Stufe (tier) relativ zum Spieler:
+--   1  eigenes Gebiet; auf Karten mit distance (Yards, wenn Kartengröße bekannt) und mapDistance (Anteil Kartenbreite)
+--   2  andere Karte desselben Kontinents, distance = Luftlinie (wenn Weltpositionen verfügbar). Ist der
+--      Kontinent unbekannt (keine Position, Instanz, keine Kartenfunktion), landen alle Karten hier
+--   3  anderer Kontinent oder andere Instanz
+-- Sortiert nach Stufe, in 1 und 2 nach Entfernung (ohne dahinter), sonst wie GetSpots. In einer Instanz
+-- kommt deren Fundort zuerst (here = true). currentMapOnly: nur Stufe 1. Ohne Position: Karten 2, Instanzen 3.
 function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
     local spots = self:GetSpots(kind, id)
     local position = Locations:GetPlayerArea()
@@ -257,7 +252,7 @@ function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
             tinsert(far, { spot = spot, index = index })
         end
     end
-    -- auf einer Karte haben alle Orte Yards oder keiner, die Karte selbst ist also immer vergleichbar
+    -- auf einer Karte haben alle Orte Yards oder keiner, also immer vergleichbar
     table.sort(near, function(a, b)
         local da, db = a.distance or a.mapDistance, b.distance or b.mapDistance
         if da ~= db then return da < db end

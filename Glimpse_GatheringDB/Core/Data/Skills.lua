@@ -2,13 +2,12 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local L = DB.L
 
--- Skill-Abfragen: was ein Knoten oder eine Kreatur verlangt, wie weit der Spieler ist und welche Farbe daraus wird.
--- Die Tabellen stehen in Data/SkillData.lua. Berufe heißen hier "herb" (Kräuterkunde), "ore" (Bergbau) und
--- "skinning" (Kürschnerei) und "fishing" (Angeln), wie die Kategorien der Knoten.
+-- Skill-Abfragen: Anforderung von Knoten/Kreatur, Spieler-Skill, Farbe. Tabellen in Core/Data/SkillData.lua.
+-- Berufe: "herb", "ore", "skinning", "fishing" (wie die Knoten-Kategorien).
 
--- Skill-Linie und Berufszauber je Beruf. Die Linien-IDs stammen von https://warcraft.wiki.gg/wiki/TradeSkillLineID,
--- die Zauber von classicdb.ch (2366 Herb Gathering, 2575 Mining, 8613 Skinning). Der Zauber "Herb Gathering" heißt
--- anders als die Skill-Linie "Herbalism", deshalb steht zusätzlich der übersetzte Name aus den Locale-Dateien dabei.
+-- Skill-Linie und Berufszauber je Beruf. Linien-IDs: https://warcraft.wiki.gg/wiki/TradeSkillLineID,
+-- Zauber: classicdb.ch (2366 Herb Gathering, 2575 Mining, 8613 Skinning). "Herb Gathering" heißt anders
+-- als die Linie "Herbalism", daher zusätzlich der Locale-Name.
 local PROFESSIONS = {
     herb = { line = 182, spell = 2366, label = "Herbalism" },
     ore = { line = 186, spell = 2575, label = "Mining" },
@@ -30,9 +29,8 @@ function DB:GetSkinningSkill(level)
     return level * 5
 end
 
---- Beruf ("herb" oder "ore") und benötigter Skill eines Sammelknotens (Objekt-ID), sonst nil.
--- Steht die ID nicht in der Tabelle, aber der Knoten ist schon aufgezeichnet, entscheidet das Material, das er geliefert
--- hat (nur, wenn alle bekannten Materialien denselben Skill verlangen).
+--- Beruf ("herb"/"ore") und benötigter Skill eines Knotens (Objekt-ID), sonst nil. Unbekannte IDs
+-- über die aufgezeichnete Beute, wenn alle Materialien denselben Skill verlangen.
 function DB:GetNodeSkill(id)
     id = tonumber(id)
     if not id then return nil end
@@ -58,9 +56,8 @@ function DB:IsKnownSkinnable(id)
     return npc ~= nil and npc.skinning ~= nil and (npc.skinning.attempts or 0) > 0
 end
 
---- Beruf und benötigter Skill einer Quelle: kind = "node" (id = Objekt-ID) oder "npc" (id = Kreatur-ID, level =
--- Stufe der Kreatur, ohne Angabe gilt die gespeicherte). Bei Kreaturen kommt als dritter Wert, ob sie als kürschnerbar
--- bekannt ist. Ohne Ergebnis nil.
+--- Beruf und Skill einer Quelle: kind = "node" (Objekt-ID) oder "npc" (Kreatur-ID, level optional, sonst
+-- gespeichert). Bei Kreaturen dritter Wert: als kürschnerbar bekannt. Sonst nil.
 function DB:GetRequiredSkill(kind, id, level)
     if kind == "node" then
         local profession, required = self:GetNodeSkill(id)
@@ -74,8 +71,8 @@ function DB:GetRequiredSkill(kind, id, level)
     end
 end
 
---- Farbe, in der ein Knoten oder eine Kreatur für diesen Skill erscheint: "red" (Skill reicht nicht), "orange", "yellow",
--- "green" oder "gray" (bringt keine Skillpunkte mehr), dazu r, g, b. Ohne Zahlen nil.
+--- Farbe für diesen Skill: "red" (reicht nicht), "orange", "yellow", "green", "gray" (keine Punkte mehr),
+-- dazu r, g, b. Ohne Zahlen nil.
 function DB:GetSkillColor(required, current)
     required, current = tonumber(required), tonumber(current)
     if not (required and current) then return nil end
@@ -106,15 +103,14 @@ local function SpellName(spellID)
     if api.GetSpellInfo then return (api.GetSpellInfo(spellID)) end
 end
 
--- Alle Berufe über GetProfessions/GetProfessionInfo (so liest auch GatheringTooltip die gelernten Berufe). Der
--- Ausrüstungsbonus steht in skillModifier. Gibt nil zurück, wenn der Client die Funktionen nicht hat.
+-- Über GetProfessions/GetProfessionInfo (wie GatheringTooltip), Bonus in skillModifier. nil ohne diese API.
 local function ScanProfessions()
     local api = DB.api
     if not (api.GetProfessions and api.GetProfessionInfo) then return nil end
 
     local found = {}
     local ok = pcall(function()
-        -- Rückgabe: Beruf 1, Beruf 2, Archäologie, Angeln, Kochen (einzelne können nil sein)
+        -- Beruf 1, Beruf 2, Archäologie, Angeln, Kochen (je evtl. nil)
         local indexes = { api.GetProfessions() }
         for position = 1, 5 do
             local index = indexes[position]
@@ -132,10 +128,9 @@ local function ScanProfessions()
     return found
 end
 
--- Ersatz über GetSkillLineInfo: dort gibt es keine IDs, die Skill-Linien werden über den Namen gefunden. Der kommt aus dem
--- Berufszauber (GetSpellInfo), nicht aus einer festen Übersetzung. Für Kräuterkunde heißt der Zauber anders als die Linie,
--- dafür gilt zusätzlich der Name aus den Locale-Dateien. Ob der Ausrüstungsbonus hier in skillModifier oder in
--- numTempPoints steht, ist nicht belegt, es zählt skillModifier (siehe /gli gatheringdb skill).
+-- Fallback über GetSkillLineInfo: ohne IDs, Zuordnung per Name aus dem Berufszauber (GetSpellInfo), für
+-- Kräuterkunde zusätzlich der Locale-Name. Ob der Bonus in skillModifier oder numTempPoints steht, ist
+-- ungeklärt; genutzt wird skillModifier (prüfen mit /gli gatheringdb skill).
 local function ScanSkillLines()
     local api = DB.api
     if not (api.GetNumSkillLines and api.GetSkillLineInfo) then return nil end
@@ -165,7 +160,7 @@ local function ScanSkillLines()
     return found
 end
 
--- Der Cache wird nur bei SKILL_LINES_CHANGED (und beim Wechsel der Ausrüstung, die den Bonus ändert) geleert.
+-- Cache leeren bei SKILL_LINES_CHANGED und Ausrüstungswechsel (Bonus)
 local function Skills(self)
     if not self.skillCache then
         self.skillCache = ScanProfessions() or ScanSkillLines() or {}
@@ -173,8 +168,8 @@ local function Skills(self)
     return self.skillCache
 end
 
---- Skill des Spielers in diesem Beruf ("herb", "ore" oder "skinning"): aktuell (mit Bonus), Maximum, Name des Berufs im
--- Client, Skill ohne Bonus. Hat der Spieler den Beruf nicht gelernt (oder der Client verrät es nicht), nil.
+--- Skill in "herb", "ore" oder "skinning": aktuell (mit Bonus), Maximum, Client-Name, ohne Bonus.
+-- nil, wenn nicht gelernt oder nicht lesbar.
 function DB:GetPlayerSkill(profession)
     local info = Skills(self)[profession]
     if not info then return nil end
@@ -194,7 +189,7 @@ end
 
 function DB:WatchSkills()
     self:RegisterEvent("SKILL_LINES_CHANGED", "OnSkillsChanged")
-    -- Ein Kürschnermesser oder Handschuhe mit Verzauberung ändern den Bonus
+    -- Kürschnermesser oder verzauberte Handschuhe ändern den Bonus
     self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "OnSkillsChanged")
 end
 
@@ -222,9 +217,8 @@ end
 
 local typeIDs
 
---- ID des Kreaturentyps einer Einheit (z. B. 1 = Wildtier), unabhängig von der Sprache des Clients. Neuere Clients
--- liefern die ID als zweiten Wert von UnitCreatureType, sonst wird der Name über C_CreatureInfo.GetCreatureTypeInfo
--- zugeordnet. nil, wenn nichts zu ermitteln ist.
+--- Kreaturentyp-ID einer Einheit (z. B. 1 = Wildtier), sprachunabhängig. Neuere Clients liefern sie als
+-- 2. Wert von UnitCreatureType, sonst Abgleich des Namens über C_CreatureInfo.GetCreatureTypeInfo. Sonst nil.
 function DB:GetCreatureTypeID(unit)
     local api = self.api
     if not api.UnitCreatureType then return nil end
@@ -246,7 +240,7 @@ function DB:GetCreatureTypeID(unit)
     return typeIDs[name]
 end
 
---- Kann eine Kreatur dieses Typs kürschnerbar sein (Wildtier, Drachkin)? Nur ein Hinweis, nicht jedes Tier ist es.
+--- Wildtier oder Drachkin? Nur ein Hinweis, nicht jedes Tier ist kürschnerbar.
 function DB:IsSkinnableType(typeID)
     return typeID == self.CREATURE_BEAST or typeID == self.CREATURE_DRAGONKIN
 end

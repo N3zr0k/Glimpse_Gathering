@@ -4,14 +4,14 @@ name: Release
 # der TOC und zu einem Abschnitt im CHANGELOG passen (prüft tools/check.py). Tags mit "-beta" oder
 # "-alpha" (z. B. v0.2.1-beta.1) sind Vorabversionen: Alpha wird als Prerelease veröffentlicht, Beta als
 # richtiges Release mit Beta-Kennzeichnung im Titel. Die Stufe steht in der
-# TOC-Version (X.Y.Z-beta.N). Beta braucht den Abschnitt "## [X.Y.Z]" im CHANGELOG, Alpha reicht "## [Unreleased]".
+# TOC-Version (X.Y.Z-beta.N). Ist nur N neu (gleiche Version und Stufe wie ein vorhandenes Tag), wird nichts gebaut. Beta braucht den Abschnitt "## [X.Y.Z]" im CHANGELOG, Alpha reicht "## [Unreleased]".
 #
 # Normalerweise setzt die CI das Tag selbst (ci.yml) und startet diesen Workflow danach per
 # workflow_dispatch auf dem Tag. Das ist nötig, weil ein mit dem GITHUB_TOKEN gepushtes Tag keinen
 # Push-Workflow auslöst. Ein von Hand gepushtes Tag funktioniert ebenfalls. Bei einem Start per Hand
 # muss als Ref das Tag gewählt werden, nicht ein Branch.
-# CurseForge, Wago und WoWInterface werden nur bedient, wenn das jeweilige Secret gesetzt ist
-# (siehe README, Abschnitt Veröffentlichen).
+# CurseForge, Wago und WoWInterface werden nur bei Beta und final bedient (und nur, wenn das jeweilige Secret
+# gesetzt ist, siehe README, Abschnitt Veröffentlichen). Alpha bleibt ein Prerelease auf GitHub.
 
 on:
   push:
@@ -28,9 +28,10 @@ jobs:
       TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-      CF_API_KEY: ${{ secrets.CF_API_KEY }}
-      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
-      WOWI_API_TOKEN: ${{ secrets.WOWI_API_TOKEN }}
+      # Ohne Token lädt der Packager nicht hoch: bei Alpha bleiben sie leer
+      CF_API_KEY: ${{ !contains(github.ref_name, '-alpha') && secrets.CF_API_KEY || '' }}
+      WAGO_API_TOKEN: ${{ !contains(github.ref_name, '-alpha') && secrets.WAGO_API_TOKEN || '' }}
+      WOWI_API_TOKEN: ${{ !contains(github.ref_name, '-alpha') && secrets.WOWI_API_TOKEN || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,12 +44,27 @@ jobs:
             exit 1
           fi
 
+      # Nur die Suffix-Zahl (-beta.N, -alpha.N) ist neu: es hat sich nur das Repo geändert, nicht das Addon
+      - name: Nur Suffix-Zahl neu? Dann kein Release
+        run: |
+          older="$(python3 tools/check.py --suffix-only "$TAG")"
+          if [ -n "$older" ]; then
+            echo "::notice::$TAG unterscheidet sich von $older nur in der Suffix-Zahl, es wird kein Release gebaut."
+            echo "SKIP=true" >> "$GITHUB_ENV"
+          fi
+
       - name: Tag, TOC-Version und CHANGELOG prüfen
+        if: env.SKIP != 'true'
         run: python3 tools/check.py --tag "$TAG"
+
+      - name: Alpha nur auf GitHub
+        if: env.SKIP != 'true' && contains(env.TAG, '-alpha')
+        run: |
+          echo "Alpha-Version: kein Upload zu CurseForge, Wago oder WoWInterface, nur ein Prerelease auf GitHub."
 
       # Zeigt, ob CurseForge den Token annimmt (nur Statuscode und Fehlertext, nie der Token selbst)
       - name: CurseForge-Zugang prüfen
-        if: env.CF_API_KEY != ''
+        if: env.SKIP != 'true' && env.CF_API_KEY != ''
         continue-on-error: true
         run: |
           # Form des Secrets prüfen (ohne den Wert zu zeigen): ein Upload-Token ist eine UUID mit 36 Zeichen
@@ -67,6 +83,7 @@ jobs:
       # fehlt das Zip, bricht "Zip prüfen" ab.
       - name: Paket bauen und veröffentlichen
         id: pack
+        if: env.SKIP != 'true'
         continue-on-error: true
         uses: BigWigsMods/packager@v2
         with:
@@ -74,6 +91,7 @@ jobs:
           args: -p 1730186
 
       - name: Zip prüfen
+        if: env.SKIP != 'true'
         run: |
           shopt -s nullglob
           zips=(.release/*.zip)
@@ -90,7 +108,7 @@ jobs:
       #   final  -> richtiges Release (vom Packager)
       # Hat der Packager das Release nicht angelegt, wird es hier mit dem Zip erzeugt.
       - name: Alpha und Beta auf GitHub kennzeichnen
-        if: contains(env.TAG, '-beta') || contains(env.TAG, '-alpha')
+        if: env.SKIP != 'true' && (contains(env.TAG, '-beta') || contains(env.TAG, '-alpha'))
         run: |
           shopt -s nullglob
           zips=(.release/*.zip)
@@ -115,7 +133,7 @@ jobs:
       # Ganz am Ende: ein Fehler des Packagers (meist der CurseForge-Upload) bleibt sichtbar, nachdem das
       # GitHub-Release fertig ist.
       - name: Packager-Ergebnis melden
-        if: always() && steps.pack.outcome == 'failure'
+        if: always() && env.SKIP != 'true' && steps.pack.outcome == 'failure'
         run: |
           echo "::error::Der Packager meldete einen Fehler, meist beim Upload zu CurseForge. Das GitHub-Release ist trotzdem fertig, Details im Schritt Paket bauen und veroeffentlichen."
           exit 1

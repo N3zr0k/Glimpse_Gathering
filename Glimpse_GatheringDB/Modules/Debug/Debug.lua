@@ -3,10 +3,7 @@ local DB = Glimpse:GetModule("GatheringDB")
 local Locations = Glimpse:GetModule("Locations")
 local L = DB.L
 
--- Debug-Anzeige: zeigt im Tooltip, was GatheringDB zu einem Sammelknoten oder einer Kreatur
--- bisher erfasst hat. Nur bei aktivem Debug-Modus (/gli debug on), grau, ohne Icons und ohne
--- Berechnung, also die Rohzahlen:
---
+-- Debug-Tooltip (/gli debug on): Rohdaten von GatheringDB, grau, ohne Icons und Berechnung:
 --   [DEBUG] Glimpse(GatheringDB)
 --   ID: 179891
 --   Name: Waldwolf
@@ -31,8 +28,7 @@ local function ItemName(itemID)
     return C_Item.GetItemNameByID(itemID) or "?"
 end
 
--- Abschnitt { attempts, items } als Zeilen. Die sortierte Liste kommt aus der API, wir zeigen
--- aber nur Treffer und Menge.
+-- { attempts, items } als Zeilen, nur Treffer und Menge
 local function AddItems(lines, drops)
     for index = 1, math.min(#drops, MAX_ITEMS) do
         local drop = drops[index]
@@ -84,7 +80,7 @@ local function SpotOrder(a, b)
     return a.y < b.y
 end
 
--- Eine Zeile je Fundort: Karte, Koordinaten (Prozent) links, Funde bzw. Punkte, Entfernung und Quelle rechts
+-- Je Fundort: Karte und Koordinaten (%) links, Funde/Punkte, Entfernung und Quelle rechts
 local function SpotLine(spot)
     local right
     if spot.source == "own" then
@@ -103,9 +99,8 @@ local function SpotLine(spot)
     return Line("  " .. PlaceLabel(spot), right .. "  [" .. spot.source .. "]")
 end
 
---- Zeilen zu Fundorten und Koordinaten einer oder mehrerer Quellen derselben Art (kind = "node" oder
--- "npc", ids = Liste): Zahl der Orte (eigene und aus anderen Addons), die Position des Spielers und die
--- ersten Orte mit Karte, Koordinaten (in Prozent), Funden bzw. Punkten, Entfernung und Quelle.
+--- Fundort-Zeilen für Quellen einer Art (kind = "node"/"npc", ids = Liste): Anzahl eigene/externe,
+-- Spielerposition und die ersten Orte.
 function DB:DebugSpotLines(kind, ids)
     local lines = {}
     local spots, own, external = {}, 0, 0
@@ -138,7 +133,7 @@ function DB:DebugSpotLines(kind, ids)
     return lines
 end
 
--- Höchstzahl der Quellen und der Orte je Quelle in der Anzeige eines Materials
+-- Max. Quellen und Orte je Quelle in der Material-Anzeige
 local MAX_SOURCES = 5
 local MAX_SOURCE_SPOTS = 2
 
@@ -146,9 +141,8 @@ local AREA_LABELS = {
     here = "here", nearby = "same continent", elsewhere = "elsewhere", none = "no location",
 }
 
---- Zeilen für ein Material: seine Quellen in der Reihenfolge von GetLocatedItemSources (eigenes Gebiet,
--- gleicher Kontinent, sonst, ohne Ort; bestätigte vor externen), je Eintrag (Quelle an einem Ort) Chance, Stufe und die
--- nächsten Fundorte. Leer, wenn es keine Quelle gibt.
+--- Zeilen für ein Material: Quellen in der Reihenfolge von GetLocatedItemSources, je Eintrag Chance,
+-- Stufe und nächste Fundorte. Leer ohne Quelle.
 function DB:DebugItemLines(itemID, externalSeparate, minChance)
     local sources = self:GetLocatedItemSources(itemID, 1, externalSeparate, minChance)
     if #sources == 0 then return {} end
@@ -227,8 +221,7 @@ local function UnitLines(module, id)
     return lines
 end
 
--- Was ein Tooltip beschreibt: "node" oder "npc" und die ID, aus der GUID, bei Objekten notfalls
--- aus data.id (dasselbe wie in GatheringTooltip)
+-- "node"/"npc" und ID aus der GUID, bei Objekten notfalls data.id (wie in GatheringTooltip)
 local function SourceOf(data, isObject)
     local guid = data.guid
     if type(guid) == "string" then
@@ -244,8 +237,8 @@ local function SourceOf(data, isObject)
     if isObject and data.id then return "node", data.id end
 end
 
--- Objekt-Tooltips ohne ID (so kommen Sammelknoten in der Welt an): Der Name aus der ersten Zeile
--- ist alles, was wir haben. Die Rohdaten aller Knoten mit diesem Namen werden zusammengezählt.
+-- Knoten in der Welt haben im Tooltip keine ID, nur den Namen aus der ersten Zeile. Alle Knoten
+-- mit diesem Namen werden zusammengezählt.
 local function NodeNameLines(module, name, data, hidden)
     local lines = { Header(module) }
 
@@ -278,7 +271,7 @@ local function NodeNameLines(module, name, data, hidden)
     return lines
 end
 
--- Der Schwimmer: Würfe und Fänge der Zone, in der man steht, und die Würfe insgesamt
+-- Schwimmer: Würfe und Fänge der aktuellen Zone, dazu Würfe gesamt
 local function BobberLines(module, name)
     local lines = { Header(module), Line(L["Name"] .. ": " .. name .. " (" .. L["fishing bobber"] .. ")") }
 
@@ -301,7 +294,7 @@ local function BobberLines(module, name)
 end
 
 local function SourceLines(module, data, hidden, isObject, tooltip)
-    -- Der Schalter wird bei jedem Tooltip geprüft, damit man Debug live umschalten kann
+    -- Bei jedem Tooltip prüfen, damit Debug live umschaltbar ist
     if not Glimpse:IsDebug() then return nil end
 
     local kind, id = SourceOf(data, isObject)
@@ -314,16 +307,15 @@ local function SourceLines(module, data, hidden, isObject, tooltip)
     end
 end
 
--- Handwerksmaterial: seine Quellen mit Fundorten. Nur wenn Debug an ist und es Quellen gibt, sonst bleibt der
--- Tooltip unverändert.
+-- Material: Quellen mit Fundorten, nur bei Debug und vorhandenen Quellen
 local function ItemLines(module, data)
     if not Glimpse:IsDebug() then return nil end
 
     local itemID = tonumber(data.id)
     if not itemID then return nil end
 
-    -- Wie GatheringTooltip sortiert, wenn es da ist (nur gelesen, keine Abhängigkeit); sonst getrennt.
-    -- Ohne Mindestchance: Die Debug-Anzeige soll alle Quellen zeigen, auch die, die der Tooltip weglässt.
+    -- Sortierung von GatheringTooltip übernehmen, falls geladen (nur lesend). Ohne Mindestchance,
+    -- Debug zeigt alle Quellen.
     local tooltip = Glimpse:GetModule("GatheringTooltip", true)
     local profile = tooltip and tooltip.db and tooltip.db.profile
     local sources = DB:DebugItemLines(itemID, not profile or profile.externalSeparate ~= false)

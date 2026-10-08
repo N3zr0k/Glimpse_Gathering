@@ -1,8 +1,7 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local GT = Glimpse:GetModule("GatheringTooltip")
 
--- Prüft, ob der Spieler einen Beruf gelernt hat. Damit lassen sich Knoten und Kürschnerbeute
--- ausblenden, die ihn ohnehin nicht betreffen (Option "Nur gelernte Berufe").
+-- Beruf gelernt? Für die Option "Nur gelernte Berufe" (blendet Knoten und Kürschnerbeute aus).
 
 -- Berufs-Skill-Linien (die Grundlinie des Berufs, nicht die einer Erweiterung)
 -- Schlüssel: Kategorie des Knotens in GatheringDB bzw. "skinning" für Kürschnerbeute
@@ -13,9 +12,8 @@ local SKILL_LINES = {
     fishing = 356,  -- Angeln (https://warcraft.wiki.gg/wiki/TradeSkillLineID)
 }
 
---- true, wenn der Spieler den Beruf zu dieser Kategorie gelernt hat.
--- Gilt immer als erfüllt, wenn die Option aus ist, die Kategorie keinen Beruf braucht ("other")
--- oder der Client die Berufe nicht auslesen lässt (lieber zu viel anzeigen als zu wenig).
+--- true, wenn der Beruf zur Kategorie gelernt ist. Auch true bei Option aus, "other" oder wenn der
+-- Client die Berufe nicht liefert (lieber zu viel anzeigen).
 function GT:IsLearned(category)
     if not self.db.profile.onlyLearned then return true end
 
@@ -24,7 +22,7 @@ function GT:IsLearned(category)
     if not (GetProfessions and GetProfessionInfo) then return true end
 
     local ok, learned = pcall(function()
-        -- Rückgabe: Beruf 1, Beruf 2, Archäologie, Angeln, Kochen (einzelne können nil sein)
+        -- Beruf 1, Beruf 2, Archäologie, Angeln, Kochen (je evtl. nil)
         local indexes = { GetProfessions() }
 
         for position = 1, 5 do

@@ -1,9 +1,8 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 
--- Alle Blizzard-Funktionen, die GatheringDB braucht, an einer Stelle. Je nach Clientstand liegen
--- sie global oder in einem C_-Namespace; ändert sich das, muss nur diese Datei angepasst werden.
--- Fehlt eine Funktion ganz, bleibt der Eintrag nil und DB:CheckAPI() meldet es beim Start.
+-- Alle Blizzard-Funktionen für GatheringDB an einer Stelle (global oder C_-Namespace je nach Client).
+-- Fehlende bleiben nil, DB:CheckAPI() meldet sie beim Start.
 local NAMES = {
     "GetItemInfoInstant", "GetNumLootItems", "GetLootSlotType", "GetLootSlotLink", "GetLootSourceInfo",
 }
@@ -15,12 +14,12 @@ DB.api = {
     GetLootSlotLink = (C_Loot and C_Loot.GetLootSlotLink) or GetLootSlotLink,
     GetLootSourceInfo = (C_Loot and C_Loot.GetLootSourceInfo) or GetLootSourceInfo,
 
-    -- Angeln: erkennt das Beutefenster eines Fangs (für Forever dokumentiert, https://warcraft.wiki.gg/wiki/API_IsFishingLoot).
-    -- Nicht in NAMES: fehlt sie, bleibt nur die Angelbeute unerfasst.
+    -- Erkennt Angelbeute (https://warcraft.wiki.gg/wiki/API_IsFishingLoot). Nicht in NAMES: fehlt sie,
+    -- wird nur Angeln nicht erfasst.
     IsFishingLoot = IsFishingLoot,
 
-    -- Berufe und Skill (Data/Skills.lua). Nicht in NAMES: ohne sie gibt es nur keine Skill-Anzeige, die Aufzeichnung
-    -- läuft weiter. Je nach Clientstand gibt es GetProfessionInfo oder (Classic) GetSkillLineInfo.
+    -- Berufe/Skill (Core/Data/Skills.lua): GetProfessionInfo bzw. GetSkillLineInfo (Classic). Nicht in NAMES:
+    -- fehlen sie, entfällt nur die Skill-Anzeige.
     GetProfessions = GetProfessions,
     GetProfessionInfo = GetProfessionInfo,
     GetNumSkillLines = GetNumSkillLines,
@@ -33,10 +32,9 @@ DB.api = {
 
 -- Karten, Position und Entfernungen kommen aus dem Glimpse-Modul Locations.
 
---- Prüft, ob alle benötigten Funktionen vorhanden sind. Gibt true zurück oder false und die
--- Liste der fehlenden Namen.
+--- true, oder false und die Liste der fehlenden Namen
 function DB:CheckAPI()
-    -- Über die Namensliste gehen: fehlende Einträge stehen als nil gar nicht in der Tabelle
+    -- Über NAMES gehen, nil-Einträge fehlen in der Tabelle
     local missing = {}
     for _, name in ipairs(NAMES) do
         if type(self.api[name]) ~= "function" then tinsert(missing, name) end

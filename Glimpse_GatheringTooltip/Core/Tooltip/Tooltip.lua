@@ -5,8 +5,7 @@ local L = GT.L
 -- Je nach Clientstand liegt die Funktion global oder in C_Item
 local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
 
--- Die Zeilen im Tooltip. Anhängen, Trennlinie, Icon links und der Schutz vor Secret-Werten
--- übernimmt Glimpse (RegisterTooltipLine), hier wird nur festgelegt, was drinsteht:
+-- Tooltip-Zeilen. Anhängen, Trennlinie, Icon und Secret-Schutz übernimmt Glimpse (RegisterTooltipLine):
 --
 --   Gesammelt
 --   [Icon] Silberblatt          93 %  (13/14)  Ø 1.0
@@ -14,10 +13,10 @@ local GetItemInfoInstant = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfo
 --   Kürschnern
 --   ...
 --
--- Die Zeilen sehen wie die Quellen im Tooltip eines Items aus: Chance, Treffer/Versuche (Option "Versuche
--- anzeigen") und Menge. Ohne die Treffer/Versuche steht die Zahl der Versuche hinter der Überschrift.
+-- Rechts Chance, Treffer/Versuche (Option "Versuche anzeigen") und Menge. Ohne Treffer/Versuche stehen
+-- die Versuche hinter der Überschrift.
 --
--- Im Tooltip eines Handwerksmaterials steht die wahrscheinlichste Quelle:
+-- Material-Tooltip, wahrscheinlichste Quelle:
 --
 --   Beste Quelle
 --   [Pelz] Waldwolf (Stufe 12) (Dunkelküste)   42 %  Ø 1.4
@@ -31,8 +30,7 @@ local function Colored(text, r, g, b)
     return format("|cff%02x%02x%02x%s|r", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), text)
 end
 
--- Items, deren Namen der Client noch nicht kennt: sie werden angefordert, und sobald sie da
--- sind (GET_ITEM_INFO_RECEIVED), baut sich der Tooltip neu auf.
+-- Unbekannte Items anfordern, bei GET_ITEM_INFO_RECEIVED wird der Tooltip neu aufgebaut
 local waitingForNames = false
 
 local function ItemName(itemID)
@@ -48,9 +46,8 @@ local function ItemName(itemID)
     return GREY .. "[" .. itemID .. "]|r"
 end
 
--- Rechte Spalte: Chance in Prozent und die durchschnittliche Menge je Fund
--- Mit withAttempts (Quellen eines Items, Beute von Knoten und Kreaturen): dahinter Treffer und Versuche, z. B. (13/14), damit man sieht, wie
--- belastbar die Chance ist (1 von 1 sind auch 100 %)
+-- Rechte Spalte: Chance und Ø Menge je Fund. withAttempts hängt (Treffer/Versuche) an, damit man sieht,
+-- wie belastbar die Chance ist (1 von 1 sind auch 100 %).
 local function ChanceText(drop, withAttempts)
     local text = format("%d %%", math.floor(drop.chance * 100 + 0.5))
     if withAttempts and drop.hits and drop.attempts then
@@ -63,7 +60,7 @@ end
 local function AddSection(rows, title, drops, attempts, profile)
     if #drops == 0 or attempts < profile.minAttempts then return end
 
-    -- Mit Treffer/Versuche in jeder Zeile wäre die Zahl der Versuche in der Überschrift doppelt
+    -- Versuche stehen dann schon in jeder Zeile
     local header = Colored(title, unpack(HEADER_COLOR))
     if not profile.showAttempts then header = header .. "  " .. GREY .. format(L["%d attempts"], attempts) .. "|r" end
     tinsert(rows, { header })
@@ -76,9 +73,8 @@ local function AddSection(rows, title, drops, attempts, profile)
     end
 end
 
--- Was ein Tooltip beschreibt: "node" (Sammelknoten) oder "npc" (Kreatur), dazu die ID.
--- Die ID steckt in der GUID ("GameObject-0-3131-2552-14367-1731-0000A5C2B1" -> 1731).
--- Bei Objekten fällt es auf data.id zurück, falls die GUID fehlt oder geschützt ist.
+-- "node" oder "npc" und ID aus der GUID ("GameObject-0-3131-2552-14367-1731-0000A5C2B1" -> 1731),
+-- bei Objekten notfalls data.id (GUID fehlt oder geschützt).
 local function SourceOf(data, isObject)
     local guid = data.guid
     if type(guid) == "string" then
@@ -94,8 +90,7 @@ local function SourceOf(data, isObject)
     if isObject and data.id then return "node", data.id end
 end
 
--- Der Tooltip eines Knotens in der Welt bringt keine ID mit. Dann gilt der Name aus der ersten
--- Zeile (GetNodeDropsByName), sonst die ID.
+-- Knoten in der Welt haben keine ID im Tooltip: dann über den Namen der ersten Zeile (GetNodeDropsByName)
 local function NodeLines(self, id, name, tooltip)
     local profile = self.db.profile
 
@@ -104,7 +99,7 @@ local function NodeLines(self, id, name, tooltip)
     if skill then tinsert(rows, skill) end
 
     if profile.showNodes then
-        -- Kategorie des Knotens (Kräuter, Erz) entscheidet über den passenden Beruf
+        -- Kategorie (Kräuter, Erz) bestimmt den Beruf
         local node = self.data:GetNode(id or self.data:FindNodeIDs(name)[1])
         if not (node and not self:IsLearned(node.category)) then
             local drops, attempts
@@ -139,8 +134,7 @@ local function UnitLines(self, id, data, tooltip)
     if #rows > 0 then return rows end
 end
 
--- Knoten und Kreaturen können als Objekt- oder als Einheiten-Tooltip ankommen, deshalb gilt für
--- beide Typen dieselbe Auswertung
+-- Knoten und Kreaturen kommen als Objekt- oder Einheiten-Tooltip, daher eine gemeinsame Auswertung
 local function SourceLines(self, data, isObject, tooltip)
     waitingForNames = false
 
@@ -148,15 +142,13 @@ local function SourceLines(self, data, isObject, tooltip)
     if kind == "node" then return NodeLines(self, id, nil, tooltip) end
     if kind == "npc" then return UnitLines(self, id, data, tooltip) end
 
-    -- Objekt ohne ID: über den Namen suchen. (Den Schwimmer, der ebenfalls keine ID hat, zeigt jetzt Glimpse: Professions.)
+    -- Objekt ohne ID: über den Namen suchen. Den Schwimmer zeigt Glimpse: Professions.
     if isObject then
         return NodeLines(self, nil, self.data:GetTooltipName(tooltip), tooltip)
     end
 end
 
--- Wahrscheinlichste Quelle eines Items (Knoten oder Kreatur) aus dem Index von GatheringDB
--- Ist die Quelle für den Spieler relevant? Knoten brauchen ihren Beruf (Kräuter, Erz),
--- Kürschnerbeute braucht Kürschnerei, normale Beute braucht nichts.
+-- Relevant für den Spieler? Knoten brauchen ihren Beruf, Kürschnerbeute Kürschnerei, normale Beute nichts.
 local function IsRelevant(self, source)
     if source.kind == "node" then return self:IsLearned(source.category) end
     if source.kind == "fishing" then return self:IsLearned("fishing") end
@@ -164,17 +156,16 @@ local function IsRelevant(self, source)
     return true
 end
 
--- Eine Quelle für die Anzeige: Name (bei Kreaturen mit Stufe) und Fundorte. Ausgerichtet werden sie
--- gemeinsam (GT:AlignLocations), damit Koordinaten und Zonen aller Quellen untereinander stehen.
+-- Quelle für die Anzeige: Name (Kreaturen mit Stufe) und Fundorte, gemeinsam ausgerichtet (GT:AlignLocations)
 local function SourceItem(self, source)
     local name = source.name
-    -- Beim Angeln ist die Quelle die Zone. Ihr Name steht schon als Ort dahinter, vorn steht die Tätigkeit.
+    -- Angeln: Quelle ist die Zone (steht schon als Ort dahinter), vorn die Tätigkeit
     if source.kind == "fishing" then name = L["Fishing"] end
     if not name then
         name = format(source.kind == "node" and L["Node %d"] or L["Creature %d"], source.id)
     end
 
-    -- Bei Kreaturen steht dahinter die Stufe (-1 = Boss, "??"). Knoten brauchen keinen Zusatz.
+    -- Kreaturen mit Stufe (-1 = Boss, "??")
     if source.kind == "npc" and source.level then
         name = name .. " " .. GREY .. "(" .. format(L["Level %s"], source.level < 0 and "??" or source.level) .. ")|r"
     end
@@ -182,8 +173,7 @@ local function SourceItem(self, source)
     return { source = source, name = name, locations = self:LocationList(source) }
 end
 
--- Hat der Spieler an diesem Ort selbst etwas gefunden? Orte nur aus anderen Addons (GatherMate2) zählen nicht. Eine
--- Quelle ohne Ort hat nur eigene Funde.
+-- Eigener Fund an diesem Ort? Rein externe Orte (GatherMate2) zählen nicht, Quellen ohne Ort schon.
 local function HasOwnFind(source)
     if not source.spot then return true end
     for _, spot in ipairs(source.spots or {}) do
@@ -192,17 +182,15 @@ local function HasOwnFind(source)
     return source.spot.source == "own"
 end
 
--- Zeile einer ausgerichteten Quelle: Symbol (Beutel, Beruf), Name mit Fundort, rechts die Chance und Menge. Die stammen
--- aus den eigenen Funden, an einem Ort nur aus anderen Addons ohne eigenen Fund steht rechts nichts.
+-- Zeile einer ausgerichteten Quelle: Symbol, Name mit Fundort, rechts Chance und Menge (aus eigenen
+-- Funden, bei rein externen Orten leer).
 local function SourceRow(self, item)
     local icons = self.db.profile.showSourceIcons
     local right = HasOwnFind(item.source) and ChanceText(item.source, self.db.profile.showAttempts) or ""
     return { item.text, right, 1, 1, 1, icon = icons and self:SourceIcon(item.source) or nil }
 end
 
--- Die besten Orte, um ein Material zu bekommen, aus dem Index von GatheringDB
--- (nach Nähe sortiert: eigenes Gebiet, dann andere Zonen des Kontinents nach Entfernung, dann alles andere;
--- bestätigte Orte vor externen), so viele wie in den Optionen eingestellt
+-- Beste Orte für ein Material (Reihenfolge aus GetLocatedItemSources), Anzahl laut Optionen
 local function ItemLines(self, data)
     local profile = self.db.profile
     if not profile.showItemSource or not data.id then return nil end
@@ -257,8 +245,8 @@ end
 function GT:RegisterTooltips()
     local types = Enum.TooltipDataType
 
-    -- Ohne die gewählten Zusatztasten (Option "Nur mit Taste") bleibt der Tooltip unverändert.
-    -- Der Provider bekommt (module, data, tooltip, hidden), data ist schon bereinigt.
+    -- Option "Nur mit Taste": ohne Zusatztaste nichts anzeigen. Provider bekommt (module, data, tooltip,
+    -- hidden), data ist bereinigt.
     local function Gated(func)
         return function(module, data, tooltip, ...)
             if not Glimpse:ModifiersHeld(module.db.profile) then return nil end

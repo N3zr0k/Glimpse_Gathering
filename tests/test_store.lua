@@ -6,8 +6,10 @@ local function setup()
     local DB = Glimpse:NewModule("GatheringDB")
     DB.data = { version = 1, nodes = {}, npcs = {} }
     DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
-    stub.load("Glimpse_GatheringDB/Data/Store.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/Migrate.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Spots.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Store.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Names.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Migrate.lua", "Glimpse_GatheringDB")
     return DB
 end
 

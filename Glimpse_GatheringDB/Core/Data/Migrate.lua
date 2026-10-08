@@ -1,30 +1,26 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 
--- Pflege der gespeicherten Daten: Versionsprüfung, Umstellung älterer Formate, Aufräumen defekter
--- Einträge und eine Obergrenze für die Größe. Dieselben Schritte gelten für importierte Daten
--- (Data/Transfer.lua): UpgradeData und SanitizeData arbeiten auf einer beliebigen Datentabelle.
+-- Datenpflege: Versionsprüfung, Umstellung, Aufräumen, Größenlimit. UpgradeData und SanitizeData
+-- arbeiten auf beliebigen Datentabellen, also auch auf Importen (Core/Data/Transfer.lua).
 
--- Obergrenzen. Knoten gibt es nur wenige hundert, Kreaturen können sich über die Zeit anhäufen.
--- Über der Grenze fallen die Einträge mit den wenigsten Versuchen zuerst weg.
+-- Obergrenzen (Kreaturen häufen sich an, Knoten kaum). Darüber fallen die mit den wenigsten Versuchen weg.
 DB.MAX_NODES = 2000
 DB.MAX_NPCS = 6000
 DB.MAX_FISHING = 600 -- Zonen mit Angelfängen
 
--- Umstellungen: [n] hebt Daten von Version n auf n + 1 (in der Tabelle selbst, ohne Rückgabe).
--- Neue Version: DATA_VERSION in Core/GatheringDB.lua erhöhen und hier den Schritt ergänzen.
+-- [n] hebt Daten von n auf n + 1 (in place). Neue Version: DATA_VERSION in Core/GatheringDB.lua
+-- erhöhen und hier den Schritt ergänzen.
 local migrations = {
-    -- 1 -> 2: Fundorte (spots) und Liste der importierten Exporte kommen dazu. Beides ist optional,
-    -- alte Einträge bleiben, wie sie sind.
+    -- 1 -> 2: spots und imports, beides optional, nichts umzustellen
     [1] = function(data)
         data.imports = data.imports or {}
     end,
-    -- 2 -> 3: Fundorte in Instanzen ({ inst, n }) und die Namen der Instanzen (instances) kommen dazu.
+    -- 2 -> 3: Fundorte in Instanzen ({ inst, n }) und instances
     [2] = function(data)
         data.instances = data.instances or {}
     end,
-    -- 3 -> 4 und 4 -> 5: früher ein Kill-Zähler je Kreatur (kills). Er wird nicht mehr geführt (Kills zählt Glimpse:
-    -- Statistics); ein vorhandener Wert wird beim Prüfen der Daten entfernt.
+    -- 3 -> 4, 4 -> 5: kills je Kreatur entfällt (zählt Glimpse: Statistics), SanitizeData entfernt es
     [3] = function() end,
     [4] = function() end,
     -- 5 -> 6: Angelfänge je Zone (fishing)
@@ -53,8 +49,7 @@ local function CleanSection(section)
     return true
 end
 
--- Fundorte { map, x, y, n } oder { inst, n } prüfen: x und y in 1/10000 der Karte, n = Zahl der Beutefenster dort.
--- Die Liste wird auf limit Einträge gekürzt (die mit den wenigsten Funden fallen weg).
+-- Fundorte { map, x, y, n } oder { inst, n } prüfen (x, y in 1/10000), auf limit kürzen (wenigste Funde fallen weg)
 local function CleanSpots(entry, limit)
     if entry.spots == nil then return end
     if type(entry.spots) ~= "table" then
@@ -100,7 +95,7 @@ local function CleanNPC(npc)
     end
     CleanSpots(npc, DB.MAX_SPOTS_NPC)
 
-    -- der frühere Kill-Zähler gehört nicht mehr in die Daten
+    -- kills wird nicht mehr geführt
     npc.kills = nil
     return npc.loot ~= nil or npc.skinning ~= nil
 end
@@ -139,8 +134,7 @@ local function Total(entry, isNode)
     return (entry.loot and entry.loot.attempts or 0) + (entry.skinning and entry.skinning.attempts or 0)
 end
 
--- Entfernt die Einträge mit den wenigsten Versuchen, sobald mehr als limit vorhanden sind. Es bleiben
--- dann 90 % der Grenze übrig, damit neue Einträge nicht sofort wieder herausfallen.
+-- Über limit die Einträge mit den wenigsten Versuchen entfernen, bis 90 % übrig sind (Puffer für neue).
 -- Gibt die Zahl der entfernten Einträge zurück.
 local function Prune(entries, limit, isNode)
     local ids = {}
@@ -158,8 +152,7 @@ local function Prune(entries, limit, isNode)
     return #ids - keep
 end
 
---- Hebt eine Datentabelle auf die aktuelle Version. Gibt false zurück, wenn sie von einer neueren
--- Version stammt (oder die Versionsnummer unbrauchbar ist): dann bleibt sie unverändert.
+--- Hebt Daten auf die aktuelle Version. false bei neuerer oder unbrauchbarer Version, Daten bleiben dann unverändert.
 function DB:UpgradeData(data, currentVersion)
     if type(data.version) ~= "number" then data.version = 1 end
     if data.version < 1 or data.version ~= math.floor(data.version) then return false end
@@ -173,7 +166,7 @@ function DB:UpgradeData(data, currentVersion)
     return true
 end
 
---- Entfernt defekte Einträge und stellt sicher, dass nodes, npcs, fishing, imports und instances Tabellen sind.
+--- Entfernt defekte Einträge, stellt nodes, npcs, fishing, imports, instances als Tabellen sicher.
 -- Gibt die Zahl der entfernten Einträge zurück.
 function DB:SanitizeData(data)
     if type(data.nodes) ~= "table" then data.nodes = {} end
@@ -212,8 +205,7 @@ function DB:PruneData()
     return removed
 end
 
---- Prüft und pflegt die gespeicherten Daten beim Start. Gibt false zurück, wenn sie von einer neueren
--- Version stammen: dann bleiben sie unverändert und es wird nichts aufgezeichnet.
+--- Prüfung beim Start. false bei Daten einer neueren Version: unverändert lassen, nicht aufzeichnen.
 function DB:PrepareData(currentVersion)
     if not self:UpgradeData(self.data, currentVersion) then return false end
 
@@ -226,7 +218,7 @@ end
 -- Prüfung nur alle paar Aufzeichnungen, denn sie geht über alle Einträge
 local CHECK_EVERY = 50
 
---- Hält die Größe während des Spielens im Rahmen. Wird nach jeder Aufzeichnung aufgerufen.
+--- Größenkontrolle während des Spielens, nach jeder Aufzeichnung
 function DB:EnforceLimits()
     self.recordsSinceCheck = (self.recordsSinceCheck or 0) + 1
     if self.recordsSinceCheck < CHECK_EVERY then return end
