@@ -2,8 +2,10 @@
 
 <p align="center"><img src="docs/icon_gatheringdb.png" width="128" alt="GatheringDB icon"> <img src="docs/icon_gatheringtooltip.png" width="128" alt="GatheringTooltip icon"></p>
 
-Two addons for [Glimpse](https://github.com/N3zr0k/Glimpse) (0.2.2 or newer) that learn where crafting materials come
-from while you play, and show it in tooltips: how often a node or creature drops what, and where to go to get an item.
+Two addons that learn where crafting materials come from while you play, and show it in tooltips: how often a node or
+creature drops what, and where to go to get an item.
+
+Requires [Glimpse](https://github.com/N3zr0k/Glimpse) 0.2.2 or newer. For WoW Forever (interface 16001).
 
 | Addon | Role |
 | --- | --- |
@@ -12,17 +14,15 @@ from while you play, and show it in tooltips: how often a node or creature drops
 
 ## Contents
 
-* [What you get](#what-you-get)
-* [How the data is recorded](#how-the-data-is-recorded)
-* [Locations](#locations)
+* [Features](#features)
 * [Options](#options)
 * [Commands](#commands)
-* [Export and import](#export-and-import)
 * [Installation](#installation)
 * [For developers](#for-developers)
 * [Credits](#credits)
+* [License](#license)
 
-## What you get
+## Features
 
 **Tooltip of a node or creature.** The drops you have recorded, one row per item with the chance, hits and attempts
 (for example `50 %  (11/22)`) and the average amount per find:
@@ -51,7 +51,7 @@ Places
 * A key (default Ctrl+G) sets a waypoint to the best place while the tooltip is shown: TomTom if it is installed,
   otherwise the game marker. No waypoint is possible for dungeons and raids (no coordinates).
 
-## How the data is recorded
+### How the data is recorded
 
 GatheringDB reads every loot window and keeps what is useful for crafting. Everything is stored account-wide.
 
@@ -68,7 +68,7 @@ GatheringDB reads every loot window and keeps what is useful for crafting. Every
 * Damaged entries are cleaned up automatically and the data has a size limit (2000 nodes, 6000 creatures).
 * Data from a newer version is never touched, recording pauses until you update the addon.
 
-## Locations
+### Locations
 
 GatheringDB also remembers **where** you looted (zone and coordinates, clustered into places; in dungeons and
 raids the instance itself). Switch it off with "Record locations".
@@ -76,6 +76,13 @@ raids the instance itself). Switch it off with "Record locations".
 If [GatherMate2](https://www.curseforge.com/wow/addons/gathermate2) is installed, its node locations are used as
 well, after your own. They are read live, never saved and never exported. Nodes are matched by name, so it works in
 every client language. Each source of outside locations has its own switch in the GatheringDB options.
+
+### Export and import
+
+All data can be exported as compressed text (`/gli gatheringdb export`, or the buttons in the options) and imported on
+another account or computer. An import either **merges** (numbers are added, places combined) or **replaces** your data.
+Imports of older data versions are converted automatically; data from a newer version is refused, and the same export
+cannot be merged twice.
 
 ## Options
 
@@ -119,13 +126,6 @@ Distances use the unit chosen in the Glimpse options (General): automatic by cli
 With `/gli debug on` the tooltips of nodes, creatures and items show the raw recorded numbers and locations, and the
 chat explains what was recorded or skipped and why.
 
-## Export and import
-
-All data can be exported as compressed text (`/gli gatheringdb export`, or the buttons in the options) and imported on
-another account or computer. An import either **merges** (numbers are added, places combined) or **replaces** your data.
-Imports of older data versions are converted automatically; data from a newer version is refused, and the same export
-cannot be merged twice.
-
 ## Installation
 
 Install Glimpse first. Unpack the ZIP into the AddOns folder of the Forever client (during the beta, for example
@@ -137,13 +137,12 @@ The data starts empty and grows while you play. Optional: GatherMate2 (more loca
 ## For developers
 
 GatheringDB offers its data to other addons through `Glimpse.GatheringDB` (drops, sources of an item, locations,
-kills, export/import, providers for outside locations). The API and the data format are described in
+export/import, providers for outside locations). The API and the data format are described in
 [DEVELOPER.md](DEVELOPER.md) (German).
 
-## Development
-
-The repository contains the two addon folders at its top level. To work on it directly, clone it anywhere and link
-both folders into the AddOns folder (see [DEVELOPER.md](DEVELOPER.md)). Checks:
+The repository holds the two addon folders `Glimpse_GatheringDB/` and `Glimpse_GatheringTooltip/`; link both into the
+AddOns folder (junction) and `/reload` after each change. The tests need the Glimpse repository next to this one (or
+`GLIMPSE_DIR`). Checks:
 
 ```
 lua tests/run.lua
@@ -153,7 +152,7 @@ python3 tools/check.py
 
 ## Credits
 
-Special thanks to Flovy and sMash for testing.
+Author: N3zr0k. Special thanks to Flovy and sMash for testing.
 
 The marker icons (`Glimpse_GatheringTooltip/Media/Markers`) are from [Flaticon](https://www.flaticon.com), recolored and converted to TGA:
 

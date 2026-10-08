@@ -2,13 +2,12 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local GT = Glimpse:GetModule("GatheringTooltip")
 local L = GT.L
 
--- Benötigter Sammel-Skill in den Tooltips von Knoten und Kreaturen, nur die Zahl des eigenen Skills hat die Farbe:
+-- Benötigter Sammel-Skill in Knoten-/Kreatur-Tooltips, nur der eigene Skill ist eingefärbt:
 --
 --   [Symbol] Stufe: 162 - benötigt Bergbau 155
 --   [Symbol] Stufe: 140 - eventuell benötigt Kürschnerei 125   (nur nach Kreaturentyp vermutet)
 --
--- Zahlen, Farben und der Skill des Spielers liefert GatheringDB (GetRequiredSkill, GetSkillColor, GetPlayerSkill),
--- hier wird nur die Zeile gebaut.
+-- Zahlen und Farben liefert GatheringDB (GetRequiredSkill, GetSkillColor, GetPlayerSkill).
 
 local PROFESSION_LABEL = { herb = "Herbalism", ore = "Mining", skinning = "Skinning", fishing = "Fishing" }
 
@@ -16,9 +15,8 @@ local function Colored(text, r, g, b)
     return format("|cff%02x%02x%02x%s|r", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5), text)
 end
 
--- Steht die Anforderung schon im Tooltip (Zeile mit Berufsname und der Zahl)? Dann kommt keine zweite Zeile dazu.
--- Zeilentexte können secret sein, die werden übergangen (wie in Glimpse: LastLineIs).
--- Die eigene Zeile (own) zählt nicht, falls der Tooltip nur erneut verarbeitet wird und sie schon dasteht.
+-- Anforderung schon im Tooltip (Berufsname plus Zahl)? Dann keine zweite Zeile. Secret-Texte werden
+-- übergangen (wie Glimpse: LastLineIs), die eigene Zeile (own) zählt nicht (erneute Verarbeitung).
 local function AlreadyShown(tooltip, label, required, own)
     local name = tooltip and tooltip.GetName and tooltip:GetName()
     if not name or not tooltip.NumLines then return false end
@@ -37,9 +35,8 @@ local function AlreadyShown(tooltip, label, required, own)
     return false
 end
 
--- Auf einem toten, kürschnerbaren Tier schreibt der Client selbst "Häutbar" in den Tooltip, in einer Farbe, die zum
--- Skill des Spielers passt. Der Text kommt aus der globalen Zeichenkette UNIT_SKINNABLE_LEATHER (sprachunabhängig, fehlt
--- sie im Client, bleibt es beim Berechneten). Gibt die Farbe dieser Zeile zurück, nil wenn es sie nicht gibt.
+-- Auf toten, kürschnerbaren Tieren schreibt der Client selbst UNIT_SKINNABLE_LEATHER ("Häutbar") in
+-- Skill-Farbe. Gibt diese Farbe zurück, true wenn nicht lesbar, nil ohne die Zeile.
 local function NativeSkinnable(tooltip)
     local skinnable = _G.UNIT_SKINNABLE_LEATHER
     local name = tooltip and tooltip.GetName and tooltip:GetName()
@@ -71,9 +68,9 @@ local function UnitOf(guid)
     end
 end
 
--- Baut die Zeile. required = benötigter Skill, profession = "herb", "ore" oder "skinning", guess = die Kreatur ist nur
--- nach ihrem Typ als kürschnerbar vermutet. Rückgabe: Zeile und Name des Berufs, oder nil (Anzeige aus, Beruf nicht
--- gelernt, graue Knoten ausgeblendet). color = {r, g, b}: Farbe vom Client statt der berechneten.
+-- Baut die Zeile. profession = "herb", "ore" oder "skinning", guess = nur nach Kreaturentyp vermutet,
+-- color = {r, g, b} vom Client statt berechnet. Gibt Zeile und Berufsname zurück, oder nil (aus, nicht
+-- gelernt, grau ausgeblendet).
 function GT:BuildSkillRow(profession, required, guess, color)
     local profile, db = self.db.profile, self.data
 
@@ -81,7 +78,7 @@ function GT:BuildSkillRow(profession, required, guess, color)
     local learned = db:HasProfession(profession)
     if learned == false and profile.skillOnlyLearned then return nil end
 
-    -- Nach dem Namen aus dem Client (heißt er dort anders, stimmt er mit dem Tooltip überein), sonst die Übersetzung
+    -- Client-Name bevorzugen (passt zum Tooltip-Text), sonst die Übersetzung
     local label = clientName or L[PROFESSION_LABEL[profession]]
     local icon = self:SourceIcon(profession == "skinning" and { kind = "npc", mode = "skinning" } or { kind = "node", category = profession })
 
@@ -114,8 +111,7 @@ function GT:NodeSkillRow(id, name, tooltip)
     return row
 end
 
---- Zeile für eine Kreatur. Nur wenn sie als kürschnerbar bekannt ist oder ihr Typ (Wildtier, Drachkin) es nahelegt,
--- im zweiten Fall als Vermutung.
+--- Zeile für eine Kreatur: wenn als kürschnerbar bekannt, sonst als Vermutung nach Typ (Wildtier, Drachkin).
 function GT:UnitSkillRow(id, data, tooltip)
     if not self.db.profile.showMobSkill then return nil end
 

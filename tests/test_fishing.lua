@@ -1,7 +1,7 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Angeln: Aufzeichnung (Loot/Collect.lua), Speicherung (Data/Store.lua), Pflege und Austausch der Daten
+-- Angeln: Aufzeichnung (Core/Loot/Fishing.lua), Speicherung (Core/Data/Store.lua), Pflege und Austausch der Daten
 -- Items: 300 = Fisch (Handwerkswaren), 301 = Schrott (Verbrauchsgut), 200 = Rüstung. Zauber 7620 = Fischen.
 local ITEMS = { [300] = { 7, 8 }, [301] = { 0, 0 }, [200] = { 4, 1 } }
 
@@ -13,11 +13,13 @@ local function setup()
     DB.data = { version = 6, nodes = {}, npcs = {}, fishing = {}, imports = {} }
     DB.db = { profile = { recording = true, trackLocations = true } }
     DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
-    stub.load("Glimpse_GatheringDB/Data/Store.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/Migrate.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/Transfer.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/Providers.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/Sources.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Spots.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Store.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Names.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Migrate.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Transfer.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Providers.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Sources.lua", "Glimpse_GatheringDB")
 
     -- Zeitgeber, die ihre Wartezeit beachten (der Standard der Tests führt alle auf einmal aus)
     local timers = {}
@@ -34,7 +36,12 @@ local function setup()
         IsFishingLoot = function() return env.fishing end,
         GetSpellName = function(id) return (id == 7620 or id == 7731) and "Fischen" or "Anderes" end,
     }
-    stub.load("Glimpse_GatheringDB/Loot/Collect.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Collect.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/LootWindow.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Fishing.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Kills.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Area.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Events.lua", "Glimpse_GatheringDB")
     DB:StartCollecting()
     local frame = stub.frames[#stub.frames]
 
@@ -213,7 +220,7 @@ test("Angeln: Symbol und Überschrift im Tooltip", function()
     local GT = Glimpse:NewModule("GatheringTooltip")
     GT.L = Glimpse.L
     GT.db = { profile = { showLocations = true } }
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
     eq(GT:SourceIcon({ kind = "fishing" }), "Interface\\Icons\\Trade_Fishing", "Symbol")
     local key, title = GT:SourceGroup({ kind = "fishing" })
     eq(key, "fishing", "Gruppe"); eq(title, "Fishing", "Überschrift")

@@ -26,7 +26,7 @@ local function OnCommand(_, args)
     elseif args == "gm2" then
         for _, line in ipairs(DB:DiagnoseGatherMate2()) do Glimpse:Print(line) end
     elseif args == "skill" then
-        -- Rohwerte zum Prüfen im Spiel: Skill, Bonus durch Ausrüstung und der Kreaturentyp des Ziels
+        -- Rohwerte zum Prüfen im Spiel: Skill, Ausrüstungsbonus, Kreaturentyp des Ziels
         for _, line in ipairs(DB:DescribeSkills()) do Glimpse:Print(line) end
         if UnitGUID("target") then
             local level = UnitLevel("target")

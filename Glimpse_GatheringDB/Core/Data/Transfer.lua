@@ -1,19 +1,16 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 
--- Export und Import der gesammelten Daten, zum Sichern, zum Übertragen auf einen anderen Account
--- oder Rechner und zum Zusammenführen mehrerer Datenbestände.
+-- Export/Import der Daten: Sicherung, Übertragung auf andere Accounts/Rechner, Zusammenführen.
 --
 -- Aufbau eines Exporttexts:   GGDB<Format>:<Methode>:<Daten>
---   Format   Version dieses Textformats (FORMAT), nicht zu verwechseln mit der Version der Daten
+--   Format   Version des Textformats (FORMAT), nicht der Daten
 --   Methode  "D" = Deflate-komprimiert und druckbar kodiert (LibDeflate), "R" = unkomprimierter Text
---   Daten    die Tabelle { format, version, created, id, nodes, npcs, fishing, instances } in einer eigenen, einfachen
---            Textform (unten). Es wird nie Code geladen oder ausgeführt, nur gelesen und geprüft.
+--   Daten    { format, version, created, id, nodes, npcs, fishing, instances } in eigener Textform (unten),
+--            wird nur geparst, nie als Code ausgeführt
 --
--- Beim Import wird die Datenversion (version) mit DATA_VERSION verglichen: ältere Daten werden mit
--- denselben Schritten umgestellt wie beim Start (DB:UpgradeData, Data/Migrate.lua), neuere werden
--- abgelehnt. Danach läuft die gewohnte Prüfung (DB:SanitizeData), erst dann werden die Daten
--- zusammengeführt oder ersetzt.
+-- Import: ältere Datenversionen laufen durch DB:UpgradeData (Core/Data/Migrate.lua), neuere werden
+-- abgelehnt. Danach DB:SanitizeData, erst dann zusammenführen oder ersetzen.
 
 local FORMAT = 1
 local MAGIC = "GGDB"
@@ -23,7 +20,7 @@ local MAX_TEXT = 40000000   -- Länge des eingefügten Texts
 local MAX_DEPTH = 8         -- Verschachtelung der Tabellen
 local MAX_STRING = 500      -- Länge eines einzelnen Texts in den Daten (Namen)
 local MAX_VALUES = 6000000  -- Zahl der Werte insgesamt
-local MAX_IMPORTS = 50      -- so viele Export-IDs merken wir uns
+local MAX_IMPORTS = 50      -- gemerkte Export-IDs
 
 -- ---------------------------------------------------------------------------
 -- Eigene Textform für Tabellen
@@ -73,8 +70,7 @@ function DB.Serialize(value)
     return table.concat(out)
 end
 
--- Liest einen Wert ab Position pos. Gibt Wert und neue Position zurück, bei Fehlern wird error()
--- aufgerufen (der Aufrufer fängt das mit pcall ab).
+-- Liest einen Wert ab pos, gibt Wert und neue Position zurück. Fehler per error(), der Aufrufer nutzt pcall.
 local function ReadValue(text, pos, depth, state)
     state.values = state.values + 1
     if state.values > MAX_VALUES then error("too many values") end
@@ -150,8 +146,7 @@ local function Count(tbl)
     return n
 end
 
---- Alle gesammelten Daten als Text zum Kopieren. Gibt den Text und eine Tabelle { nodes, npcs, chars }
--- zurück.
+--- Alle Daten als Exporttext, dazu { nodes, npcs, chars }
 function DB:ExportData()
     local payload = {
         format = FORMAT,
@@ -223,7 +218,7 @@ function DB:DecodeExport(text)
     return payload
 end
 
--- Zählt b zu a (Abschnitt { attempts, items }), die Zahlen bleiben unter der Obergrenze
+-- b zu a addieren ({ attempts, items }), mit Obergrenze
 local COUNT_MAX = 1e9 - 1
 
 local function MergeSection(target, source)
@@ -257,8 +252,7 @@ local function MergeSpots(self, target, source, kind)
     end
 end
 
--- Führt geprüfte Daten in die gespeicherten zusammen: Zähler werden addiert, Name, Stufe und
--- Kategorie nur ergänzt, Fundorte zusammengefasst.
+-- Geprüfte Daten zusammenführen: Zähler addieren, Name/Stufe/Kategorie nur ergänzen, Fundorte zusammenfassen.
 local function MergeData(self, incoming)
     local data = self.data
 
@@ -330,17 +324,15 @@ local function RememberImport(data, id)
     for index = MAX_IMPORTS + 1, #ids do data.imports[ids[index]] = nil end
 end
 
---- Importiert einen Exporttext. mode = "merge" (Standard: Zähler addieren, vorhandene Daten bleiben)
--- oder "replace" (alle gespeicherten Daten werden ersetzt).
--- Gibt true und { nodes, npcs, version, migrated, removed } zurück, bei Fehlern false und einen
--- Fehlerschlüssel (siehe oben).
+--- Importiert einen Exporttext. mode = "merge" (Standard, Zähler addieren) oder "replace" (alles ersetzen).
+-- Gibt true und { nodes, npcs, version, migrated, removed } zurück, sonst false und einen Fehlerschlüssel.
 function DB:ImportData(text, mode)
     mode = mode == "replace" and "replace" or "merge"
 
     local payload, err = self:DecodeExport(text)
     if not payload then return false, err end
 
-    -- Dieselbe Umstellung und Prüfung wie bei den eigenen Daten, nur auf einer Kopie
+    -- Gleiche Umstellung und Prüfung wie bei den eigenen Daten, auf einer Kopie
     local incoming = {
         version = payload.version, nodes = payload.nodes, npcs = payload.npcs, fishing = payload.fishing, instances = payload.instances,
     }

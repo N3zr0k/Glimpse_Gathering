@@ -5,16 +5,21 @@
 ```
 Glimpse_GatheringDB/        Daten sammeln und speichern
   Core/                     Modul, Optionen, Compat (Beute-Funktionen; Karten und Position kommen aus dem Glimpse-Modul Locations)
-  Data/                     Store (speichern, abfragen), Migrate (Version, Bereinigung, Grenzen), Transfer und TransferUI
-                            (Export, Import), Providers und GatherMate2 (Fundorte anderer Addons), Sources (Orte eines Items)
-  Loot/                     Collect (Beutefenster und Kills auswerten)
-  Debug/                    Rohdaten im Tooltip, nur bei Debug-Modus
+    Data/                   Spots (Fundorte), Store (Beute speichern, abfragen), Names (Knoten über den Namen),
+                            Migrate (Version, Bereinigung, Grenzen), Transfer und TransferUI (Export, Import),
+                            Providers und GatherMate2 (Fundorte anderer Addons), Sources (Orte eines Items)
+    Loot/                   Collect (gemeinsamer Zustand), LootWindow (Beutefenster), Fishing, Kills, Area (Debug Gebiet),
+                            Events (Event-Frame, Start/Stop)
+  Modules/Debug/            Rohdaten im Tooltip, nur bei Debug-Modus
   Commands/                 /gli gatheringdb
+  Locales/                  enUS, deDE
   Libs/                     LibDeflate (Export komprimieren)
+  Media/                    Icon
 Glimpse_GatheringTooltip/   Anzeige
   Core/                     Modul, Optionen (Tabs), Professions (gelernte Berufe)
-  Tooltip/                  Tooltip (Zeilen für Knoten, Kreaturen und Items), Sources (Orte, Symbole, Gruppen), Waypoint (Wegpunkt-Taste)
-  Media/                    Symbole, Markierungen (Markers)
+    Tooltip/                Tooltip (Zeilen für Knoten, Kreaturen und Items), Sources (Orte, Symbole, Gruppen), Waypoint (Wegpunkt-Taste)
+  Locales/                  enUS, deDE
+  Media/                    Icon, Markierungen (Markers)
 tests/                      Logik-Tests ohne WoW
 ```
 
@@ -55,7 +60,7 @@ Tabellen sind nur zum Lesen gedacht.
 | `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung: `distance` in Yards (nur wenn die Kartengröße bekannt ist), `mapDistance` als Bruchteil der Kartenbreite |
 | `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
 | `:GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)` | Die Orte der Quellen eines Items, geordnet nach "wo findet man es am besten". Ein Eintrag ist eine Quelle an einem Ort (Zone oder Instanz): eine Quelle in drei Zonen ergibt drei Einträge, mehrere Orte derselben Zone einen (Kopien der Einträge von `GetItemSources` mit `tier`, `area`, `group`, `spot`, `spots`, `place`). Stufen: 1 `"here"` (Gebiet des Spielers: Karte oder Instanz), 2 `"nearby"` (andere Karte desselben Kontinents, nach Entfernung in Yards, ab `minChance` (0 bis 1)), 3 `"elsewhere"` (anderer Kontinent oder andere Instanz), 4 `"none"` (kein Ort, ein Eintrag je Quelle). Innerhalb einer Stufe zuerst `group = "own"` (bestätigter Ort), dann `"external"` (Ort nur von einem anderen Addon); danach in Stufe 1 und 3 die höchste Chance. Ein Ort in der eigenen Zone zählt auch, wenn er nur extern belegt ist. `spot` ist der beste Ort des Eintrags. `externalSeparate = false`: externe zählen wie bestätigte (Standard `true`; die Option dafür liegt in GatheringTooltip, Tab Handwerksmaterial) |
-| `:GetRequiredSkill(kind, id, level)` | Beruf (`"herb"`, `"ore"`, `"skinning"`), benötigter Skill, bei Kreaturen dazu, ob sie als kürschnerbar bekannt sind (Kürschner-Beute aufgezeichnet). `kind` = `"node"` (Objekt-ID) oder `"npc"` (Kreatur-ID, `level` = Stufe, ohne Angabe die gespeicherte). nil ohne Ergebnis (unbekannter Knoten, Boss-Stufe). Die Tabellen stehen in `Data/SkillData.lua` (Quellen dort im Kopf), nicht in den SavedVariables |
+| `:GetRequiredSkill(kind, id, level)` | Beruf (`"herb"`, `"ore"`, `"skinning"`), benötigter Skill, bei Kreaturen dazu, ob sie als kürschnerbar bekannt sind (Kürschner-Beute aufgezeichnet). `kind` = `"node"` (Objekt-ID) oder `"npc"` (Kreatur-ID, `level` = Stufe, ohne Angabe die gespeicherte). nil ohne Ergebnis (unbekannter Knoten, Boss-Stufe). Die Tabellen stehen in `Core/Data/SkillData.lua` (Quellen dort im Kopf), nicht in den SavedVariables |
 | `:GetNodeSkill(id)` / `:GetSkinningSkill(level)` | dasselbe einzeln. Ein Knoten, der nicht in der Tabelle steht, aber aufgezeichnet ist, wird über sein Material zugeordnet, wenn alle Materialien denselben Skill verlangen |
 | `:GetSkillColor(required, current)` | `"red"` (reicht nicht), `"orange"` (ab `required`), `"yellow"` (+25), `"green"` (+50), `"gray"` (+100), dazu r, g, b |
 | `:GetPlayerSkill(profession)` | Skill mit Ausrüstungsbonus, Maximum, Name des Berufs im Client, Skill ohne Bonus; nil = nicht gelernt. Berufe werden über Skill-Linien-IDs gefunden, nicht über Namen; Cache, geleert bei `SKILL_LINES_CHANGED` und `PLAYER_EQUIPMENT_CHANGED` |
@@ -107,13 +112,13 @@ version         = Datenformat (DATA_VERSION = 5 in Core/GatheringDB.lua); fehlt 
   bekommt dann als Fundort die Instanz (`DB:GetPlayerInstance()`, instanceID aus `GetInstanceInfo`), nie Karte
   und Koordinaten. `Locations:GetPlayerArea()` (Glimpse-Kern, Modul `Locations`) liefert `{ instance, name }` oder `{ map, x, y }`.
 * `hits` = in wie vielen Versuchen das Item vorkam (daraus die Chance), `amount` = Gesamtmenge.
-* Ändert sich das Format: `DATA_VERSION` erhöhen und in `Data/Migrate.lua` unter `migrations[alteVersion]`
+* Ändert sich das Format: `DATA_VERSION` erhöhen und in `Core/Data/Migrate.lua` unter `migrations[alteVersion]`
   die Umstellung eintragen. Daten einer **neueren** Version rührt das Addon nicht an und zeichnet nicht auf.
 * Grenzen: `DB.MAX_NODES` und `DB.MAX_NPCS`. Darüber fallen die Einträge mit den wenigsten Versuchen weg.
 
 ## Export und Import
 
-`Data/Transfer.lua` (Logik) und `Data/TransferUI.lua` (Fenster). Befehle: `/gli gatheringdb export | import`,
+`Core/Data/Transfer.lua` (Logik) und `Core/Data/TransferUI.lua` (Fenster). Befehle: `/gli gatheringdb export | import`,
 dazu Schaltflächen in den Optionen.
 
 Text: `GGDB<Format>:<Methode>:<Daten>`. Methode `D` = LibDeflate (Stufe 9) + `EncodeForPrint`, `R` = unkomprimiert
@@ -131,7 +136,7 @@ automatisch beim Import umgestellt; ein Test in `tests/test_transfer.lua` für d
 
 ## Fundorte aus anderen Addons (GatherMate2)
 
-`Data/Providers.lua` hängt beim Abfragen (`DB:GetSpots`) die Orte von Anbietern hinter die eigenen. Sie werden nie
+`Core/Data/Providers.lua` hängt beim Abfragen (`DB:GetSpots`) die Orte von Anbietern hinter die eigenen. Sie werden nie
 gespeichert und nie exportiert. Ein Anbieter ist `{ IsAvailable(), GetSpots(kind, id, entry), GetInfo()? }`
 und meldet sich mit `DB:RegisterProvider(name, provider)` an. Fehler im Anbieter werden mit `pcall` abgefangen
 (`DB:ReportError`), die eigenen Orte bleiben. Fremde Orte nahe an einem eigenen (`SPOT_RADIUS`) fallen weg, je Quelle
@@ -139,7 +144,7 @@ gibt es höchstens `DB.EXTERNAL_LIMIT` (60), dabei kommt der beste Ort jeder Kar
 (für jeden angemeldeten Anbieter gibt es in den Optionen einen Schalter; beim Aufbau der Optionen bereits angemeldete
 Anbieter erscheinen dort, später angemeldete nicht).
 
-`Data/GatherMate2.lua` ist der Anbieter für GatherMate2 (nur Knoten, keine Kreaturen). Benutzt wird nur dessen
+`Core/Data/GatherMate2.lua` ist der Anbieter für GatherMate2 (nur Knoten, keine Kreaturen). Benutzt wird nur dessen
 Schnittstelle: `GetNodesForZone`, `DecodeLoc`, `GetIDForNode`, `HBD:GetAllMapIDs` (ohne HBD die Speicher in `gmdbs`).
 GatherMate2 hat eigene Knoten-IDs (Kupfervorkommen 201, Silberblatt 402), nicht die Objekt-IDs des Spiels; der Abgleich läuft
 deshalb über den Namen. Die Kategorie wählt den Typ (`herb` → Herb Gathering, `ore` → Mining, sonst Extract Gas/Treasure/Logging;
@@ -153,7 +158,7 @@ Struktur nach.
 
 ## Wie die Beute erkannt wird
 
-`Loot/Collect.lua` liest bei `LOOT_OPENED` sofort alle Quellen des Beutefensters und wertet 0,3 s später aus
+`Core/Loot/LootWindow.lua` liest bei `LOOT_OPENED` sofort alle Quellen des Beutefensters und wertet 0,3 s später aus
 (`EVALUATE_DELAY`), weil `UNIT_SPELLCAST_SUCCEEDED` je nach Reihenfolge kurz vor oder nach dem Beutefenster kommt.
 
 * **Sammelknoten** (`GameObject`): zählt nur, wenn direkt davor (1 s) ein Zauber des Spielers erfolgreich war oder
@@ -163,7 +168,7 @@ Struktur nach.
 * **Kreaturen** (`Creature`): Normalbeute zählt als Versuch und als Kill, auch ohne Material. Kürschnerbeute wird erkannt,
   wenn davor ein Zauber erfolgreich war oder die Leiche schon einmal gelootet wurde. Dieselbe Kreatur zählt 10 Minuten
   nicht erneut (`CREATURE_REPEAT`, Teilloot).
-* **Kills ohne Beutefenster:** Quelle ist das Ereignis `PARTY_KILL` (Killer-GUID, Opfer-GUID): Es zählt, wenn der Killer
+* **Kills ohne Beutefenster** (`Core/Loot/Kills.lua`): Quelle ist das Ereignis `PARTY_KILL` (Killer-GUID, Opfer-GUID): Es zählt, wenn der Killer
   der Spieler oder sein Haustier ist, auch ohne Ziel und ohne Beute (`DB:OnPartyKill`). Kennt der Client das Ereignis
   nicht, bleibt der Tod des Ziels als Ersatz (`UNIT_HEALTH`, Zielwechsel auf eine Leiche, Kampfende), der Kills nach
   einem Zielwechsel verpasst. Das Kampflog ist für Addons gesperrt und wird nicht benutzt. Kommt 2 Minuten lang kein
@@ -171,16 +176,16 @@ Struktur nach.
   die danach kommt, wird ohne zweiten Versuch ergänzt. Das Fenster hat immer Vorrang.
 * Gespeichert werden nur Handwerkswaren und Edelsteine (Item-Klassen 7 und 3).
 
-Das sind Heuristiken. Im Debug-Modus schreibt `Collect.lua` pro Beutefenster eine Zeile
-(`Beutefenster: Typ, ID, Zauber davor, Materialien`) und zu jedem Kill, warum er gezählt wurde oder nicht.
+Das sind Heuristiken. Im Debug-Modus schreibt `LootWindow.lua` pro Beutefenster eine Zeile
+(`Beutefenster: Typ, ID, Zauber davor, Materialien`), `Kills.lua` zu jedem Kill, warum er gezählt wurde oder nicht.
 Fehler in der Auswertung werden abgefangen und gezählt (`/gli gatheringdb stats`).
 
 ## GatheringTooltip
 
-`Tooltip/Tooltip.lua` baut die Zeilen: Knoten und Kreaturen zeigen ihre Beute wie die Quellen eines Items (Chance,
+`Core/Tooltip/Tooltip.lua` baut die Zeilen: Knoten und Kreaturen zeigen ihre Beute wie die Quellen eines Items (Chance,
 Treffer/Versuche, Durchschnitt), Materialien die besten Orte aus `GetLocatedItemSources`. Orte, die nur von einem anderen
-Addon kommen, zeigen keine Chance. `Tooltip/Sources.lua` ordnet Symbole, Gruppen und Fundorte (Spalten) an,
-`Tooltip/Waypoint.lua` setzt über das Glimpse-Modul `Locations` einen Wegpunkt zum besten Ort. Der Tastenhörer dafür wird im
+Addon kommen, zeigen keine Chance. `Core/Tooltip/Sources.lua` ordnet Symbole, Gruppen und Fundorte (Spalten) an,
+`Core/Tooltip/Waypoint.lua` setzt über das Glimpse-Modul `Locations` einen Wegpunkt zum besten Ort. Der Tastenhörer dafür wird im
 Kampf nicht angefasst (geschützte Aufrufe) und danach nachgezogen (`PLAYER_REGEN_ENABLED`).
 
 ## Prüfen

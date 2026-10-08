@@ -3,8 +3,7 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local L = DB.L
 
--- Fenster zum Exportieren und Importieren (Logik in Data/Transfer.lua). Ein einziges Fenster,
--- ein erneuter Aufruf ersetzt das offene.
+-- Export-/Importfenster (Logik in Core/Data/Transfer.lua). Nur ein Fenster, ein neuer Aufruf ersetzt es.
 
 local AceGUI = LibStub("AceGUI-3.0")
 

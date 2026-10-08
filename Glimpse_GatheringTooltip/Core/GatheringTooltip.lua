@@ -2,8 +2,7 @@ local ADDON_NAME = ...
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 
--- Zeigt in den Tooltips von Sammelknoten und Kreaturen, was dort bisher gefunden wurde.
--- Die Daten kommen aus Glimpse: GatheringDB, hier wird nur angezeigt.
+-- Zeigt in Knoten- und Kreatur-Tooltips, was dort gefunden wurde. Daten aus Glimpse: GatheringDB.
 --
 -- Aufteilung: Core/     = Modul, Optionen
 --             Tooltip/  = Tooltip-Zeilen
@@ -51,7 +50,7 @@ function GT:OnInitialize()
 end
 
 function GT:OnEnable()
-    -- Die Datenbank ist Pflicht (## Dependencies), die Prüfung fängt nur eine zu alte Version ab
+    -- GatheringDB ist Pflicht (## Dependencies), hier nur Prüfung auf zu alte Version
     self.data = Glimpse:GetModule("GatheringDB")
     if (self.data.API_VERSION or 0) < 9 then
         self:Debug("GatheringDB ist zu alt")

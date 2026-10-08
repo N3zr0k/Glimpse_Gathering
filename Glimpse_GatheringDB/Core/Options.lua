@@ -3,8 +3,8 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local L = DB.L
 
--- Für jeden Anbieter fremder Fundorte (z. B. GatherMate2) ein eigener Schalter. Er ist nur bedienbar, wenn das
--- Addon da ist und der allgemeine Schalter an ist.
+-- Je Anbieter fremder Fundorte ein Schalter, nur aktiv mit geladenem Addon und eingeschaltetem
+-- Hauptschalter.
 function DB:BuildSourceOptions()
     local args = {
         hint = {
@@ -67,7 +67,7 @@ function DB:BuildOptions()
             args = {
                 text = {
                     type = "description", order = 1, fontSize = "medium",
-                    -- als Funktion, damit die Zahlen beim Anzeigen aktuell sind
+                    -- Funktion, damit die Zahlen beim Öffnen aktuell sind
                     name = function()
                         local nodes, npcs, attempts, spots, zones, casts = self:GetStats()
                         return table.concat({

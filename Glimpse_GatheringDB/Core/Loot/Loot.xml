@@ -1,0 +1,9 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <!-- Collect.lua legt den gemeinsamen Zustand (DB.collect) an, Events.lua zuletzt. -->
+    <Script file="Collect.lua"/>
+    <Script file="LootWindow.lua"/>
+    <Script file="Fishing.lua"/>
+    <Script file="Kills.lua"/>
+    <Script file="Area.lua"/>
+    <Script file="Events.lua"/>
+</Ui>

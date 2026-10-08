@@ -8,12 +8,15 @@ stub.root = ROOT
 
 -- Ordner des Kerns Glimpse (mit Modules/Locations)
 function stub.coreDir()
+    -- Jeder Kandidat ist ein Repo (Addon im Unterordner Glimpse) oder der Addon-Ordner selbst
     local candidates = { os.getenv("GLIMPSE_DIR"), ROOT .. "/../Glimpse", ROOT .. "/.glimpse" }
-    for _, dir in ipairs(candidates) do
-        local file = io.open(dir .. "/Modules/Locations/Locations.lua", "r")
-        if file then file:close() return dir end
+    for _, base in ipairs(candidates) do
+        for _, dir in ipairs({ base .. "/Glimpse", base }) do
+            local file = io.open(dir .. "/Modules/Locations/Locations.lua", "r")
+            if file then file:close() return dir end
+        end
     end
-    return ROOT .. "/../Glimpse"
+    return ROOT .. "/../Glimpse/Glimpse"
 end
 
 function stub.reset()

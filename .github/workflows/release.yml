@@ -10,8 +10,8 @@ name: Release
 # workflow_dispatch auf dem Tag. Das ist nötig, weil ein mit dem GITHUB_TOKEN gepushtes Tag keinen
 # Push-Workflow auslöst. Ein von Hand gepushtes Tag funktioniert ebenfalls. Bei einem Start per Hand
 # muss als Ref das Tag gewählt werden, nicht ein Branch.
-# CurseForge, Wago und WoWInterface werden nur bedient, wenn das jeweilige Secret gesetzt ist
-# (siehe README, Abschnitt Veröffentlichen).
+# CurseForge, Wago und WoWInterface werden nur bei Beta und final bedient (und nur, wenn das jeweilige Secret
+# gesetzt ist, siehe README, Abschnitt Veröffentlichen). Alpha bleibt ein Prerelease auf GitHub.
 
 on:
   push:
@@ -28,9 +28,10 @@ jobs:
       TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
-      CF_API_KEY: ${{ secrets.CF_API_KEY }}
-      WAGO_API_TOKEN: ${{ secrets.WAGO_API_TOKEN }}
-      WOWI_API_TOKEN: ${{ secrets.WOWI_API_TOKEN }}
+      # Ohne Token lädt der Packager nicht hoch: bei Alpha bleiben sie leer
+      CF_API_KEY: ${{ !contains(github.ref_name, '-alpha') && secrets.CF_API_KEY || '' }}
+      WAGO_API_TOKEN: ${{ !contains(github.ref_name, '-alpha') && secrets.WAGO_API_TOKEN || '' }}
+      WOWI_API_TOKEN: ${{ !contains(github.ref_name, '-alpha') && secrets.WOWI_API_TOKEN || '' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -45,6 +46,11 @@ jobs:
 
       - name: Tag, TOC-Version und CHANGELOG prüfen
         run: python3 tools/check.py --tag "$TAG"
+
+      - name: Alpha nur auf GitHub
+        if: contains(env.TAG, '-alpha')
+        run: |
+          echo "Alpha-Version: kein Upload zu CurseForge, Wago oder WoWInterface, nur ein Prerelease auf GitHub."
 
       # Zeigt, ob CurseForge den Token annimmt (nur Statuscode und Fehlertext, nie der Token selbst)
       - name: CurseForge-Zugang prüfen

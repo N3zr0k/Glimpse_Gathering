@@ -33,8 +33,7 @@ local function Range(self, key, order, name, desc, min, max)
     }
 end
 
--- Auswahl der Markierung für den eigenen Ort: Symbole nebeneinander zum Anklicken, Farbe per Auswahlliste
--- (jeder Eintrag zeigt das gewählte Symbol in seiner Farbe)
+-- Markierung für den eigenen Ort: Symbole zum Anklicken, Farbe als Auswahlliste (Einträge im gewählten Symbol)
 local APP_NAME = "Glimpse_GatheringTooltip"
 
 local function IconName(key)
@@ -146,11 +145,11 @@ function GT:BuildWaypointOptions()
     }
 end
 
--- Bildnachweis der Symbole für den Credits-Bereich der Optionsseite (Glimpse:BuildCreditsArgs); die Links stehen in der README
+-- Bildnachweis für den Credits-Bereich (Glimpse:BuildCreditsArgs), Links in der README
 function GT:BuildCredits()
     local images = {}
     for _, credit in ipairs(self.IconCredits) do
-        -- der Link steht in Klammern und blau (anklickbar ist er in den Optionen nicht, zum Kopieren)
+        -- Link blau in Klammern, zum Kopieren (in den Optionen nicht klickbar)
         images[#images + 1] = (IconName(credit.key) or credit.key) .. " - " .. credit.author .. " |cff66ccff(" .. credit.url .. ")|r"
     end
     return { images = images }

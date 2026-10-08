@@ -10,13 +10,13 @@
     <Include file="Core\Core.xml"/>
 
     <!-- 3. Daten speichern und abfragen (öffentliche Schnittstelle) -->
-    <Include file="Data\Data.xml"/>
+    <Include file="Core\Data\Data.xml"/>
 
     <!-- 4. Beute erfassen -->
-    <Include file="Loot\Loot.xml"/>
+    <Include file="Core\Loot\Loot.xml"/>
 
     <!-- 5. Debug-Anzeige im Tooltip -->
-    <Include file="Debug\Debug.xml"/>
+    <Include file="Modules\Debug\Debug.xml"/>
 
     <!-- 6. Slash-Befehl -->
     <Include file="Commands\Commands.xml"/>

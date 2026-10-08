@@ -1,8 +1,8 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Skill-Daten und -Abfragen (GatheringDB: Data/SkillData.lua, Data/Skills.lua) und die Zeile im Tooltip
--- (GatheringTooltip: Tooltip/Skills.lua)
+-- Skill-Daten und -Abfragen (GatheringDB: Core/Data/SkillData.lua, Core/Data/Skills.lua) und die Zeile im Tooltip
+-- (GatheringTooltip: Core/Tooltip/Skills.lua)
 local function setupDB(api)
     local Glimpse = stub.newGlimpse()
     local DB = Glimpse:NewModule("GatheringDB")
@@ -11,9 +11,11 @@ local function setupDB(api)
     DB.db = { profile = { recording = true } }
     DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
     DB.api = api or {}
-    stub.load("Glimpse_GatheringDB/Data/Store.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/SkillData.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/Skills.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Spots.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Store.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Names.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/SkillData.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Skills.lua", "Glimpse_GatheringDB")
     return DB, Glimpse
 end
 
@@ -139,8 +141,8 @@ local function setupTooltip(profile, professions)
     GT.data = DB
     GT.db = { profile = { showNodeSkill = true, showMobSkill = true, skillOnlyLearned = true, hideGraySkill = false } }
     for key, value in pairs(profile or {}) do GT.db.profile[key] = value end
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Skills.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Skills.lua", "Glimpse_GatheringTooltip")
     return GT, DB
 end
 
@@ -242,7 +244,7 @@ test("Tooltip: Angelrute bleibt unverändert (der Angel-Skill steht bei Glimpse:
     GT.db.profile.showItemSource = true
     GT.SetWaypointTarget = function() end
     GT.db.profile.minAttempts, GT.db.profile.maxSources, GT.db.profile.minChance = 1, 3, 10
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
     GT:RegisterTooltips()
 
     local rows = callbacks[3](GT, { id = 6256 }, {})

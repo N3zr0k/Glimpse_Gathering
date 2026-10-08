@@ -17,8 +17,10 @@ local function setup()
     DB.data = { version = 1, nodes = {}, npcs = {} }
     DB.db = { profile = { recording = true } }
     DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
-    stub.load("Glimpse_GatheringDB/Data/Store.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Data/Migrate.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Spots.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Store.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Names.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Data/Migrate.lua", "Glimpse_GatheringDB")
 
     -- Aktuelles Beutefenster: Liste aus { itemID, guid, menge }
     local window = {}
@@ -29,7 +31,12 @@ local function setup()
         GetLootSlotLink = function(slot) return "|Hitem:" .. window[slot][1] .. ":0|h[x]|h" end,
         GetLootSourceInfo = function(slot) return window[slot][2], window[slot][3] or 1 end,
     }
-    stub.load("Glimpse_GatheringDB/Loot/Collect.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Collect.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/LootWindow.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Fishing.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Kills.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Area.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_GatheringDB/Core/Loot/Events.lua", "Glimpse_GatheringDB")
     DB:StartCollecting()
 
     local frame = stub.frames[#stub.frames]

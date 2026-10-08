@@ -9,8 +9,8 @@ local function setup(profile)
     GT.db = { profile = { showLocations = true, showCoords = true, showDistance = true, showSourceIcons = true, showAttempts = true, minChance = 10 } }
     for key, value in pairs(profile or {}) do GT.db.profile[key] = value end
     GT.data = { GetMapName = function(_, map) return ({ [37] = "Elwynn", [14] = "Dunkelküste", [10] = "Düsterwald" })[map] end }
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Waypoint.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Waypoint.lua", "Glimpse_GatheringTooltip")
     GT.db.profile.waypointKey = GT.db.profile.waypointKey or "CTRL-G"
     GT.db.profile.showWaypointHint = GT.db.profile.showWaypointHint == true -- die Hinweiszeile zählt in anderen Tests nicht mit
     return GT
@@ -158,7 +158,7 @@ local function itemRows(GT, sources, maxSources)
 
     local callbacks = {}
     function GT:RegisterTooltipLine(kind, func) callbacks[kind] = func end
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
     GT:RegisterTooltips()
     return callbacks[3](GT, { id = 100 }, {})
 end
@@ -246,7 +246,7 @@ local function sourceRows(profile, kind, data)
     local callbacks = {}
     function GT:RegisterTooltipLine(k, func) callbacks[k] = func end
     GT.NodeSkillRow, GT.UnitSkillRow = function() end, function() end -- die Skill-Zeilen testet test_skills.lua
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
     GT:RegisterTooltips()
     return callbacks[kind == "node" and 1 or 2](GT, data, {})
 end
@@ -352,7 +352,7 @@ test("Tooltip: Tooltip.lua lässt sich laden", function()
     local GT = setup()
     GT.IsLearned = function() return true end
     _G.C_Item = {}
-    stub.load("Glimpse_GatheringTooltip/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
     eq(type(GT.RegisterTooltips), "function", "RegisterTooltips")
 end)
 

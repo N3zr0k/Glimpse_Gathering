@@ -7,11 +7,10 @@ local L = GT.L
 --   [Kräuter] Silberblatt (41, 57) - 120 yd                        93 %  Ø 1.4
 --   [Pelz]    Waldwolf (Stufe 12) (Dunkelküste - 2300 yd - GatherMate2)  42 %  Ø 1.4
 --
--- Der Fundort steht in Klammern und in eigenen Farben (Zone und Entfernung hellblau, Koordinaten gelb wie
--- bei TomTom), damit er sich vom Namen und von der Stufe abhebt. Pro Quelle ein Ort: der beste.
+-- Fundort in Klammern, farblich abgesetzt (Zone/Entfernung hellblau, Koordinaten gelb wie TomTom).
+-- Pro Quelle nur der beste Ort.
 
--- Symbole (Texturpfade ohne Endung). Fehlt eines im Client, zeigt das Spiel die grüne Fehltextur:
--- dann hier den Pfad ändern.
+-- Texturpfade ohne Endung. Grüne Fehltextur im Spiel = Pfad fehlt im Client.
 local ICON_PATH = "Interface\\Icons\\"
 local ICONS = {
     loot = "INV_Misc_Bag_10",
@@ -31,14 +30,13 @@ local function GroupKey(source)
     return source.mode == "skinning" and "skinning" or "loot"
 end
 
---- Symbol einer Quelle: Beutel für Beute, Berufssymbole für Kürschnern, Kräuterkunde und Bergbau,
--- ein Fragezeichen für die übrigen Knotenarten. Gibt den Texturpfad zurück.
+--- Texturpfad des Symbols einer Quelle: Beutel (Beute), Berufssymbol, sonst Fragezeichen
 function GT:SourceIcon(source)
     return ICON_PATH .. ICONS[GroupKey(source)]
 end
 
---- Überschrift der Gruppe einer Quelle (für die Anzeige ohne Symbole): Beute, Kürschnern, Kräuterkunde ...
--- Gibt Schlüssel und Text zurück, gleiche Schlüssel gehören unter eine Überschrift.
+--- Gruppenüberschrift einer Quelle (Anzeige ohne Symbole): Schlüssel und Text, gleicher Schlüssel =
+-- gleiche Überschrift
 function GT:SourceGroup(source)
     local key = GroupKey(source)
     local titles = {
@@ -56,13 +54,12 @@ local function Tag(spot)
     if spot.source and spot.source ~= "own" then return spot.source end
 end
 
---- Der Fundort einer Quelle (Eintrag aus GetLocatedItemSources) als Liste mit einem Eintrag
--- { zone, coords, distance, tag, here }, leer wenn nichts anzuzeigen ist. Gezeigt wird der beste Ort der Quelle (source.spot):
+--- Bester Fundort einer Quelle (source.spot) als Liste mit max. einem { zone, coords, distance, tag, here }:
 --   Stufe 1 (eigenes Gebiet)   zone (mit here = true), coords und distance; in einer Instanz nur zone
 --   Stufe 2 (gleicher Kontinent)  zone und distance (Luftlinie, wenn bekannt)
 --   Stufe 3 (sonst)            zone (Zone oder Instanz)
 --   Stufe 4                    nichts
--- tag ist der Name des anderen Addons bei Orten, die nur von dort kommen. Option showLocations schaltet alles aus.
+-- tag = Anbietername bei rein externen Orten. showLocations aus: leer.
 function GT:LocationList(source)
     local profile = self.db.profile
     local spot = source.spot
@@ -95,9 +92,8 @@ local function Colored(color, text)
     return color .. text .. "|r"
 end
 
--- Markierung für den Ort, an dem man sich gerade befindet: Textur aus Media/Markers (Symbol_Farbe.tga, 64x64).
--- Ein Tooltip kann Texturen nicht sicher einfärben, deshalb gibt es jedes Symbol fertig in jeder Farbe.
--- Einstellbar über showHereIcon (an/aus), hereIcon (Symbol) und hereColor (Farbe).
+-- Markierung für den eigenen Ort: Media/Markers (Symbol_Farbe.tga, 64x64), je Farbe vorgefertigt, da
+-- Tooltips Texturen nicht sicher einfärben. Optionen: showHereIcon, hereIcon, hereColor.
 local MEDIA_PATH = "Interface\\AddOns\\Glimpse_GatheringTooltip\\Media\\Markers\\"
 
 -- Symbole in der Reihenfolge der Auswahl; size ist die Höhe im Tooltip in Pixel
@@ -110,8 +106,8 @@ GT.MarkerIcons = {
 }
 GT.MarkerColors = { "blue", "white", "yellow", "green", "red" }
 
--- Bildnachweis der Markierungs-Symbole (Media/Markers): Icons von Flaticon, kostenlose Lizenz mit Namensnennung.
--- Die Symbole sind umgefärbt und als TGA umgewandelt. Dieselben Angaben stehen in README.md und Media/Markers/CREDITS.md.
+-- Bildnachweis Media/Markers: Icons von Flaticon (frei mit Namensnennung), umgefärbt, als TGA.
+-- Gleiche Angaben in README.md und Media/Markers/CREDITS.md.
 GT.IconCredits = {
     { key = "pin", author = "Karacis", url = "https://www.flaticon.com/de/kostenloses-icon/ort_5338544" },
     { key = "pinsolid", author = "Magnific", url = "https://www.flaticon.com/de/kostenloses-icon/standort_3699580" },
@@ -157,14 +153,13 @@ function GT:FormatCoords(entry)
     if entry.coords then return Colored(COORD_COLOR, "(" .. entry.coords .. ")") end
 end
 
---- Entfernung als Text in der Einheit, die der Spieler in den Glimpse-Optionen gewählt hat (Yards oder Meter,
--- automatisch nach der Sprache des Clients). Die Berechnung liegt im Kern, damit alle Erweiterungen sie nutzen.
+--- Entfernung in der in Glimpse gewählten Einheit (Yards/Meter, Standard nach Client-Sprache). Rechnung im Kern.
 function GT:FormatDistance(yards)
     return Glimpse:GetModule("Locations"):FormatDistance(yards)
 end
 
---- Ort als Text: (Loch Modan - 2288 yd - GatherMate2) mit blauer Zone, weißer Entfernung und grauem Anbieter;
--- der eigene Ort beginnt mit einer Pfeil
+--- Ort als Text, z. B. (Loch Modan - 2288 yd - GatherMate2): Zone blau, Entfernung weiß, Anbieter grau,
+-- eigener Ort mit Markierung davor.
 function GT:FormatPlace(entry)
     local separator = Colored(TAG_COLOR, " - ")
     local parts = {}
@@ -179,14 +174,12 @@ end
 -- Tabelle: Name, Koordinaten und Zone stehen in allen Quellen untereinander
 -- ---------------------------------------------------------------------------
 
--- Ein Tooltip hat nur zwei Spalten (links, rechts). Die Spalten im linken Teil entstehen, indem der
--- Text gemessen und mit Leerzeichen aufgefüllt wird:
+-- Tooltips haben nur zwei Spalten. Die linken Spalten entstehen durch Messen und Auffüllen mit Leerzeichen:
 --
 --   [Symbol] Silberblatt             (41, 57)  [Pin] (Dun Morogh - 120 yd)
 --   [Symbol] Waldwolf (Stufe 12)               (Dunkelküste - 2300 yd - GatherMate2)
 --
--- Gemessen wird mit einer unsichtbaren Textzeile im Schriftbild des Tooltips. Ohne sie (Tests) zählen die
--- Zeichen.
+-- Gemessen wird mit einer unsichtbaren Textzeile im Tooltip-Font, ohne sie (Tests) per Zeichenzahl.
 
 local GAP = 8 -- Abstand zwischen den Spalten in Pixel
 
@@ -228,9 +221,8 @@ local function Pad(width)
     return string.rep(" ", math.max(0, math.floor(width / space + 0.5)))
 end
 
---- Richtet die Fundorte mehrerer Quellen als Tabelle aus. items: Liste von { name, locations } (locations
--- aus LocationList, höchstens ein Eintrag). Setzt je Eintrag text: Name, Koordinatenspalte und Ort. Fehlen
--- Koordinaten, bleibt die Spalte leer (Leerraum), damit die Orte untereinander stehen.
+--- Richtet Fundorte mehrerer Quellen als Tabelle aus. items: { name, locations } (aus LocationList, max.
+-- ein Eintrag), setzt je Eintrag text. Ohne Koordinaten bleibt die Spalte leer, die Orte stehen trotzdem untereinander.
 function GT:AlignLocations(items)
     local nameWidth, coordWidth = 0, 0
     for _, item in ipairs(items) do
