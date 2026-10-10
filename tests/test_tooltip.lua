@@ -1,7 +1,7 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Symbole, Fundorte und Tabelle im Tooltip eines Handwerksmaterials (GatheringTooltip/Tooltip/Sources.lua und Tooltip.lua)
+-- Symbole, Fundorte und Tabelle im Tooltip eines Handwerksmaterials (Core/Tooltip/Sources.lua und Tooltip.lua)
 local function setup(profile)
     local Glimpse = stub.newGlimpse()
     local GT = Glimpse:NewModule("GatheringTooltip")
@@ -9,8 +9,8 @@ local function setup(profile)
     GT.db = { profile = { showLocations = true, showCoords = true, showDistance = true, showSourceIcons = true, showAttempts = true, minChance = 10 } }
     for key, value in pairs(profile or {}) do GT.db.profile[key] = value end
     GT.data = { GetMapName = function(_, map) return ({ [37] = "Elwynn", [14] = "Dunkelküste", [10] = "Düsterwald" })[map] end }
-    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
-    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Waypoint.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_Gathering/Core/Tooltip/Sources.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Tooltip/Waypoint.lua", "Glimpse_Gathering")
     GT.db.profile.waypointKey = GT.db.profile.waypointKey or "CTRL-G"
     GT.db.profile.showWaypointHint = GT.db.profile.showWaypointHint == true -- die Hinweiszeile zählt in anderen Tests nicht mit
     return GT
@@ -119,7 +119,7 @@ end)
 
 local BLUE, YELLOW, WHITE, GREY = "|cff66ccff", "|cffffff78", "|cffffffff", "|cff999999"
 local SEP = GREY .. " - |r"
-local HERE = "|TInterface\\AddOns\\Glimpse_GatheringTooltip\\Media\\Markers\\pinsolid_blue.tga:11|t "
+local HERE = "|TInterface\\AddOns\\Glimpse_Gathering\\Media\\Markers\\pinsolid_blue.tga:11|t "
 
 test("Tooltip: Fundort wird mit Farben formatiert", function()
     local GT = setup()
@@ -158,7 +158,7 @@ local function itemRows(GT, sources, maxSources)
 
     local callbacks = {}
     function GT:RegisterTooltipLine(kind, func) callbacks[kind] = func end
-    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_Gathering/Core/Tooltip/Tooltip.lua", "Glimpse_Gathering")
     GT:RegisterTooltips()
     return callbacks[3](GT, { id = 100 }, {})
 end
@@ -187,7 +187,7 @@ test("Tooltip: Quellzeile mit Symbol, Name und Fundort in einer Zeile", function
     eq(rows[3][1]:find(GT:FormatPlace({ zone = "Dunkelküste", distance = 2300 }), 1, true) ~= nil, true, "Zone und Entfernung")
     eq(rows[3].icon, "Interface\\Icons\\INV_Misc_Pelt_Wolf_01", "Pelz")
 
-    -- die Mindestchance und die Trennung gehen an GatheringDB (Prozent in Bruchteile)
+    -- die Mindestchance und die Trennung gehen an GatheringData (Prozent in Bruchteile)
     near(GT.lastCall.minChance, 0.15, "Mindestchance")
     eq(GT.lastCall.separate, nil, "Trennung (Standard des Profils)")
 end)
@@ -246,7 +246,7 @@ local function sourceRows(profile, kind, data)
     local callbacks = {}
     function GT:RegisterTooltipLine(k, func) callbacks[k] = func end
     GT.NodeSkillRow, GT.UnitSkillRow = function() end, function() end -- die Skill-Zeilen testet test_skills.lua
-    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_Gathering/Core/Tooltip/Tooltip.lua", "Glimpse_Gathering")
     GT:RegisterTooltips()
     return callbacks[kind == "node" and 1 or 2](GT, data, {})
 end
@@ -352,7 +352,7 @@ test("Tooltip: Tooltip.lua lässt sich laden", function()
     local GT = setup()
     GT.IsLearned = function() return true end
     _G.C_Item = {}
-    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Tooltip.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_Gathering/Core/Tooltip/Tooltip.lua", "Glimpse_Gathering")
     eq(type(GT.RegisterTooltips), "function", "RegisterTooltips")
 end)
 
@@ -373,7 +373,7 @@ test("Tooltip: zu jedem Symbol und jeder Farbe gibt es eine Datei", function()
     eq(#GT.MarkerIcons <= 5, true, "höchstens fünf Symbole")
     for _, icon in ipairs(GT.MarkerIcons) do
         for _, color in ipairs(GT.MarkerColors) do
-            local f = io.open("Glimpse_GatheringTooltip/Media/Markers/" .. icon.key .. "_" .. color .. ".tga", "rb")
+            local f = io.open("Glimpse_Gathering/Media/Markers/" .. icon.key .. "_" .. color .. ".tga", "rb")
             eq(f ~= nil, true, icon.key .. "_" .. color)
             if f then f:close() end
         end
@@ -390,7 +390,7 @@ test("Tooltip: Optionen für die Markierung lassen sich bauen", function()
         if name == "AceConfigRegistry-3.0" then return { NotifyChange = function() end } end
         return realLibStub(name)
     end
-    stub.load("Glimpse_GatheringTooltip/Core/Options.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_Gathering/Core/Options.lua", "Glimpse_Gathering")
     Glimpse.name = Glimpse.name or "Glimpse"
     local group = GT:BuildMarkerOptions()
     eq(group.inline, true, "Gruppe")
@@ -413,7 +413,7 @@ test("Tooltip: Fundort-Optionen stehen in einer Gruppe mit zwei Haken je Reihe",
     local GT = setup()
     local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
     function GT:RefreshTooltip() end
-    GT.data = {}
+    GT.data = { BuildRecordingOptions = function() return { recording = {} } end }
     function Glimpse:BuildModifierOptions() return {} end
     local realLibStub = _G.LibStub
     _G.LibStub = function(name)
@@ -421,10 +421,11 @@ test("Tooltip: Fundort-Optionen stehen in einer Gruppe mit zwei Haken je Reihe",
         return realLibStub(name)
     end
     Glimpse.name = Glimpse.name or "Glimpse"
-    stub.load("Glimpse_GatheringTooltip/Core/Options.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_Gathering/Core/Options.lua", "Glimpse_Gathering")
     local options = GT:BuildOptions()
     _G.LibStub = realLibStub
 
+    eq(options.recording.args.recording ~= nil, true, "Tab Erfassen aus dem Datenteil")
     local items = options.items.args
     eq(items.display.inline, true, "Gruppe Darstellung")
     for _, key in ipairs({ "showLocations", "showCoords", "showDistance", "showAttempts" }) do
@@ -572,7 +573,7 @@ end)
 
 test("Tooltip: jedes Markierungs-Symbol hat einen Bildnachweis in CREDITS.md", function()
     local GT = setup()
-    local file = assert(io.open(stub.root .. "/Glimpse_GatheringTooltip/Media/Markers/CREDITS.md"))
+    local file = assert(io.open(stub.root .. "/Glimpse_Gathering/Media/Markers/CREDITS.md"))
     local text = file:read("a")
     file:close()
     local _, links = text:gsub("| https://www%.flaticon%.com/", "")

@@ -214,13 +214,24 @@ local function NewDebugger(name)
     return debugger
 end
 
---- Glimpse (nachgebaut) mit Locations, die echte Glimpse_Database und Glimpse: GatheringDB nach seiner XML
--- (ohne Locales), dazu OnInitialize, PLAYER_LOGIN und OnEnable wie im Client. options:
---   saved       SavedVariables vor dem Laden ({ GlimpseGatheringDB = ..., GlimpseDB_Meta = ... })
+--- Glimpse (nachgebaut) mit Locations, die echte Glimpse_Database und der Datenteil von Glimpse: Gathering nach
+-- seiner XML (ohne Locales und Anzeige), dazu OnInitialize, PLAYER_LOGIN und OnEnable wie im Client. options:
+--   saved       SavedVariables vor dem Laden ({ GlimpseGatheringNames = ..., GlimpseDB_Meta = ... })
 --   noDatabase  ohne Glimpse_Database
+--   display     auch den Anzeigeteil laden und GatheringTooltip:OnInitialize aufrufen (stub.lastOptions)
 --   noEnable    nur bis OnInitialize und PLAYER_LOGIN
 --   api         Ersatz für Einträge in DB.api (Blizzard-Funktionen)
--- Gibt das Modul GatheringDB und Glimpse zurück.
+-- Gibt das Modul GatheringData und Glimpse zurück.
+-- Locales und Anzeigeteil (Modul GatheringTooltip) lädt jeder Test selbst
+local DISPLAY = { "/Locales/", "/Core/Tooltip/", "/Core/GatheringTooltip.lua", "/Core/Professions.lua", "/Core/Options.lua" }
+
+local function IsDisplayFile(file)
+    for _, part in ipairs(DISPLAY) do
+        if file:find(part, 1, true) then return true end
+    end
+    return false
+end
+
 function stub.newGatheringDB(options)
     options = options or {}
     -- neuer Start: alte Frames und Daten (außer GatherMate2) vergessen
@@ -234,7 +245,11 @@ function stub.newGatheringDB(options)
     function Glimpse:NewDebugger(name) return NewDebugger(name) end
     function Glimpse:RegisterProbe(group, name, func) self.probes[group .. " " .. name] = func end
     function Glimpse:RegisterDataSource(addon, func) self.dataSources[addon] = func end
-    function Glimpse:RegisterAddonOptions(_, options) self.options = options end
+    function Glimpse:RegisterAddonOptions(addon, args, tabs)
+        self.options = args
+        stub.lastOptions = { addon = addon, args = args, tabs = tabs }
+    end
+    function Glimpse:BuildModifierOptions() return { type = "group", args = {} } end
     function Glimpse:Print(text) stub.printed[#stub.printed + 1] = text end
     function Glimpse:IsDebug() return stub.debugOn ~= false end
     function Glimpse:DebugTag(addon) return "[" .. tostring(addon or self.name) .. "]" end
@@ -262,13 +277,15 @@ function stub.newGatheringDB(options)
     end
     if not options.noDatabase then stub.loadDatabase(options.saved) end
 
-    local addon = stub.root .. "/Glimpse_GatheringDB"
-    for _, file in ipairs(XmlFiles(addon .. "/Glimpse_GatheringDB.xml", {})) do
-        if not file:find("/Locales/", 1, true) then assert(loadfile(file))("Glimpse_GatheringDB") end
+    local addon = stub.root .. "/Glimpse_Gathering"
+    for _, file in ipairs(XmlFiles(addon .. "/Glimpse_Gathering.xml", {})) do
+        local skip = file:find("/Locales/", 1, true) or (not options.display and IsDisplayFile(file))
+        if not skip then assert(loadfile(file))("Glimpse_Gathering") end
     end
-    local DB = Glimpse:GetModule("GatheringDB")
+    local DB = Glimpse:GetModule("GatheringData")
     for name, func in pairs(options.api or {}) do DB.api[name] = func end
     DB:OnInitialize()
+    if options.display then Glimpse:GetModule("GatheringTooltip"):OnInitialize() end
     if not options.noDatabase then stub.login() end
     if not options.noEnable then DB:OnEnable() end
     return DB, Glimpse

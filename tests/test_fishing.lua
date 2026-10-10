@@ -1,7 +1,7 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Angeln: GatheringDB zeichnet nichts mehr auf, liest aber den Namespace fishing (schreibt Glimpse: Professions).
+-- Angeln: Gathering zeichnet nichts auf, liest aber den Namespace fishing (schreibt Glimpse: Professions).
 -- Hier übernimmt der Test die Rolle von Professions. Items: 300 = Fisch, 301 = Edelstein.
 local function setup(api)
     local DB = stub.newGatheringDB({ api = api })
@@ -97,7 +97,7 @@ test("Angeln: Symbol und Überschrift im Tooltip", function()
     local GT = Glimpse:NewModule("GatheringTooltip")
     GT.L = Glimpse.L
     GT.db = { profile = { showLocations = true } }
-    stub.load("Glimpse_GatheringTooltip/Core/Tooltip/Sources.lua", "Glimpse_GatheringTooltip")
+    stub.load("Glimpse_Gathering/Core/Tooltip/Sources.lua", "Glimpse_Gathering")
     eq(GT:SourceIcon({ kind = "fishing" }), "Interface\\Icons\\Trade_Fishing", "Symbol")
     local key, title = GT:SourceGroup({ kind = "fishing" })
     eq(key, "fishing", "Gruppe"); eq(title, "Fishing", "Überschrift")

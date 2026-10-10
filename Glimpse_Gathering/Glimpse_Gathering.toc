@@ -1,0 +1,21 @@
+## Interface: 16001
+## Title: Glimpse: Gathering
+## Notes: Learns what gathering nodes and creatures drop while you play and shows it in their tooltips, with drop chances and the best places for each material.
+## Notes-deDE: Lernt beim Spielen, was Sammelknoten und Kreaturen fallen lassen, und zeigt es in ihren Tooltips, mit Drop-Chancen und den besten Fundorten jedes Materials.
+
+## Version: 0.3.6-alpha.1
+## Author: N3zr0k
+## X-License: MIT
+## X-Website: https://github.com/N3zr0k/Glimpse_Gathering
+## X-Repo: https://github.com/N3zr0k/Glimpse_Gathering
+## X-Curse-Project-ID: 1730186
+
+## Category: Tooltip
+## IconTexture: Interface\AddOns\Glimpse_Gathering\Media\Icon
+## X-Glimpse-MinVersion: 0.3.33
+## Dependencies: Glimpse, Glimpse_Database
+## OptionalDeps: GatherMate2, TomTom
+# GlimpseGatheringNames: Namen von Knoten, Kreaturen und Instanzen (Database speichert nur IDs)
+## SavedVariables: GlimpseGatheringNames
+
+Glimpse_Gathering.xml

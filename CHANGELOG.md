@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.6] - 2026-10-10
+
+### Changed
+- GatheringDB and GatheringTooltip are now one addon, Glimpse: Gathering (delete the old folders)
+- One options page with the new tab Recording
+- Names of nodes and creatures are learned again
+- Requires Glimpse 0.3.33
+
 ## [0.3.5] - 2026-10-10
 
 ### Changed

@@ -1,12 +1,9 @@
-# Ein Repo, zwei Addons: Der Packager baut alles in einen Ordner Glimpse_Gathering und
-# verschiebt die beiden Addon-Ordner danach auf die oberste Ebene des ZIPs. LICENSE und CHANGELOG
-# des Repos bleiben draußen (jeder Addon-Ordner hat seine eigene LICENSE), sonst bliebe ein leerer
-# Ordner Glimpse_Gathering im ZIP.
+# Ein Addon-Ordner im Repo (Glimpse_Gathering/), alles andere liegt daneben. Der Packager baut im Ordner
+# Glimpse_Gathering, schiebt den Inhalt des Addon-Ordners eine Ebene hoch; was außen liegt, bleibt über "ignore" draußen.
 package-as: Glimpse_Gathering
 
 move-folders:
-  Glimpse_Gathering/Glimpse_GatheringDB: Glimpse_GatheringDB
-  Glimpse_Gathering/Glimpse_GatheringTooltip: Glimpse_GatheringTooltip
+  Glimpse_Gathering/Glimpse_Gathering: Glimpse_Gathering
 
 # Beziehungen auf CurseForge (Kurznamen der Projekte); externe Addons werden nicht gemeldet
 required-dependencies:

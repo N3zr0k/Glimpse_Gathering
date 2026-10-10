@@ -3,44 +3,44 @@
 ## Aufbau
 
 ```
-Glimpse_GatheringDB/        Daten erfassen (Schreiber des Namespace gathering in Glimpse: Database) und lesen
-  Core/                     Modul, Optionen, Compat (Beute-Funktionen; Karten und Position kommen aus dem Glimpse-Modul Locations)
+Glimpse_Gathering/          das Addon (bis 0.3.5 zwei Addons, GatheringDB und GatheringTooltip)
+  Core/                     Module GatheringData (erfassen, lesen) und GatheringTooltip (Anzeige), Compat (Beute-Funktionen;
+                            Karten und Position kommen aus dem Glimpse-Modul Locations), Professions (gelernte Berufe),
+                            Options (eine Seite mit Tabs), OptionsRecording (Tab Erfassen)
     Data/                   Lesen: Drops (Beute, Quellen, Statistik), Spots (Fundorte), Names (Namen, eigene SavedVariable),
                             Providers und GatherMate2 (Fundorte anderer Addons), Sources (Orte eines Items), SkillData, Skills
     Loot/                   Erfassen: Loot (gemeinsamer Zustand, Zählhilfen), NodeDB, CreatureDB, SkinningDB (je ein Thema),
                             LootWindow (Beutefenster), LootKills, LootArea (Debug Gebiet), LootEvents (Event-Frame, Start/Stop)
-  Modules/Debug/            Rohdaten im Tooltip (Debugger-Kategorie tooltip), Probes (/gli probe gathering ...)
-  Locales/                  enUS, deDE
-  Media/                    Icon
-Glimpse_GatheringTooltip/   Anzeige
-  Core/                     Modul, Optionen (Tabs), Professions (gelernte Berufe)
     Tooltip/                Tooltip (Zeilen für Knoten, Kreaturen und Items), Sources (Orte, Symbole, Gruppen), Waypoint (Wegpunkt-Taste)
+  Modules/Debug/            Rohdaten im Tooltip (Debugger-Kategorie tooltip), Probes (/gli probe gathering ...)
   Locales/                  enUS, deDE
   Media/                    Icon, Markierungen (Markers)
 tests/                      Logik-Tests ohne WoW (mit der echten Glimpse_Database aus dem Kern)
 ```
 
-Beide Addons haben eine zentrale XML und pro Ordner eine eigene XML, wie der Core.
+Eine zentrale XML und pro Ordner eine eigene XML, wie der Core. Die Einstellungen liegen weiter in den Namespaces
+`GatheringDB` und `GatheringTooltip` von `Glimpse.db`, damit sie aus der Zeit der zwei Addons erhalten bleiben.
 
 ## Mit den Dateien arbeiten
 
-Ein Klon des Repos liegt außerhalb des AddOns-Ordners, beide Addon-Ordner werden verlinkt:
+Ein Klon des Repos liegt außerhalb des AddOns-Ordners, der Addon-Ordner wird verlinkt:
 
 ```
 # Windows (PowerShell als Administrator, oder Entwicklermodus)
-mklink /J "...\Interface\AddOns\Glimpse_GatheringDB"      "C:\dev\Glimpse_Gathering\Glimpse_GatheringDB"
-mklink /J "...\Interface\AddOns\Glimpse_GatheringTooltip" "C:\dev\Glimpse_Gathering\Glimpse_GatheringTooltip"
+mklink /J "...\Interface\AddOns\Glimpse_Gathering" "C:\dev\Glimpse_Gathering\Glimpse_Gathering"
 
 # macOS / Linux
-ln -s ~/dev/Glimpse_Gathering/Glimpse_GatheringDB      "<AddOns>/Glimpse_GatheringDB"
-ln -s ~/dev/Glimpse_Gathering/Glimpse_GatheringTooltip "<AddOns>/Glimpse_GatheringTooltip"
+ln -s ~/dev/Glimpse_Gathering/Glimpse_Gathering "<AddOns>/Glimpse_Gathering"
 ```
+
+Die alten Ordner `Glimpse_GatheringDB` und `Glimpse_GatheringTooltip` müssen weg, sonst laufen zwei Sammler (das Addon
+meldet das beim Start).
 
 Änderungen sind dann nach `/reload` im Spiel.
 
-## Öffentliche Schnittstelle von GatheringDB (API_VERSION 11)
+## Lese-Schnittstelle des Moduls GatheringData (API_VERSION 11)
 
-Erreichbar über `Glimpse.GatheringDB` (oder `Glimpse:GetModule("GatheringDB")`). Die Schnittstelle ist eine dünne
+Erreichbar über `Glimpse:GetModule("GatheringData")`, gedacht für die Anzeige im selben Addon. Die Schnittstelle ist eine dünne
 Schicht über `GlimpseDB:Get("gathering")` und `GlimpseDB:Get("fishing")`; Weltwissen wird mit Scope `"all"` gelesen
 (alle Charaktere, Importe und die Übernahme). Die zurückgegebenen Tabellen sind nur zum Lesen gedacht.
 
@@ -57,7 +57,7 @@ Schicht über `GlimpseDB:Get("gathering")` und `GlimpseDB:Get("fishing")`; Weltw
 | `:GetOwnSpots(kind, id)` | nur die eigenen Fundorte |
 | `:GetNearestSpots(kind, id, limit, currentMapOnly)` | wie `GetSpots`, aber die Orte auf der Karte des Spielers zuerst, nach Entfernung: `distance` in Yards (nur wenn die Kartengröße bekannt ist), `mapDistance` als Bruchteil der Kartenbreite |
 | `:GetItemSpots(itemID, minAttempts, limit, includeExternal)` | Fundorte aller Quellen eines Items: `{ map, x, y, count, source, density, kind, id, mode, name, chance }` |
-| `:GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)` | Die Orte der Quellen eines Items, geordnet nach "wo findet man es am besten". Ein Eintrag ist eine Quelle an einem Ort (Zone oder Instanz): eine Quelle in drei Zonen ergibt drei Einträge, mehrere Orte derselben Zone einen (Kopien der Einträge von `GetItemSources` mit `tier`, `area`, `group`, `spot`, `spots`, `place`). Stufen: 1 `"here"` (Gebiet des Spielers: Karte oder Instanz), 2 `"nearby"` (andere Karte desselben Kontinents, nach Entfernung in Yards, ab `minChance` (0 bis 1)), 3 `"elsewhere"` (anderer Kontinent oder andere Instanz), 4 `"none"` (kein Ort, ein Eintrag je Quelle). Innerhalb einer Stufe zuerst `group = "own"` (bestätigter Ort), dann `"external"` (Ort nur von einem anderen Addon); danach in Stufe 1 und 3 die höchste Chance. Ein Ort in der eigenen Zone zählt auch, wenn er nur extern belegt ist. `spot` ist der beste Ort des Eintrags. `externalSeparate = false`: externe zählen wie bestätigte (Standard `true`; die Option dafür liegt in GatheringTooltip, Tab Handwerksmaterial) |
+| `:GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)` | Die Orte der Quellen eines Items, geordnet nach "wo findet man es am besten". Ein Eintrag ist eine Quelle an einem Ort (Zone oder Instanz): eine Quelle in drei Zonen ergibt drei Einträge, mehrere Orte derselben Zone einen (Kopien der Einträge von `GetItemSources` mit `tier`, `area`, `group`, `spot`, `spots`, `place`). Stufen: 1 `"here"` (Gebiet des Spielers: Karte oder Instanz), 2 `"nearby"` (andere Karte desselben Kontinents, nach Entfernung in Yards, ab `minChance` (0 bis 1)), 3 `"elsewhere"` (anderer Kontinent oder andere Instanz), 4 `"none"` (kein Ort, ein Eintrag je Quelle). Innerhalb einer Stufe zuerst `group = "own"` (bestätigter Ort), dann `"external"` (Ort nur von einem anderen Addon); danach in Stufe 1 und 3 die höchste Chance. Ein Ort in der eigenen Zone zählt auch, wenn er nur extern belegt ist. `spot` ist der beste Ort des Eintrags. `externalSeparate = false`: externe zählen wie bestätigte (Standard `true`; die Option dafür steht im Tab Handwerksmaterial) |
 | `:GetRequiredSkill(kind, id, level)` | Beruf (`"herb"`, `"ore"`, `"skinning"`), benötigter Skill, bei Kreaturen dazu, ob sie als kürschnerbar bekannt sind (Kürschner-Beute aufgezeichnet). `kind` = `"node"` (Objekt-ID) oder `"npc"` (Kreatur-ID, `level` = Stufe, ohne Angabe die gespeicherte). nil ohne Ergebnis (unbekannter Knoten, Boss-Stufe). Die Tabellen stehen in `Core/Data/SkillData.lua` (Quellen dort im Kopf), nicht in den SavedVariables |
 | `:GetNodeSkill(id)` / `:GetSkinningSkill(level)` | dasselbe einzeln. Ein Knoten, der nicht in der Tabelle steht, aber aufgezeichnet ist, wird über sein Material zugeordnet, wenn alle Materialien denselben Skill verlangen |
 | `:GetSkillColor(required, current)` | `"red"` (reicht nicht), `"orange"` (ab `required`), `"yellow"` (+25), `"green"` (+50), `"gray"` (+100), dazu r, g, b |
@@ -77,7 +77,7 @@ mode ("gather"|"loot"|"skinning"), name, level, category, attempts, hits, amount
 `(event, namespace, kind, id)`, Namespace `"gathering"` bzw. `"fishing"` (nil = vieles auf einmal, z. B. Import).
 Die Nachricht `GLIMPSE_GATHERING_UPDATED` gibt es nicht mehr.
 
-Wer `API_VERSION` nutzt, prüft `(GatheringDB.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 4 = `GetLocatedItemSources`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt; 6 = `GetNPCKills`, `GetStats` liefert die Kills als fünften Wert (beides mit 10 entfernt); 7 = Skill-Funktionen `GetRequiredSkill`, `GetSkillColor`, `GetPlayerSkill` und Verwandte). 9 = `IsFishing`, `IsBobber`, `GetPlayerSkill("fishing")`; 8 = Angeln (`GetFishing`, `GetFishingDrops`, Quelle `"fishing"`, `GetStats` liefert Zonen und Würfe als sechsten und siebten Wert, Datenversion 6, Export enthält `fishing`). 10 = der Kill-Zähler ist weg: `GetNPCKills` und `RecordKill` entfallen, `GetStats` liefert Angelzonen und Würfe als fünften und sechsten Wert. 11 = Daten in Glimpse: Database: `ExportData`, `ImportData`, `ResetData`, `IsFishing`, `IsBobber`, `AddFishingItems`, `RecordFishing` und die Nachricht `GLIMPSE_GATHERING_UPDATED` entfallen; `GetStats` liefert Angel-Beutefenster statt Würfe; Fundorte von Kreaturen nur noch als Zone; neu `GetNodeName`, `GetNPCName`, `GetInstanceName`. GatheringTooltip verlangt Version 11.
+Wer `API_VERSION` nutzt, prüft `(GatheringData.API_VERSION or 0) >= 3` (2 = Fundorte, Export/Import; 3 = Fundorte aus anderen Addons, `GetNearestSpots`; 4 = `GetLocatedItemSources`; 5 = Karten, Position und Entfernungen sind in das Glimpse-Modul `Locations` gewandert, `GetMapSize`, `GetMapDistance`, `GetContinent`, `GetWorldPosition`, `GetPlayerArea` entfallen hier, `GetMapName` bleibt; 6 = `GetNPCKills`, `GetStats` liefert die Kills als fünften Wert (beides mit 10 entfernt); 7 = Skill-Funktionen `GetRequiredSkill`, `GetSkillColor`, `GetPlayerSkill` und Verwandte). 9 = `IsFishing`, `IsBobber`, `GetPlayerSkill("fishing")`; 8 = Angeln (`GetFishing`, `GetFishingDrops`, Quelle `"fishing"`, `GetStats` liefert Zonen und Würfe als sechsten und siebten Wert, Datenversion 6, Export enthält `fishing`). 10 = der Kill-Zähler ist weg: `GetNPCKills` und `RecordKill` entfallen, `GetStats` liefert Angelzonen und Würfe als fünften und sechsten Wert. 11 = Daten in Glimpse: Database: `ExportData`, `ImportData`, `ResetData`, `IsFishing`, `IsBobber`, `AddFishingItems`, `RecordFishing` und die Nachricht `GLIMPSE_GATHERING_UPDATED` entfallen; `GetStats` liefert Angel-Beutefenster statt Würfe; Fundorte von Kreaturen nur noch als Zone; neu `GetNodeName`, `GetNPCName`, `GetInstanceName`.
 
 Für TomTom: `GetSpots`/`GetItemSpots` liefern `map` (uiMapID) und `x`, `y` als Bruchteil 0..1, also direkt
 `TomTom:AddWaypoint(spot.map, spot.x, spot.y, { title = ... })`.
@@ -104,7 +104,7 @@ Orte (ID = Objekt)              Fundorte der Knoten (ns:AddLocation)
 * Orte tragen in Database keine Art. Damit sich Objekt- und NPC-IDs nicht mischen, bekommen nur Knoten Orte; Kreaturen
   haben nur Zonen. Orte näher als `DB.SPOT_RADIUS` (1 % der Karte) an einem eigenen Ort werden nicht noch einmal angelegt.
 * Angeln schreibt Glimpse: Professions in den Namespace `fishing` (`looted [Zone]`, `loot:<Zone> [Item]`,
-  `drop:<Zone> [Item]`). GatheringDB liest ihn nur, Angelbeute (`IsFishingLoot()`) wird hier übersprungen.
+  `drop:<Zone> [Item]`). Gathering liest ihn nur, Angelbeute (`IsFishingLoot()`) wird hier übersprungen.
 * Daten einer neueren Version (`Register` meldet `NEWER_DATA`) rührt das Addon nicht an und zeichnet nicht auf.
 * Grenzen gibt es keine mehr, Speicher und Bereinigung übernimmt Database.
 
@@ -115,7 +115,6 @@ Database speichert nur IDs. Namen, die der Client nicht aus einer ID liefern kan
 nodes[objectID] = Name        -- nur ergänzt, der Zielname eines Zaubers ist nicht immer der Knoten
 npcs[npcID] = Name, levels[npcID] = Stufe
 instances[instanceID] = Name
-taken = Zeitpunkt der Übernahme aus GlimpseGatheringDB (einmalig)
 ```
 
 Knoten-Tooltips in der Welt haben weder GUID noch ID, nur den Namen; deshalb `FindNodeIDs` über diese Namen. Knoten
@@ -123,10 +122,9 @@ aus einem Import, die nie selbst gesehen wurden, haben keinen Namen.
 
 ### Übernahme alter Daten
 
-Die alte SavedVariable `GlimpseGatheringDB` (bis 0.2.10) bleibt in der TOC, damit sie geladen wird. Beim ersten
-Login mit einer Alpha von Glimpse: Database übernimmt deren `AlphaMigration` Knoten, Kreaturen und Angeln (Zahlen,
-Zonen, Knoten- und Angelorte) als Weltwissen (Charakter `world`). Die Namen übernimmt `DB:LoadNames()` beim ersten
-Start in `GlimpseGatheringNames`. `GlimpseGatheringDB` selbst wird nie verändert.
+Die alte SavedVariable `GlimpseGatheringDB` (bis 0.2.10) hat Glimpse: Database beim ersten Login mit 0.3.x übernommen
+(`AlphaMigration`, Zahlen, Zonen, Knoten- und Angelorte als Weltwissen). Seit 0.3.6 lädt sie niemand mehr, sie lag im
+Ordner von GatheringDB. Die Namen aus `GlimpseGatheringNames` von GatheringDB sind damit auch weg und werden neu gelernt.
 
 ## Export und Import
 
@@ -182,13 +180,13 @@ Struktur nach.
 
 Geschrieben wird in `NodeDB.lua` (Knoten), `CreatureDB.lua` (Normalbeute) und `SkinningDB.lua` (Kürschnern).
 
-Das sind Heuristiken. Der Debugger `GatheringDB` (`Glimpse:NewDebugger`, Kategorien `node`, `creature`, `skinning`,
+Das sind Heuristiken. Der Debugger `GatheringData` (`Glimpse:NewDebugger`, Kategorien `node`, `creature`, `skinning`,
 `kill`, `area`, `error`, `tooltip`) schreibt pro Beutefenster eine Zeile (`Beutefenster: Typ, ID, Zauber davor,
 Materialien`) und zu jedem Kill, warum er gezählt wurde oder nicht. Fehler in der Auswertung werden abgefangen und
 gezählt (`/gli probe gathering stats`). Weitere Probes: `skill`, `gm2`, `area`, `names`, `fishing [Zone]`,
 `node <ID>`, `npc <ID>`, `item <ID>` (`Modules/Debug/DebugProbes.lua`).
 
-## GatheringTooltip
+## Anzeige (Modul GatheringTooltip)
 
 `Core/Tooltip/Tooltip.lua` baut die Zeilen: Knoten und Kreaturen zeigen ihre Beute wie die Quellen eines Items (Chance,
 Treffer/Versuche, Durchschnitt), Materialien die besten Orte aus `GetLocatedItemSources`. Orte, die nur von einem anderen

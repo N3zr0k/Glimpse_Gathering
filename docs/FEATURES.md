@@ -1,9 +1,9 @@
 # Glimpse: Gathering – Funktionen
 
-Stand 0.3.5-alpha.1. Zwei Addons: Glimpse: GatheringDB (erfasst) und Glimpse: GatheringTooltip (zeigt an).
-Benötigt Glimpse (Core) 0.3.14 oder neuer mit Glimpse: Database.
+Stand 0.3.6-alpha.1. Ein Addon, das erfasst und anzeigt (bis 0.3.5 zwei Addons: GatheringDB und GatheringTooltip).
+Benötigt Glimpse (Core) 0.3.33 oder neuer mit Glimpse: Database.
 
-## GatheringDB
+## Erfassen
 
 | Funktion | Beschreibung | Option (Standard) |
 | --- | --- | --- |
@@ -13,11 +13,11 @@ Benötigt Glimpse (Core) 0.3.14 oder neuer mit Glimpse: Database.
 | Eigene Sammelzähler | Kräuter, Erz, sonstige Knoten und Kürschnern je Charakter und Zone. | – |
 | Fundorte | Knoten mit Zone und Koordinaten (nahe Orte zusammengefasst), Kreaturen nur mit Zone, in Instanzen die Instanz. | Fundorte aufzeichnen (an) |
 | Fremde Fundorte | GatherMate2-Orte werden live hinter die eigenen gehängt, nie gespeichert. Je Anbieter abschaltbar. | Andere Addons (an) |
-| Namen | Namen von Knoten, Kreaturen und Instanzen in einer eigenen SavedVariable, weil Database nur IDs speichert. | – |
-| Lese-API | `Glimpse.GatheringDB` für andere Addons: Beute, Quellen eines Items, Fundorte, Skills. | – |
+| Namen | Namen von Knoten, Kreaturen und Instanzen in einer eigenen SavedVariable, weil Database nur IDs speichert. Seit 0.3.6 neu gelernt. | – |
+| Hinweis auf alte Ordner | Liegen `Glimpse_GatheringDB` oder `Glimpse_GatheringTooltip` noch im AddOns-Ordner, kommt beim Start ein Hinweis im Chat. | – |
 | Debug und Probes | Rohdaten im Tooltip (`/gli debug on`) und `/gli probe gathering stats\|skill\|gm2\|area\|names\|fishing\|node\|npc\|item`. | – |
 
-## GatheringTooltip
+## Anzeige
 
 | Funktion | Beschreibung | Option (Standard) |
 | --- | --- | --- |
@@ -27,16 +27,16 @@ Benötigt Glimpse (Core) 0.3.14 oder neuer mit Glimpse: Database.
 | Markierung | Kleines Symbol am Ort, an dem man steht; fünf Symbole, fünf Farben. | Markierung (an) |
 | Wegpunkt | Taste (Standard Strg+G) setzt einen Wegpunkt zum besten Ort, über TomTom oder die Spielmarkierung. | Taste, Hinweiszeile |
 | Filter | Nur gelernte Berufe, Mindestzahl an Versuchen, nur mit Shift/Strg/Alt. | – |
+| Optionen | Eine Seite mit vier Tabs: Allgemein, Handwerksmaterial, Ziel, Erfassen. | – |
 
 ## Datenbank
 
 | Namespace | Daten | Lesen | Schreiben |
 | --- | --- | --- | --- |
-| `gathering` | `node`, `nodeloot:<Objekt>`, `nodedrop:<Objekt>`, `npc`, `npcloot:<NPC>`, `npcdrop:<NPC>`, `skinned`, `skinloot:<NPC>`, `skindrop:<NPC>` (Weltwissen), `herb`, `ore`, `other`, `skin` (eigene Zähler), Fundorte der Knoten | ja | ja (nur GatheringDB) |
+| `gathering` | `node`, `nodeloot:<Objekt>`, `nodedrop:<Objekt>`, `npc`, `npcloot:<NPC>`, `npcdrop:<NPC>`, `skinned`, `skinloot:<NPC>`, `skindrop:<NPC>` (Weltwissen), `herb`, `ore`, `other`, `skin` (eigene Zähler), Fundorte der Knoten | ja | ja (Besitzer) |
 | `fishing` | Angelbeute und Angelplätze (Schreiber Glimpse: Professions) | ja | nein |
 
-GatheringTooltip greift nie direkt auf Database zu, nur über die Lese-API von GatheringDB.
+Die Anzeige liest über das Modul `GatheringData`, nie direkt.
 
-Außerhalb der Database: `GlimpseGatheringNames` (Namen, GatheringDB), `GlimpseGatheringDB` (alte Daten, nur für die
-Übernahme durch Database, wird nie verändert). Einstellungen in `Glimpse.db`, Namespaces `GatheringDB` und
-`GatheringTooltip`.
+Außerhalb der Database: `GlimpseGatheringNames` (Namen). Einstellungen in `Glimpse.db`, Namespaces `GatheringDB` und
+`GatheringTooltip` (Namen von früher, damit die Einstellungen bleiben).

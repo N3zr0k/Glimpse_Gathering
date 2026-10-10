@@ -10,7 +10,7 @@ ignore = {
 }
 
 -- Globale, die die Addons selbst setzen
-globals = { "Glimpse", "GlimpseDB", "GlimpseGatheringDB", "GlimpseGatheringNames", "SLASH_GLIMPSE1", "StaticPopupDialogs" }
+globals = { "Glimpse", "GlimpseDB", "GlimpseGatheringNames", "SLASH_GLIMPSE1", "StaticPopupDialogs" }
 
 -- Blizzard-API und Mixins (nur lesen)
 read_globals = {
@@ -33,7 +33,7 @@ read_globals = {
     "GetBuildInfo", "GetNumAddOns", "GetAddOnInfo", "GetAddOnDependencies", "MAX_ACCOUNT_MACROS",
     "GetNumBindings", "GetBinding", "GetShapeshiftFormInfo", "GetNumMacros", "GetMacroItem",
     "GetMacroSpell", "ITEM_QUALITY_COLORS",
-    -- Orte, Wegpunkte und Fehlerfenster (Modul Locations, GatheringTooltip); TomTom ist optional
+    -- Orte, Wegpunkte und Fehlerfenster (Modul Locations, Tooltip); TomTom ist optional
     "C_Map", "C_SuperTrack", "UiMapPoint", "CreateVector2D", "IsInInstance", "GetInstanceInfo", "TomTom",
     "StaticPopup_Show", "OKAY", "UISpecialFrames", "YES", "NO",
 }

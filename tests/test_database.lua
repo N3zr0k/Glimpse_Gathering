@@ -46,6 +46,12 @@ local function OldData()
     } }
 end
 
+-- Namen wie in GlimpseGatheringNames, passend zu OldData
+local function Names()
+    return { nodes = { [1731] = "Kupferader" }, npcs = { [100] = "Wolf" }, levels = { [100] = 10 },
+        instances = { [36] = "Die Todesminen" } }
+end
+
 test("Database: Anmeldung als Schreiber von gathering mit den Arten der Übernahme", function()
     local DB = stub.newGatheringDB({ api = api })
     assert(DB.ns, "Schreiber")
@@ -87,11 +93,11 @@ end)
 test("Database: Übernahme alter Daten, gelesen mit scope all", function()
     local old = OldData()
     local before = Copy(old)
-    local DB = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = old } })
+    local DB = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = old, GlimpseGatheringNames = Names() } })
 
     local node = DB:GetNode(1731)
     assert(node, "Knoten übernommen")
-    eq(node.name, "Kupferader", "Name aus der alten SV")
+    eq(node.name, "Kupferader", "Name aus GlimpseGatheringNames")
     eq(node.attempts, 4, "Versuche")
     eq(node.items[2770].hits, 4, "Funde")
     eq(node.items[2770].amount, 6, "Menge")
@@ -116,21 +122,16 @@ test("Database: Übernahme alter Daten, gelesen mit scope all", function()
     eq(#DB:GetOwnSpots("node", 1731), 2, "naher Ort nicht doppelt (nur eigene geprüft, übernommener ist world)")
 
     assert(Same(old, before), "alte SavedVariable unverändert")
-    assert(GlimpseGatheringNames.taken, "Namen übernommen")
 end)
 
-test("Database: Namen werden nur einmal übernommen, eigene bleiben", function()
-    local saved = {
-        GlimpseGatheringDB = OldData(),
-        GlimpseGatheringNames = { nodes = { [1731] = "Kupfervorkommen" }, taken = 1 },
-    }
-    local DB = stub.newGatheringDB({ api = api, saved = saved })
-    eq(DB:GetNodeName(1731), "Kupfervorkommen", "eigener Name")
-    eq(DB:GetNPCName(100), nil, "nach der Übernahme nicht noch einmal")
+test("Database: Namen kommen nur aus GlimpseGatheringNames, nicht aus alten Daten", function()
+    local DB = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData() } })
+    eq(DB:GetNodeName(1731), nil, "alte SV liefert keine Namen")
+    eq(DB:GetNode(1731).attempts, 4, "die Zahlen schon (Glimpse: Database)")
 
-    local fresh = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData() } })
-    eq(fresh:GetNodeName(1731), "Kupferader", "erster Start")
-    eq(#fresh:FindNodeIDs("Kupferader"), 1, "über den Namen auffindbar")
+    DB:SetNodeName(1731, "Kupferader")
+    eq(GlimpseGatheringNames.nodes[1731], "Kupferader", "neu gelernt")
+    eq(#DB:FindNodeIDs("Kupferader"), 1, "über den Namen auffindbar")
 end)
 
 test("Database: neuere Daten pausieren die Aufzeichnung", function()
@@ -153,7 +154,7 @@ test("Database: ohne Glimpse: Database keine Aufzeichnung, aber kein Fehler", fu
 end)
 
 test("Database: Probes der Gruppe gathering", function()
-    local _, Glimpse = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData() } })
+    local _, Glimpse = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData(), GlimpseGatheringNames = Names() } })
     for _, name in ipairs({ "stats", "gm2", "skill", "area", "names", "fishing", "node", "npc", "item" }) do
         assert(Glimpse.probes["gathering " .. name], "Probe " .. name)
     end
@@ -166,7 +167,7 @@ end)
 
 test("Database: Datenquellen für /gli probe db sources", function()
     local _, Glimpse = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData() } })
-    local lines = table.concat(Glimpse.dataSources.Glimpse_GatheringDB(), "\n")
+    local lines = table.concat(Glimpse.dataSources.Glimpse_Gathering(), "\n")
     assert(lines:find("records: namespace gathering (writer)", 1, true), "Schreiber")
     assert(lines:find("fishing: read from namespace fishing", 1, true), "Angeln")
     assert(lines:find("names in GlimpseGatheringNames: Names:", 1, true), "Namen")

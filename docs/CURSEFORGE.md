@@ -1,6 +1,6 @@
 # CurseForge texts: Glimpse: Gathering
 
-One CurseForge project (ID 1730186) for both addons, GatheringDB and GatheringTooltip.
+One CurseForge project (ID 1730186), one addon (up to 0.3.5 two addons, GatheringDB and GatheringTooltip).
 
 ## Project name
 
@@ -17,15 +17,14 @@ Learns where crafting materials come from while you play: drop chances on nodes 
 ## Description
 
 > ## ⚠ Requires the Glimpse core addon
-> **Glimpse: Gathering only works together with [Glimpse](https://www.curseforge.com/wow/addons/glimpse).** Install Glimpse first (version 0.3.14 or newer, with Glimpse: Database), otherwise this addon does not load.
+> **Glimpse: Gathering only works together with [Glimpse](https://www.curseforge.com/wow/addons/glimpse).** Install Glimpse first (version 0.3.33 or newer, with Glimpse: Database), otherwise this addon does not load.
 > 👉 https://www.curseforge.com/wow/addons/glimpse
 
 **Glimpse: Gathering** watches your loot windows and learns which herbs, ores, skins and other crafting materials drop where. It then shows it right in your tooltips.
 
-The package contains two addons:
+It records nodes, creature loot and skinning and shows the results in tooltips.
 
-- **Glimpse: GatheringDB** records nodes, creature loot and skinning.
-- **Glimpse: GatheringTooltip** shows the results in tooltips.
+> Up to version 0.3.5 this project contained two addons, GatheringDB and GatheringTooltip. They are now one addon. If the folders `Glimpse_GatheringDB` and `Glimpse_GatheringTooltip` are still in your AddOns folder, delete them.
 
 ## Tooltips of nodes and creatures
 

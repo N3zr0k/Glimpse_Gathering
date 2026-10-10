@@ -9,16 +9,14 @@
   <a href="https://github.com/N3zr0k/Glimpse_Gathering/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/N3zr0k/Glimpse_Gathering/ci.yml?branch=main&label=CI" alt="CI"></a>
 </p>
 
-Two addons that learn where crafting materials come from while you play, and show it in tooltips: how often a node or
+An addon that learns where crafting materials come from while you play, and shows it in tooltips: how often a node or
 creature drops what, and where to go to get an item.
 
-Requires [Glimpse](https://github.com/N3zr0k/Glimpse) 0.3.14 or newer with Glimpse: Database. For WoW Forever
+Requires [Glimpse](https://github.com/N3zr0k/Glimpse) 0.3.33 or newer with Glimpse: Database. For WoW Forever
 (interface 16001).
 
-| Addon | Role |
-| --- | --- |
-| **Glimpse: GatheringDB** | Records gathering nodes and creature loot (crafting materials and gems, every attempt counts) in Glimpse: Database and offers the data to other addons through a small API. Shows nothing by itself, except raw numbers in debug mode. |
-| **Glimpse: GatheringTooltip** | Shows drop chances and average amounts in the tooltips of nodes, creatures and crafting materials, including the best places to get an item (also fishing spots). Requires GatheringDB. |
+Up to 0.3.5 this was two addons, Glimpse: GatheringDB (recording) and Glimpse: GatheringTooltip (display). Both are now
+one addon, **Glimpse: Gathering**. Delete the old folders `Glimpse_GatheringDB` and `Glimpse_GatheringTooltip`.
 
 ## Contents
 
@@ -61,32 +59,32 @@ Places
 
 ### How the data is recorded
 
-GatheringDB reads every loot window and keeps what is useful for crafting. The numbers are stored in Glimpse: Database
-(namespace `gathering`), names of nodes, creatures and instances in GatheringDB itself.
+Gathering reads every loot window and keeps what is useful for crafting. The numbers are stored in Glimpse: Database
+(namespace `gathering`), names of nodes, creatures and instances in the addon itself.
 
 | Source | What counts |
 | --- | --- |
 | Gathering nodes (herbs, ore, ...) | Every gathering cast that yields a crafting material. Mining the same node several times in a row, or after it respawned, counts every time. Chests do not count. |
 | Creature loot | Every looted creature is one attempt, even without a crafting material (otherwise the chances would be too high). The same corpse does not count twice. |
 | Skinning | Skinning is recognized by the spell that was just cast, or by a corpse that was already looted. |
-| Fishing | Recorded by Glimpse: Professions (namespace `fishing`). GatheringDB only reads it, so the tooltips still show where a fish was caught. |
+| Fishing | Recorded by Glimpse: Professions (namespace `fishing`). Gathering only reads it, so the tooltips still show where a fish was caught. |
 | Kills | Not stored. A kill (the `PARTY_KILL` event) without a loot window counts as an attempt after 2 minutes, but only if the corpse has no loot left. The kills themselves are counted by Glimpse: Statistics. |
 
 * Only crafting materials and gems are stored; armour, weapons and junk are ignored.
 * Creatures are stored by their ID, nodes by their object ID.
 * Your own gathering counts (herbs, ore, other nodes, skinning) are kept per character as well.
 * Data from a newer version is never touched, recording pauses until you update the addon.
-* Data of older versions (up to 0.2.10) is taken over by Glimpse: Database on the first start; the old data stays
-  untouched.
+* Data of versions up to 0.2.10 was taken over by Glimpse: Database with 0.3.x. Names of nodes and creatures stored
+  by GatheringDB (up to 0.3.5) are not taken over; they are learned again while you play.
 
 ### Locations
 
-GatheringDB also remembers **where** you looted: nodes with zone and coordinates (clustered into places), creatures
+Gathering also remembers **where** you looted: nodes with zone and coordinates (clustered into places), creatures
 with their zone only; in dungeons and raids the instance itself. Switch it off with "Record locations".
 
 If [GatherMate2](https://www.curseforge.com/wow/addons/gathermate2) is installed, its node locations are used as
 well, after your own. They are read live, never saved and never exported. Nodes are matched by name, so it works in
-every client language. Each source of outside locations has its own switch in the GatheringDB options.
+every client language. Each source of outside locations has its own switch in the options (tab Recording).
 
 ### Export and import
 
@@ -95,15 +93,7 @@ knowledge (drops and places), not your own gathering counts.
 
 ## Options
 
-Open them with `/gli config`, then Glimpse > Gathering.
-
-**GatheringDB**
-
-* Record gathering data (on/off), Record locations
-* Use locations from other addons, with one switch per source (GatherMate2)
-* Statistics (nodes, creatures, loot windows, locations, fishing zones)
-
-**GatheringTooltip** (tabs)
+Open them with `/gli config`, then Glimpse > Gathering. One page with four tabs:
 
 * **General:** only learned professions, minimum number of attempts before a list is shown, only while Shift/Ctrl/Alt is held
 * **Crafting materials**
@@ -117,12 +107,14 @@ Open them with `/gli config`, then Glimpse > Gathering.
     optional hint line at the end of the tooltip
 * **Target:** show nodes, creature loot, skinning loot, number of items per list; required skill on nodes and on
   creatures (own skill, coloured), only for learned professions, hide gray nodes
+* **Recording:** record gathering data (on/off), record locations, use locations from other addons with one switch
+  per source (GatherMate2), statistics (nodes, creatures, loot windows, locations, fishing zones)
 
 Distances use the unit chosen in the Glimpse options (General): automatic by client language, yards or metres.
 
 ## Commands
 
-GatheringDB has no command of its own. The checks are probes of the Glimpse debugger:
+Gathering has no command of its own. The checks are probes of the Glimpse debugger:
 
 | Command | Does |
 | --- | --- |
@@ -136,24 +128,24 @@ GatheringDB has no command of its own. The checks are probes of the Glimpse debu
 
 With `/gli debug on` the tooltips of nodes, creatures and items show the raw recorded numbers and locations, and the
 chat explains what was recorded or skipped and why. `/gli debug list` shows the categories of the debugger
-`GatheringDB`, `/gli debug GatheringDB <category> on|off` switches one of them.
+`GatheringData`, `/gli debug GatheringData <category> on|off` switches one of them.
 
 ## Installation
 
 Install Glimpse (with Glimpse: Database) first. Unpack the ZIP into the AddOns folder of the Forever client (during the beta, for example
 `D:\Games\World of Warcraft\_classic_beta_\Interface\AddOns`, your install folder will differ). The ZIP contains
-both folders `Glimpse_GatheringDB` and `Glimpse_GatheringTooltip`.
+the folder `Glimpse_Gathering`. Delete the old folders `Glimpse_GatheringDB` and `Glimpse_GatheringTooltip` if you
+still have them.
 
-The data grows while you play; data of an older version is taken over on the first start. Optional: GatherMate2 (more locations) and TomTom (waypoints).
+The data grows while you play. Optional: GatherMate2 (more locations) and TomTom (waypoints).
 
 ## For developers
 
-GatheringDB offers its data to other addons through `Glimpse.GatheringDB` (drops, sources of an item, locations,
-providers for outside locations), as a thin layer over Glimpse: Database. The API and the data format are described in
+Other addons read the data straight from Glimpse: Database (namespace `gathering`). Inside the addon the module
+`GatheringData` offers a thin read layer over it (drops, sources of an item, locations, providers for outside locations). The API and the data format are described in
 [DEVELOPER.md](DEVELOPER.md) (German).
 
-The repository holds the two addon folders `Glimpse_GatheringDB/` and `Glimpse_GatheringTooltip/`; link both into the
-AddOns folder (junction) and `/reload` after each change. The tests need the Glimpse repository next to this one (or
+The repository holds the addon folder `Glimpse_Gathering/`; link it into the AddOns folder (junction) and `/reload` after each change. The tests need the Glimpse repository next to this one (or
 `GLIMPSE_DIR`). Checks:
 
 ```
@@ -166,7 +158,7 @@ python3 tools/check.py
 
 Author: N3zr0k. Special thanks to Flovy and sMash for testing.
 
-The marker icons (`Glimpse_GatheringTooltip/Media/Markers`) are from [Flaticon](https://www.flaticon.com), recolored and converted to TGA:
+The marker icons (`Glimpse_Gathering/Media/Markers`) are from [Flaticon](https://www.flaticon.com), recolored and converted to TGA:
 
 - Pin: icon by Karacis from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/ort_5338544)
 - Solid pin: icon by Magnific from Flaticon, [source](https://www.flaticon.com/de/kostenloses-icon/standort_3699580)

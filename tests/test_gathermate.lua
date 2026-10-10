@@ -357,7 +357,7 @@ end)
 test("Debug: Fundort-Zeilen zeigen Karte, Koordinaten, Quelle und Entfernung", function()
     local DB = setup(HERBS)
     Locations().api = { GetMapInfo = function(map) return map == 37 and { name = "Elwynn" } or nil end }
-    stub.load("Glimpse_GatheringDB/Modules/Debug/Debug.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_Gathering/Modules/Debug/Debug.lua", "Glimpse_Gathering")
 
     Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
     local lines = DB:DebugSpotLines("node", { 10 })
@@ -408,7 +408,7 @@ end)
 test("Quellen: Optionen haben je Anbieter einen Schalter", function()
     local DB = setup(HERBS)
     DB.db = { profile = { useExternalSpots = true, externalSources = {} } }
-    stub.load("Glimpse_GatheringDB/Core/Options.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_Gathering/Core/OptionsRecording.lua", "Glimpse_Gathering")
 
     local group = DB:BuildSourceOptions()
     local toggle = group.args.GatherMate2
@@ -435,7 +435,7 @@ test("Entfernung: Yards aus der Kartengröße der Spielfunktion", function()
     local DB = setup(HERBS)
     Locations().api = { GetMapWorldSize = function(map) if map == 37 then return 5000, 3000 end end }
     Locations():ResetCaches()
-    stub.load("Glimpse_GatheringDB/Modules/Debug/Debug.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_Gathering/Modules/Debug/Debug.lua", "Glimpse_Gathering")
     Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
 
     local w, h = Locations():GetMapSize(37)
@@ -477,7 +477,7 @@ test("Entfernung: ohne Kartengröße nur Anteil der Karte", function()
     local DB = setup(HERBS)
     Locations().api = {}
     Locations():ResetCaches()
-    stub.load("Glimpse_GatheringDB/Modules/Debug/Debug.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_Gathering/Modules/Debug/Debug.lua", "Glimpse_Gathering")
     Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
     eq(Locations():GetMapDistance(37, 0.1, 0.1, 0.2, 0.2), nil, "keine Yards")
 
@@ -711,7 +711,7 @@ end)
 
 test("Quellen: Debug-Zeilen für ein Material", function()
     local DB = SourcesSetup()
-    stub.load("Glimpse_GatheringDB/Modules/Debug/Debug.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_Gathering/Modules/Debug/Debug.lua", "Glimpse_Gathering")
 
     local lines = DB:DebugItemLines(100)
     eq(lines[1][1], "Places: 4  (outside separate)", "Kopfzeile")
@@ -733,14 +733,14 @@ test("Quellen: Debug-Zeilen für ein Material", function()
 end)
 
 test("GatherMate2: jede Zone bleibt trotz Begrenzung erhalten", function()
-    local DB = stub.newGlimpse():NewModule("GatheringDB")
+    local DB = stub.newGlimpse():NewModule("GatheringData")
     DB.known = { nodes = { [1] = { name = "Silberblatt", category = "herb", items = {} } }, npcs = {}, instances = {} }
     DB.db = { profile = { useExternalSpots = true, externalSources = {} } }
     DB.SPOT_RADIUS = 100
     DB.GetNode = function(self, id) return self.known.nodes[id] end
     DB.GetNPC = function() return nil end
     DB.ReportError = function() end
-    stub.load("Glimpse_GatheringDB/Core/Data/Providers.lua", "Glimpse_GatheringDB")
+    stub.load("Glimpse_Gathering/Core/Data/Providers.lua", "Glimpse_Gathering")
 
     -- eine dichte Zone mit vielen Zellen und eine dünne mit einer einzigen
     local spots = {}

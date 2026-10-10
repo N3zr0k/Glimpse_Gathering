@@ -1,0 +1,10 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <!-- Zwei Module: GatheringData (erfassen, lesen) und GatheringTooltip (Anzeige). GatheringData zuerst,
+         die Optionsseite in Options.lua baut auch den Tab Erfassen aus OptionsRecording.lua. -->
+    <Script file="GatheringData.lua"/>
+    <Script file="Compat.lua"/>
+    <Script file="OptionsRecording.lua"/>
+    <Script file="GatheringTooltip.lua"/>
+    <Script file="Professions.lua"/>
+    <Script file="Options.lua"/>
+</Ui>
