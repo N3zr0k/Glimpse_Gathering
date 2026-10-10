@@ -696,7 +696,7 @@ test("Collect: Debug-Ausgabe nennt Position und gespeicherten Fundort", function
 
     local text = table.concat(stub.debugLines, "\n")
     eq(text:find("Position: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Position")
-    eq(text:find("Gespeichert: Knoten 1731, Fundort: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Fundort des Knotens")
+    eq(text:find("Gespeichert: Knoten 1731 (Silberblatt), Fundort: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Fundort des Knotens")
 
     -- in einer Instanz
     stub.debugLines = {}

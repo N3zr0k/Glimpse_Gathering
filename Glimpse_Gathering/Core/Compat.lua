@@ -18,7 +18,7 @@ DB.api = {
     -- Glimpse: Professions). Nicht in NAMES: fehlt sie, kann Angelbeute als Knoten zählen.
     IsFishingLoot = IsFishingLoot,
 
-    -- Berufe/Skill (Core/Data/Skills.lua): GetProfessionInfo bzw. GetSkillLineInfo (Classic). Nicht in NAMES:
+    -- Berufe/Skill (Core/Data/DataSkills.lua): GetProfessionInfo bzw. GetSkillLineInfo (Classic). Nicht in NAMES:
     -- fehlen sie, entfällt nur die Skill-Anzeige. Zaubernamen auch für die Erkennung des Kürschnerns.
     GetProfessions = GetProfessions,
     GetProfessionInfo = GetProfessionInfo,
@@ -29,7 +29,7 @@ DB.api = {
     UnitCreatureType = UnitCreatureType,
     GetCreatureTypeInfo = C_CreatureInfo and C_CreatureInfo.GetCreatureTypeInfo or nil,
 
-    -- Namen von Kreaturen aus dem Client-Cache (Core/Data/Names.lua). Fehlt sie, bleibt "Kreatur 123".
+    -- Namen von Kreaturen aus dem Client-Cache (Core/Data/DataNames.lua). Fehlt sie, bleibt "Kreatur 123".
     GetHyperlinkInfo = C_TooltipInfo and C_TooltipInfo.GetHyperlink or nil,
 
     -- Nur für den Hinweis auf alte Addon-Ordner

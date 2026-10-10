@@ -1,58 +1,23 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Zusammenspiel mit Glimpse: Database: Anmeldung, geschriebene Arten, Übernahme alter Daten (AlphaMigration),
--- Namen (GlimpseGatheringNames), Meldungen und Probes.
+-- Zusammenspiel mit Glimpse: Database: Anmeldung, geschriebene Arten, Namen (GlimpseGatheringNames), Meldungen
+-- und Probes. Alte Daten (GlimpseGatheringDB) liest Gathering nicht.
 -- Items: 2770 = Erz, 2447 = Kraut, 2318 = Leder, 300 = Fisch.
 local ITEMS = { [2770] = 7, [2447] = 9, [2318] = 6, [300] = 8 }
 local api = {
     GetItemInfoInstant = function(id) return id, "", "", "", "", 7, ITEMS[id] or 0 end,
 }
 
-local function Copy(value)
-    if type(value) ~= "table" then return value end
-    local copy = {}
-    for k, v in pairs(value) do copy[k] = Copy(v) end
-    return copy
+-- Eigene Funde wie beim Spielen: ein Knoten mit Ort und Instanz, eine Kreatur mit Beute und Kürschnerbeute
+local function Seed(DB)
+    DB:RecordNode(1731, { name = "Kupferader" }, { [2770] = 2 }, { map = 1429, x = 0.4, y = 0.5 })
+    DB:RecordNode(1731, nil, { [2770] = 1 }, { instance = 36, name = "Die Todesminen" })
+    DB:RecordNPC(100, "loot", { name = "Wolf", level = 10 }, { [2318] = 1 }, { map = 1429, x = 0.1, y = 0.1 })
+    DB:RecordNPC(100, "skinning", { name = "Wolf", level = 10 }, { [2318] = 2 }, { map = 1429, x = 0.1, y = 0.1 })
 end
 
-local function Same(a, b)
-    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
-    for k, v in pairs(a) do if not Same(v, b[k]) then return false end end
-    for k in pairs(b) do if a[k] == nil then return false end end
-    return true
-end
-
--- Altes Format von GlimpseGatheringDB (bis 0.2.10)
-local function OldData()
-    return { global = {
-        version = 6,
-        nodes = {
-            [1731] = { name = "Kupferader", category = "ore", attempts = 4,
-                items = { [2770] = { hits = 4, amount = 6 } },
-                spots = { { map = 1429, x = 4000, y = 5000, n = 3 }, { inst = 36, n = 1 } } },
-        },
-        npcs = {
-            [100] = { name = "Wolf", level = 10,
-                loot = { attempts = 2, items = { [2318] = { hits = 1, amount = 1 } } },
-                skinning = { attempts = 1, items = { [2318] = { hits = 1, amount = 2 } } },
-                spots = { { map = 1429, x = 1000, y = 1000, n = 3 } } },
-        },
-        instances = { [36] = "Die Todesminen" },
-        fishing = {
-            [1429] = { attempts = 3, items = { [300] = { hits = 2, amount = 2 } },
-                spots = { { map = 1429, x = 3000, y = 3000, n = 3 } } },
-        },
-    } }
-end
-
--- Namen wie in GlimpseGatheringNames, passend zu OldData
-local function Names()
-    return { nodes = { [1731] = "Kupferader" }, npcs = { [100] = "Wolf" }, levels = { [100] = 10 },
-        instances = { [36] = "Die Todesminen" } }
-end
-
-test("Database: Anmeldung als Schreiber von gathering mit den Arten der Übernahme", function()
+test("Database: Anmeldung als Schreiber von gathering", function()
     local DB = stub.newGatheringDB({ api = api })
     assert(DB.ns, "Schreiber")
     eq(DB.ns.name, "gathering", "Namespace")
@@ -90,44 +55,38 @@ test("Database: geschriebene Arten für Knoten, Kreaturen und Kürschnern", func
     eq(#reader:GetLocations(1429, 100), 0, "Kreaturen ohne Ort")
 end)
 
-test("Database: Übernahme alter Daten, gelesen mit scope all", function()
-    local old = OldData()
-    local before = Copy(old)
-    local DB = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = old, GlimpseGatheringNames = Names() } })
+test("Database: eigene Funde lesen, mit Namen und Orten", function()
+    local DB = stub.newGatheringDB({ api = api })
+    Seed(DB)
 
     local node = DB:GetNode(1731)
-    assert(node, "Knoten übernommen")
-    eq(node.name, "Kupferader", "Name aus GlimpseGatheringNames")
-    eq(node.attempts, 4, "Versuche")
-    eq(node.items[2770].hits, 4, "Funde")
-    eq(node.items[2770].amount, 6, "Menge")
+    assert(node, "Knoten")
+    eq(node.name, "Kupferader", "Name")
+    eq(node.attempts, 2, "Versuche")
+    eq(node.items[2770].hits, 2, "Funde")
+    eq(node.items[2770].amount, 3, "Menge")
     eq(node.category, "ore", "Kategorie aus der Beute")
 
     local npc = DB:GetNPC(100)
     eq(npc.name, "Wolf", "NPC-Name"); eq(npc.level, 10, "Stufe")
-    eq(npc.loot.attempts, 2, "Beute"); eq(npc.skinning.items[2318].amount, 2, "Kürschnerbeute")
+    eq(npc.loot.attempts, 1, "Beute"); eq(npc.skinning.items[2318].amount, 2, "Kürschnerbeute")
     eq(DB:GetInstanceName(36), "Die Todesminen", "Instanzname")
-    eq(DB:GetFishing(1429).attempts, 3, "Angeln im Namespace fishing")
 
     local spots = DB:GetOwnSpots("node", 1731)
     eq(#spots, 2, "Ort und Instanz")
-    eq(spots[1].map, 1429, "Karte"); near(spots[1].x, 0.4, "x"); eq(spots[1].count, 3, "Funde der Zone")
+    eq(spots[1].map, 1429, "Karte"); near(spots[1].x, 0.4, "x")
     eq(spots[2].instance, 36, "Instanz"); eq(spots[2].name, "Die Todesminen", "mit Name")
-    local npcSpots = DB:GetOwnSpots("npc", 100)
-    eq(#npcSpots, 1, "Kreatur: eine Zone"); eq(npcSpots[1].x, nil, "ohne Koordinaten")
+    eq(#DB:GetOwnSpots("npc", 100), 1, "Kreatur: eine Zone")
 
-    -- neue Funde kommen dazu
     DB:RecordNode(1731, nil, { [2770] = 1 }, { map = 1429, x = 0.4, y = 0.5 })
-    eq(DB:GetNode(1731).attempts, 5, "übernommen + neu")
-    eq(#DB:GetOwnSpots("node", 1731), 2, "naher Ort nicht doppelt (nur eigene geprüft, übernommener ist world)")
-
-    assert(Same(old, before), "alte SavedVariable unverändert")
+    eq(DB:GetNode(1731).attempts, 3, "neuer Fund dazu")
+    eq(#DB:GetOwnSpots("node", 1731), 2, "naher Ort nicht doppelt")
 end)
 
-test("Database: Namen kommen nur aus GlimpseGatheringNames, nicht aus alten Daten", function()
-    local DB = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData() } })
-    eq(DB:GetNodeName(1731), nil, "alte SV liefert keine Namen")
-    eq(DB:GetNode(1731).attempts, 4, "die Zahlen schon (Glimpse: Database)")
+test("Database: alte Daten von GatheringDB werden nicht gelesen", function()
+    local DB = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = { global = { version = 6,
+        nodes = { [1731] = { name = "Kupferader", attempts = 4, items = { [2770] = { hits = 4, amount = 6 } } } } } } } })
+    eq(DB:GetNodeName(1731), nil, "kein Name")
 
     DB:SetNodeName(1731, "Kupferader")
     eq(GlimpseGatheringNames.nodes[1731], "Kupferader", "neu gelernt")
@@ -154,7 +113,8 @@ test("Database: ohne Glimpse: Database keine Aufzeichnung, aber kein Fehler", fu
 end)
 
 test("Database: Probes der Gruppe gathering", function()
-    local _, Glimpse = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData(), GlimpseGatheringNames = Names() } })
+    local DB, Glimpse = stub.newGatheringDB({ api = api })
+    Seed(DB)
     for _, name in ipairs({ "stats", "gm2", "skill", "area", "names", "fishing", "node", "npc", "item" }) do
         assert(Glimpse.probes["gathering " .. name], "Probe " .. name)
     end
@@ -166,7 +126,7 @@ test("Database: Probes der Gruppe gathering", function()
 end)
 
 test("Database: Datenquellen für /gli probe db sources", function()
-    local _, Glimpse = stub.newGatheringDB({ api = api, saved = { GlimpseGatheringDB = OldData() } })
+    local _, Glimpse = stub.newGatheringDB({ api = api })
     local lines = table.concat(Glimpse.dataSources.Glimpse_Gathering(), "\n")
     assert(lines:find("records: namespace gathering (writer)", 1, true), "Schreiber")
     assert(lines:find("fishing: read from namespace fishing", 1, true), "Angeln")

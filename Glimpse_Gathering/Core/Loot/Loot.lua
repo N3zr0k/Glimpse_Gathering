@@ -10,7 +10,7 @@ local api = DB.api
 --
 -- Dateien: Loot (gemeinsamer Zustand, Hilfen), LootWindow (Beutefenster), LootKills (Kills ohne Fenster),
 -- LootArea (Debug bei Gebietswechsel), LootEvents (Event-Frame, Start/StopCollecting).
--- Geschrieben wird in NodeDB, CreatureDB und SkinningDB.
+-- Geschrieben wird in LootNode, LootCreature und LootSkinning.
 
 -- Merklisten werden ab dieser Größe geleert
 local MAX_REMEMBERED = 2000

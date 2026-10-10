@@ -1,7 +1,7 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Fundorte aus Glimpse: Database (Core/Data/Spots.lua, Core/Loot/NodeDB.lua): Orte der Knoten, Zonen der Kreaturen
+-- Fundorte aus Glimpse: Database (Core/Data/DataSpots.lua, Core/Loot/LootNode.lua): Orte der Knoten, Zonen der Kreaturen
 local function setup()
     return stub.newGatheringDB({ api = { GetItemInfoInstant = function(id) return id, "", "", "", "", 7, 7 end } })
 end

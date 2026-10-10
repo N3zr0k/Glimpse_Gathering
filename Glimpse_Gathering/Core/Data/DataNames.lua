@@ -72,6 +72,12 @@ function DB:LookupNPCName(id)
     return name
 end
 
+--- Name eines Objekts merken, dessen Tooltip keine ID hat (Knoten in der Welt). Der nächste Abbau übernimmt ihn.
+function DB:NoteObjectName(name)
+    name = Text(name)
+    if name then self.lastObjectName, self.lastObjectTime = name, GetTime() end
+end
+
 --- Namen aus dem Tooltip einer Kreatur oder eines Knotens lernen (Mouseover), falls noch keiner bekannt ist
 function DB:LearnTooltipName(kind, id, tooltip)
     if not id then return end

@@ -46,3 +46,11 @@ test("Namen: Kreatur aus dem Client-Cache und aus dem Tooltip gelernt", function
     eq(DB:GetNodeName(1731), "Kupferader", "Knotenname vom Mouseover")
     _G.GameTooltipTextLeft1 = nil
 end)
+
+test("Namen: Knoten ohne ID im Tooltip bekommt beim Abbau den Namen vom Mouseover", function()
+    local DB = stub.newGatheringDB({ api = { GetItemInfoInstant = ItemInfo } })
+    DB:NoteObjectName("Kupfervorkommen")
+    eq(DB.lastObjectName, "Kupfervorkommen", "gemerkt")
+    DB:NoteObjectName(nil)
+    eq(DB.lastObjectName, "Kupfervorkommen", "leerer Name ändert nichts")
+end)

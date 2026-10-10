@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.10] - 2026-10-10
+
+### Fixed
+- Node names are taken from the node tooltip before gathering
+
+## [0.3.9] - 2026-10-10
+
+First beta, it starts with an empty database. GatheringDB and GatheringTooltip are now one addon, delete the old folders.
+
+### Added
+- Drop chances, hits and attempts and the average amount in the tooltips of nodes and creatures, skinning loot separately
+- Required gathering skill on nodes and creatures, your own skill in colour
+- Best places to get a crafting material, your zone first, then by distance, fishing spots included
+- Marker for your own place and a waypoint key (Ctrl+G) with TomTom or the game marker
+- Locations from GatherMate2, read live and never saved
+- Names of nodes and creatures are learned while you play, creature names also from the game
+- One options page with the tabs General, Crafting materials, Target and Recording
+
 ## [0.3.7] - 2026-10-10
 
 ### Fixed

@@ -12,7 +12,6 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --   skinned / skinloot:<NPC> / skindrop:<NPC>      gekürschnerte Leichen, Menge, Fenster (Weltwissen)
 --   herb / ore / other [Objekt], skin [NPC]        eigene Sammelzähler (persönlich)
 --   Orte: Fundorte der Knoten (ID = Objekt)
--- Arten wie in Glimpse_Database/Core/AlphaMigration.lua, damit übernommene und neue Daten zusammenpassen.
 -- Angeln schreibt Glimpse: Professions in den Namespace fishing, gelesen wird es hier nur.
 --
 -- API (API_VERSION 11) über Glimpse:GetModule("GatheringData"):
@@ -36,14 +35,14 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --   :GetItemSpots(itemID, minAttempts, limit, includeExternal)
 --                              Fundorte aller Quellen eines Items, wahrscheinlichste Quelle zuerst
 --   :GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)
---                              Orte der Quellen, je Quelle und Zone ein Eintrag (Core/Data/Sources.lua)
+--                              Orte der Quellen, je Quelle und Zone ein Eintrag (Core/Data/DataSources.lua)
 --   :GetRequiredSkill(kind, id, level), :GetNodeSkill(id), :GetSkinningSkill(level), :GetPlayerSkill(profession),
 --   :GetSkillColor(required, current), :HasProfession(profession), :IsKnownSkinnable(id),
---   :GetCreatureTypeID(unit), :IsSkinnableType(typeID)       Skills (Core/Data/Skills.lua)
+--   :GetCreatureTypeID(unit), :IsSkinnableType(typeID)       Skills (Core/Data/DataSkills.lua)
 --   :GetFishing(zone)          Angelzone aus dem Namespace fishing: { attempts, items } oder nil
 --   :GetFishingDrops(zone)     Liste der Fänge einer Zone, dazu die Zahl der Beutefenster
 --   :GetProviders()            Anbieter fremder Fundorte: { name, available, enabled }
---   :RegisterProvider(name, provider)  weiteren Anbieter anmelden (siehe Core/Data/Providers.lua)
+--   :RegisterProvider(name, provider)  weiteren Anbieter anmelden (siehe Core/Data/DataProviders.lua)
 --   :GetMapName(map), :GetInstanceName(id)
 -- Änderungen meldet Glimpse: Database (GlimpseDB.EVENT_CHANGED, Namespace "gathering" bzw. "fishing").
 -- Rückgabetabellen nur lesen. Aufbau: Core/Data/ (Lesen), Core/Loot/ (Erfassen), Modules/Debug/ (Debug, Probes).
@@ -54,10 +53,10 @@ DB.API_VERSION = 11
 DB.NAMESPACE = "gathering"
 DB.FISHING_NAMESPACE = "fishing"
 
--- Weltwissen lesen: alle Charaktere, auch aus Importen und der Übernahme ("world")
+-- Weltwissen lesen: alle Charaktere, auch aus Importen
 DB.WORLD_SCOPE = "all"
 
--- Anmeldung beim Namespace. world muss zu TARGETS.gathering in AlphaMigration.lua passen.
+-- Anmeldung beim Namespace. world = Arten, die als Weltwissen exportiert werden.
 DB.NAMESPACE_OPTIONS = {
     area = "Gathering",
     zones = true,
@@ -83,7 +82,7 @@ function DB:OnInitialize()
     self.db = Glimpse.db:RegisterNamespace("GatheringDB", settingsDefaults)
     self:LoadNames()
 
-    -- Früh anmelden, damit die Übernahme beim Login (PLAYER_LOGIN) die Angaben des Schreibers vorfindet
+    -- Früh anmelden, vor PLAYER_LOGIN
     local Database = GlimpseDB
     if type(Database) == "table" and Database.Register then
         local ok, ns, reason = pcall(Database.Register, Database, self.NAMESPACE, self.NAMESPACE_OPTIONS)

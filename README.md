@@ -71,11 +71,11 @@ Gathering reads every loot window and keeps what is useful for crafting. The num
 | Kills | Not stored. A kill (the `PARTY_KILL` event) without a loot window counts as an attempt after 2 minutes, but only if the corpse has no loot left. The kills themselves are counted by Glimpse: Statistics. |
 
 * Only crafting materials and gems are stored; armour, weapons and junk are ignored.
-* Creatures are stored by their ID, nodes by their object ID.
+* Creatures are stored by their ID, nodes by their object ID. Names are learned while you play (looting, mouseover);
+  creature names also come from the game itself. Nodes you have not seen yet show as "Node 123".
 * Your own gathering counts (herbs, ore, other nodes, skinning) are kept per character as well.
 * Data from a newer version is never touched, recording pauses until you update the addon.
-* Data of versions up to 0.2.10 was taken over by Glimpse: Database with 0.3.x. Names of nodes and creatures stored
-  by GatheringDB (up to 0.3.5) are not taken over; they are learned again while you play.
+* The beta starts with an empty database. Data of older versions (GatheringDB up to 0.3.5) is not taken over.
 
 ### Locations
 

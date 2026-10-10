@@ -4,7 +4,7 @@ local Locations = Glimpse:GetModule("Locations")
 
 -- Beute lesen: Fassade über Glimpse: Database. Alles ohne local ist öffentliche API (siehe Core/GatheringData.lua).
 -- Eine Quelle hat drei Arten: Versuche (ID = Quelle), Menge und Beutefenster je Item ("<art>:<Quelle>", ID = Item).
--- Gelesen wird das Weltwissen aller Charaktere (DB.WORLD_SCOPE). Fundorte: Spots.lua, Namen: Names.lua.
+-- Gelesen wird das Weltwissen aller Charaktere (DB.WORLD_SCOPE). Fundorte: DataSpots.lua, Namen: DataNames.lua.
 
 -- Arten je Quelle: Versuche, Menge, Fenster mit dem Item. fishing liegt im Namespace fishing (Glimpse: Professions).
 DB.SECTIONS = {

@@ -145,7 +145,9 @@ local function SourceLines(self, data, isObject, tooltip)
 
     -- Objekt ohne ID: über den Namen suchen. Den Schwimmer zeigt Glimpse: Professions.
     if isObject then
-        return NodeLines(self, nil, self.data:GetTooltipName(tooltip), tooltip)
+        local name = self.data:GetTooltipName(tooltip)
+        self.data:NoteObjectName(name)
+        return NodeLines(self, nil, name, tooltip)
     end
 end
 

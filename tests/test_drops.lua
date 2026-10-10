@@ -1,7 +1,7 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Lese-API über Glimpse: Database (Core/Data/Drops.lua, Names.lua): Chancen, Quellen eines Items, Namen.
+-- Lese-API über Glimpse: Database (Core/Data/DataDrops.lua, DataNames.lua): Chancen, Quellen eines Items, Namen.
 -- Items: 1 = Kraut, 2 = Erz, sonst Edelstein (Kategorie "other").
 local function setup()
     return stub.newGatheringDB({ api = {

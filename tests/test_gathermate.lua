@@ -740,7 +740,7 @@ test("GatherMate2: jede Zone bleibt trotz Begrenzung erhalten", function()
     DB.GetNode = function(self, id) return self.known.nodes[id] end
     DB.GetNPC = function() return nil end
     DB.ReportError = function() end
-    stub.load("Glimpse_Gathering/Core/Data/Providers.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Data/DataProviders.lua", "Glimpse_Gathering")
 
     -- eine dichte Zone mit vielen Zellen und eine dünne mit einer einzigen
     local spots = {}

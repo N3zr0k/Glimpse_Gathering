@@ -97,7 +97,7 @@ test("Angeln: Symbol und Überschrift im Tooltip", function()
     local GT = Glimpse:NewModule("GatheringTooltip")
     GT.L = Glimpse.L
     GT.db = { profile = { showLocations = true } }
-    stub.load("Glimpse_Gathering/Core/Tooltip/Sources.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Tooltip/TooltipSources.lua", "Glimpse_Gathering")
     eq(GT:SourceIcon({ kind = "fishing" }), "Interface\\Icons\\Trade_Fishing", "Symbol")
     local key, title = GT:SourceGroup({ kind = "fishing" })
     eq(key, "fishing", "Gruppe"); eq(title, "Fishing", "Überschrift")

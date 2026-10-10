@@ -1,11 +1,11 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
     <!-- Lesen aus Glimpse: Database (Fassade), Fundorte anderer Addons, Skills -->
-    <Script file="Names.lua"/>
-    <Script file="Drops.lua"/>
-    <Script file="Spots.lua"/>
-    <Script file="Providers.lua"/>
-    <Script file="GatherMate2.lua"/>
-    <Script file="Sources.lua"/>
-    <Script file="SkillData.lua"/>
-    <Script file="Skills.lua"/>
+    <Script file="DataNames.lua"/>
+    <Script file="DataDrops.lua"/>
+    <Script file="DataSpots.lua"/>
+    <Script file="DataProviders.lua"/>
+    <Script file="DataGatherMate2.lua"/>
+    <Script file="DataSources.lua"/>
+    <Script file="DataSkillsTable.lua"/>
+    <Script file="DataSkills.lua"/>
 </Ui>

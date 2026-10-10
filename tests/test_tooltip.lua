@@ -1,7 +1,7 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Symbole, Fundorte und Tabelle im Tooltip eines Handwerksmaterials (Core/Tooltip/Sources.lua und Tooltip.lua)
+-- Symbole, Fundorte und Tabelle im Tooltip eines Handwerksmaterials (Core/Tooltip/TooltipSources.lua und Tooltip.lua)
 local function setup(profile)
     local Glimpse = stub.newGlimpse()
     local GT = Glimpse:NewModule("GatheringTooltip")
@@ -9,8 +9,8 @@ local function setup(profile)
     GT.db = { profile = { showLocations = true, showCoords = true, showDistance = true, showSourceIcons = true, showAttempts = true, minChance = 10 } }
     for key, value in pairs(profile or {}) do GT.db.profile[key] = value end
     GT.data = { GetMapName = function(_, map) return ({ [37] = "Elwynn", [14] = "Dunkelküste", [10] = "Düsterwald" })[map] end }
-    stub.load("Glimpse_Gathering/Core/Tooltip/Sources.lua", "Glimpse_Gathering")
-    stub.load("Glimpse_Gathering/Core/Tooltip/Waypoint.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Tooltip/TooltipSources.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Tooltip/TooltipWaypoint.lua", "Glimpse_Gathering")
     GT.db.profile.waypointKey = GT.db.profile.waypointKey or "CTRL-G"
     GT.db.profile.showWaypointHint = GT.db.profile.showWaypointHint == true -- die Hinweiszeile zählt in anderen Tests nicht mit
     return GT
@@ -234,6 +234,7 @@ local function sourceRows(profile, kind, data)
     GT.data.GetNodeDrops = function() return drops, 22 end
     GT.data.GetNPCDrops = function() return drops, 22 end
     GT.data.LearnTooltipName = function() end
+    GT.data.NoteObjectName = function() end
 
     _G.C_Item = {
         GetItemNameByID = function(id) return "Item" .. id end,

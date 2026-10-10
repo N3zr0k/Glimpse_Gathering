@@ -5,11 +5,11 @@ local DB = Glimpse:GetModule("GatheringData")
 --   npc [NPC]                  geplünderte Leiche, auch leer (Kill ohne Beutefenster, LootKills.lua); je Zone
 --   npcloot:<NPC> [Item]       Menge
 --   npcdrop:<NPC> [Item]       Beutefenster mit dem Item
--- Kürschnern steht in SkinningDB.lua. Kreaturen haben keine Orte, nur Zonen.
+-- Kürschnern steht in LootSkinning.lua. Kreaturen haben keine Orte, nur Zonen.
 
 local ZoneOf = DB.collect.ZoneOf
 
---- Name, Stufe und Instanzname merken; gibt die Zone des Fundorts zurück (auch für SkinningDB.lua)
+--- Name, Stufe und Instanzname merken; gibt die Zone des Fundorts zurück (auch für LootSkinning.lua)
 function DB:RememberNPC(id, info, pos)
     if info then self:SetNPCName(id, info.name, info.level) end
     local zone = ZoneOf(pos)
@@ -17,7 +17,7 @@ function DB:RememberNPC(id, info, pos)
     return zone
 end
 
---- Beutefenster einer Kreatur zählen. kind = "loot" oder "skinning" (SkinningDB.lua), info = { name, level },
+--- Beutefenster einer Kreatur zählen. kind = "loot" oder "skinning" (LootSkinning.lua), info = { name, level },
 -- pos = { map, x, y } oder { instance, name } (beides optional), items = { [itemID] = Menge }.
 function DB:RecordNPC(id, kind, info, items, pos)
     if kind == "skinning" then return self:RecordSkinning(id, info, items, pos) end

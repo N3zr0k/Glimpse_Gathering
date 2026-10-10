@@ -1,7 +1,7 @@
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringData")
 
--- Statische Skill-Daten für Sammelknoten (nicht in SavedVariables), Logik in Core/Data/Skills.lua.
+-- Statische Skill-Daten für Sammelknoten (nicht in SavedVariables), Logik in Core/Data/DataSkills.lua.
 --
 -- Quellen (Werte von Classic Era / 1.12, für Forever ungeprüft übernommen):
 --   A: Wowhead-Classic-Objektseiten https://www.wowhead.com/classic/object=<ID> ("Requires Herbalism/Mining (X)")

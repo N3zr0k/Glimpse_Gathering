@@ -2,7 +2,7 @@ local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringData")
 local L = DB.L
 
--- Skill-Abfragen: Anforderung von Knoten/Kreatur, Spieler-Skill, Farbe. Tabellen in Core/Data/SkillData.lua.
+-- Skill-Abfragen: Anforderung von Knoten/Kreatur, Spieler-Skill, Farbe. Tabellen in Core/Data/DataSkillsTable.lua.
 -- Berufe: "herb", "ore", "skinning", "fishing" (wie die Knoten-Kategorien).
 
 -- Skill-Linie und Berufszauber je Beruf. Linien-IDs: https://warcraft.wiki.gg/wiki/TradeSkillLineID,

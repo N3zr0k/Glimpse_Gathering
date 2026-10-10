@@ -14,6 +14,8 @@ local CAST_WINDOW = 1.0
 
 -- Gültigkeit (s) des Zielnamens aus UNIT_SPELLCAST_SENT für Knoten
 local TARGET_WINDOW = 15
+-- Gültigkeit (s) des Namens aus dem letzten Objekt-Tooltip (Mouseover vor dem Abbau)
+local OBJECT_WINDOW = 30
 
 -- Objektbeute gilt bis so lange nach UNIT_SPELLCAST_SENT als Sammelergebnis, auch ohne SUCCEEDED
 local SENT_WINDOW = 10
@@ -95,9 +97,13 @@ local function ProcessNode(self, guid, id, items, opened, position, afterNodeCas
         if not info.name and collect.lastTarget and (opened - collect.lastTargetTime) <= TARGET_WINDOW then
             info.name = collect.lastTarget
         end
+        if not info.name and self.lastObjectName and (opened - self.lastObjectTime) <= OBJECT_WINDOW then
+            info.name = self.lastObjectName
+        end
         self:RecordNode(id, info, items, position)
         if debug:IsOn("node") then
-            debug:Log("node", "Gespeichert: Knoten %s, Fundort: %s", tostring(id), self:DescribeArea(position) or "keiner")
+            debug:Log("node", "Gespeichert: Knoten %s (%s), Fundort: %s", tostring(id), tostring(info.name or "ohne Namen"),
+                self:DescribeArea(position) or "keiner")
         end
     else
         debug:Log("node", "Knoten übersprungen: gleicher Abbau, Beutefenster erneut geöffnet")

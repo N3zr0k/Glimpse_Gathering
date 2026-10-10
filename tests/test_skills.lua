@@ -1,8 +1,8 @@
 -- luacheck: ignore 111 113 122 143 432
 local stub = require("wowstub")
 
--- Skill-Daten und -Abfragen (GatheringData: Core/Data/SkillData.lua, Core/Data/Skills.lua) und die Zeile im Tooltip
--- (Core/Tooltip/Skills.lua)
+-- Skill-Daten und -Abfragen (GatheringData: Core/Data/DataSkillsTable.lua, Core/Data/DataSkills.lua) und die Zeile im Tooltip
+-- (Core/Tooltip/TooltipSkills.lua)
 local function setupDB(api)
     local Glimpse = stub.newGlimpse()
     local DB = Glimpse:NewModule("GatheringData")
@@ -13,8 +13,8 @@ local function setupDB(api)
     DB.known = { nodes = {}, npcs = {} }
     function DB:GetNode(id) return self.known.nodes[id] end
     function DB:GetNPC(id) return self.known.npcs[id] end
-    stub.load("Glimpse_Gathering/Core/Data/SkillData.lua", "Glimpse_Gathering")
-    stub.load("Glimpse_Gathering/Core/Data/Skills.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Data/DataSkillsTable.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Data/DataSkills.lua", "Glimpse_Gathering")
     return DB, Glimpse
 end
 
@@ -140,8 +140,8 @@ local function setupTooltip(profile, professions)
     GT.data = DB
     GT.db = { profile = { showNodeSkill = true, showMobSkill = true, skillOnlyLearned = true, hideGraySkill = false } }
     for key, value in pairs(profile or {}) do GT.db.profile[key] = value end
-    stub.load("Glimpse_Gathering/Core/Tooltip/Sources.lua", "Glimpse_Gathering")
-    stub.load("Glimpse_Gathering/Core/Tooltip/Skills.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Tooltip/TooltipSources.lua", "Glimpse_Gathering")
+    stub.load("Glimpse_Gathering/Core/Tooltip/TooltipSkills.lua", "Glimpse_Gathering")
     return GT, DB
 end
 

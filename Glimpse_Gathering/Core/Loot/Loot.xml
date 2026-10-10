@@ -1,9 +1,9 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
     <!-- Loot.lua legt den gemeinsamen Zustand (DB.collect) an, LootEvents.lua zuletzt. -->
     <Script file="Loot.lua"/>
-    <Script file="NodeDB.lua"/>
-    <Script file="CreatureDB.lua"/>
-    <Script file="SkinningDB.lua"/>
+    <Script file="LootNode.lua"/>
+    <Script file="LootCreature.lua"/>
+    <Script file="LootSkinning.lua"/>
     <Script file="LootWindow.lua"/>
     <Script file="LootKills.lua"/>
     <Script file="LootArea.lua"/>

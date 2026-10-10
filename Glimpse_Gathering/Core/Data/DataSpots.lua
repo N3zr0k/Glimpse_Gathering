@@ -7,10 +7,10 @@ local Locations = Glimpse:GetModule("Locations")
 -- Quelle der Fundorte sind die Zonen einer Art (zones in Glimpse: Database) und die Orte (places):
 --   Knoten     Orte mit Koordinaten (ID = Objekt), Zonen ohne Ort als Zone ohne Koordinaten
 --   Kreaturen  nur Zonen (npc und skinned): Orte in Database tragen keine Art, Objekt- und NPC-IDs würden sich mischen
---   Angeln     Orte aus der Übernahme (ID = Zone), sonst die Zone selbst (Namespace fishing)
+--   Angeln     Orte im Namespace fishing (ID = Zone), sonst die Zone selbst
 -- Zonen sind uiMapIDs, in Instanzen -instanceID. count = Funde in dieser Zone.
 
--- Orte näher als SPOT_RADIUS (1/10000 der Karte) gelten als derselbe (NodeDB.lua, Providers.lua)
+-- Orte näher als SPOT_RADIUS (1/10000 der Karte) gelten als derselbe (LootNode.lua, DataProviders.lua)
 DB.SPOT_RADIUS = 100
 
 -- Zonen einer Quelle: { [Zone] = Funde }
@@ -74,7 +74,7 @@ function DB:GetOwnSpots(kind, id)
 end
 
 --- Fundorte einer Quelle: eigene zuerst (source = "own"), dann externe (source = Anbieter, count = 0,
--- density = Punkte), außer includeExternal = false oder Option aus (Core/Data/Providers.lua).
+-- density = Punkte), außer includeExternal = false oder Option aus (Core/Data/DataProviders.lua).
 function DB:GetSpots(kind, id, includeExternal)
     local list = self:GetOwnSpots(kind, id)
     if includeExternal ~= false and self.AddExternalSpots then self:AddExternalSpots(list, kind, id) end

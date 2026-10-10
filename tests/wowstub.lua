@@ -133,8 +133,12 @@ function stub.newGlimpse()
     -- Seine Blizzard-Funktionen stehen in Locations.api, die Tests ersetzen sie.
     _G.LibStub = function() return { GetAddon = function() return Glimpse end } end
     local core = stub.coreDir()
+    -- Ab Core 0.3.40 liegt Locations unter Modules/Helper/
+    local dir = core .. "/Modules/Helper/Locations/"
+    local probe = io.open(dir .. "Locations.lua")
+    if probe then probe:close() else dir = core .. "/Modules/Locations/" end
     for _, file in ipairs({ "Locations", "Maps", "Position", "Distance", "Units", "Coords", "Waypoint" }) do
-        local chunk, err = loadfile(core .. "/Modules/Locations/" .. file .. ".lua")
+        local chunk, err = loadfile(dir .. file .. ".lua")
         assert(chunk, "Kern Glimpse nicht gefunden (Modul Locations), siehe tests/wowstub.lua: " .. tostring(err))
         chunk("Glimpse")
     end
