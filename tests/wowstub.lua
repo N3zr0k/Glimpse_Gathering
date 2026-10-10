@@ -12,8 +12,11 @@ function stub.coreDir()
     local candidates = { os.getenv("GLIMPSE_DIR"), ROOT .. "/../Glimpse", ROOT .. "/.glimpse" }
     for _, base in ipairs(candidates) do
         for _, dir in ipairs({ base .. "/Glimpse", base }) do
-            local file = io.open(dir .. "/Modules/Locations/Locations.lua", "r")
-            if file then file:close() return dir end
+            -- Locations liegt ab Core 0.3.40 unter Modules/Helper/, vorher unter Modules/
+            for _, sub in ipairs({ "/Modules/Helper/Locations/", "/Modules/Locations/" }) do
+                local file = io.open(dir .. sub .. "Locations.lua", "r")
+                if file then file:close() return dir, dir .. sub end
+            end
         end
     end
     return ROOT .. "/../Glimpse/Glimpse"
@@ -132,11 +135,8 @@ function stub.newGlimpse()
     -- Reihenfolge: Umgebungsvariable GLIMPSE_DIR (so macht es die CI), Nachbarordner Glimpse, Ordner .glimpse im Repo.
     -- Seine Blizzard-Funktionen stehen in Locations.api, die Tests ersetzen sie.
     _G.LibStub = function() return { GetAddon = function() return Glimpse end } end
-    local core = stub.coreDir()
-    -- Ab Core 0.3.40 liegt Locations unter Modules/Helper/
-    local dir = core .. "/Modules/Helper/Locations/"
-    local probe = io.open(dir .. "Locations.lua")
-    if probe then probe:close() else dir = core .. "/Modules/Locations/" end
+    local core, dir = stub.coreDir()
+    dir = dir or core .. "/Modules/Helper/Locations/"
     for _, file in ipairs({ "Locations", "Maps", "Position", "Distance", "Units", "Coords", "Waypoint" }) do
         local chunk, err = loadfile(dir .. file .. ".lua")
         assert(chunk, "Kern Glimpse nicht gefunden (Modul Locations), siehe tests/wowstub.lua: " .. tostring(err))

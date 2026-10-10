@@ -1,6 +1,6 @@
 # Glimpse: Gathering – Funktionen
 
-Stand 0.3.10-beta.1. Ein Addon, das erfasst und anzeigt (bis 0.3.5 zwei Addons: GatheringDB und GatheringTooltip).
+Stand 0.3.10-beta.2. Ein Addon, das erfasst und anzeigt (bis 0.3.5 zwei Addons: GatheringDB und GatheringTooltip).
 Benötigt Glimpse (Core) 0.3.33 oder neuer mit Glimpse: Database.
 
 ## Erfassen
