@@ -1,4 +1,0 @@
-<Ui xmlns="http://www.blizzard.com/wow/ui/">
-    <!-- Ein Befehl = eine Datei. Neue Datei anlegen und hier eintragen. -->
-    <Script file="GatheringDB.lua"/>
-</Ui>

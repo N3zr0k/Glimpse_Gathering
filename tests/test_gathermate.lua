@@ -48,27 +48,23 @@ local function FakeGatherMate(points, withHBD)
     return gm
 end
 
-local function setup(points, withHBD)
-    stub.libs.LibDeflate = nil
-    _G.GatherMate2 = points and FakeGatherMate(points, withHBD) or nil
+-- Items: 100 = Kraut, 101 = Erz, sonst Edelstein (Kategorie des Knotens "other")
+local function setup(points, withHBD, empty)
     _G.GetTime = function() return stub.now end
     stub.now = 1000
 
-    local Glimpse = stub.newGlimpse()
-    local DB = Glimpse:NewModule("GatheringDB")
-    DB.L = setmetatable({}, { __index = function(_, key) return key end })
-    DB.DATA_VERSION = 2
-    DB.data = { version = 2, nodes = {}, npcs = {}, imports = {} }
-    DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
-    DB.RegisterMessage = function(self, message, func) self.registered = self.registered or {}; self.registered[message] = func end
-    stub.load("Glimpse_GatheringDB/Core/Data/Spots.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Store.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Names.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Migrate.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Providers.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/GatherMate2.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Sources.lua", "Glimpse_GatheringDB")
-    DB:RecordNode(10, { name = "Silberblatt", category = "herb" }, { [100] = 1 }, { map = 37, x = 0.40, y = 0.50 })
+    local DB, Glimpse = stub.newGatheringDB({ noEnable = true, api = {
+        GetItemInfoInstant = function(id)
+            if id == 100 or id == 101 then return id, "", "", "", "", 7, id == 100 and 9 or 7 end
+            return id, "", "", "", "", 3, 0
+        end,
+    } })
+    _G.GatherMate2 = points and FakeGatherMate(points, withHBD) or nil
+    DB.registered = {}
+    DB.RegisterMessage = function(self, message, func) self.registered[message] = func end
+    DB:ResetGatherMate2Cache()
+    DB.Glimpse = Glimpse
+    if not empty then DB:RecordNode(10, { name = "Silberblatt" }, { [100] = 1 }, { map = 37, x = 0.40, y = 0.50 }) end
     return DB
 end
 
@@ -116,9 +112,9 @@ test("GatherMate2: Kategorie bestimmt den Typ, Name den Knoten", function()
         ["Treasure"] = { [38] = { { 0.3, 0.3, 3 } } },
     }
     local DB = setup(points)
-    DB:RecordNode(11, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 })
-    DB:RecordNode(12, { name = "Truhe", category = "other" }, { [102] = 1 })
-    DB:RecordNode(13, { name = "Silberblatt", category = "ore" }, { [100] = 1 }) -- Kräutername, aber Kategorie Erz
+    DB:RecordNode(11, { name = "Kupfervorkommen" }, { [101] = 1 })
+    DB:RecordNode(12, { name = "Truhe" }, { [102] = 1 })
+    DB:RecordNode(13, { name = "Silberblatt" }, { [101] = 1 }) -- Kräutername, aber Erz in der Beute
 
     local ore = DB:GetSpots("node", 11)
     eq(#ore, 1, "Erz")
@@ -134,7 +130,7 @@ end)
 
 test("GatherMate2: falsche Kategorie (other statt Erz) findet den Knoten trotzdem über den Namen", function()
     local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 }, { 0.20, 0.80, 2 } } } })
-    DB:RecordNode(11, { name = "Kupfervorkommen", category = "other" }, { [101] = 1 }, { map = 37, x = 0.40, y = 0.10 })
+    DB:RecordNode(11, { name = "Kupfervorkommen" }, { [102] = 1 }, { map = 37, x = 0.40, y = 0.10 }) -- nur Edelstein: other
     local spots = DB:GetSpots("node", 11)
     eq(#spots, 3, "eigener Ort und zwei aus GatherMate2")
     DB:RecordNode(12, { name = "Kupfervorkommen" }, { [101] = 1 }, { map = 37, x = 0.45, y = 0.15 }) -- ohne Kategorie
@@ -144,8 +140,8 @@ end)
 
 test("GatherMate2: Prüfausgabe listet jeden Knoten mit Kategorie und Treffern", function()
     local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
-    DB:RecordNode(11, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 })
-    DB:RecordNode(12, { name = "Unbekannt", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(11, { name = "Kupfervorkommen" }, { [101] = 1 })
+    DB:RecordNode(12, { name = "Unbekannt" }, { [101] = 1 })
     local text = table.concat(DB:DiagnoseGatherMate2(), "\n")
     eq(text:find("11 Kupfervorkommen [ore]: 1 places in GatherMate2", 1, true) ~= nil, true, "Treffer mit Kategorie")
     eq(text:find("12 Unbekannt [ore]: no match", 1, true) ~= nil, true, "kein Treffer")
@@ -155,11 +151,11 @@ end)
 test("GatherMate2: Abgleich über den Namen, nicht über die Objekt-ID", function()
     -- GatherMate2 hat eigene IDs (Kupfervorkommen 2): unsere Objekt-ID (1731) spielt keine Rolle
     local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 }, { 0.20, 0.80, 2 } } } })
-    DB:RecordNode(1731, { name = "Kupfervorkommen", category = "ore" }, { [101] = 1 }, { map = 37, x = 0.40, y = 0.10 })
+    DB:RecordNode(1731, { name = "Kupfervorkommen" }, { [101] = 1 }, { map = 37, x = 0.40, y = 0.10 })
     eq(#DB:GetSpots("node", 1731), 3, "eigener Ort und zwei aus GatherMate2")
 
     -- gleiche Zahl wie die GatherMate2-ID, aber anderer Name: kein Treffer
-    DB:RecordNode(2, { name = "Gänseblümchen", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(2, { name = "Gänseblümchen" }, { [101] = 1 })
     eq(#DB:GetSpots("node", 2), 0, "ID allein genügt nicht")
     teardown()
 end)
@@ -167,15 +163,15 @@ end)
 test("GatherMate2: Schreibweise, Groß-/Kleinschreibung und ähnliche Namen", function()
     local points = { Mining = { [37] = { { 0.70, 0.30, 2 } } } }
     local DB = setup(points)
-    DB:RecordNode(11, { name = "kupfer-vorkommen", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(11, { name = "kupfer-vorkommen" }, { [101] = 1 })
     eq(#DB:GetSpots("node", 11), 1, "ohne Groß-/Kleinschreibung und Sonderzeichen")
-    DB:RecordNode(12, { name = "Kupferader", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(12, { name = "Kupferader" }, { [101] = 1 })
     eq(#DB:GetSpots("node", 12), 1, "eindeutig gleicher Anfang")
-    DB:RecordNode(13, { name = "Kupfe", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(13, { name = "Kupfe" }, { [101] = 1 })
     eq(#DB:GetSpots("node", 13), 1, "genau PREFIX Zeichen")
-    DB:RecordNode(14, { name = "Kupf", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(14, { name = "Kupf" }, { [101] = 1 })
     eq(#DB:GetSpots("node", 14), 0, "zu kurz")
-    DB:RecordNode(15, { name = "Zinnader", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(15, { name = "Zinnader" }, { [101] = 1 })
     eq(#DB:GetSpots("node", 15), 0, "anderer Anfang")
     teardown()
 end)
@@ -183,19 +179,19 @@ end)
 test("GatherMate2: mehrdeutiger Anfang findet nichts", function()
     local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
     _G.GatherMate2.reverseNodeIDs["Mining"][5] = "Kupfergrube"
-    DB:RecordNode(11, { name = "Kupferader", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(11, { name = "Kupferader" }, { [101] = 1 })
     eq(#DB:GetSpots("node", 11), 0, "zwei gleich gute Namen")
     teardown()
 end)
 
 test("GatherMate2: Prüfausgabe nennt bei fehlendem Treffer die Namen von GatherMate2", function()
     local DB = setup({ Mining = { [37] = { { 0.70, 0.30, 2 } } } })
-    DB:RecordNode(12, { name = "Unbekannt", category = "ore" }, { [101] = 1 })
+    DB:RecordNode(12, { name = "Unbekannt" }, { [101] = 1 })
     local text = table.concat(DB:DiagnoseGatherMate2(), "\n")
     eq(text:find("name not known to GatherMate2", 1, true) ~= nil, true, "Hinweis")
     eq(text:find("2=Kupfervorkommen", 1, true) ~= nil, true, "Namen mit GatherMate2-ID")
 
-    DB:RecordNode(13, { name = "Truhe", category = "other" }, { [101] = 1 }) -- bekannt, aber ohne Punkte
+    DB:RecordNode(13, { name = "Truhe" }, { [102] = 1 }) -- bekannt, aber ohne Punkte
     text = table.concat(DB:DiagnoseGatherMate2(), "\n")
     eq(text:find("Treasure: name found as GatherMate2 id 3 (exact), but no points stored for it", 1, true) ~= nil, true, "Name bekannt, keine Punkte")
     teardown()
@@ -537,15 +533,14 @@ local function SourcesSetup(continents, world)
         { 0.70, 0.30, 4 },   -- Friedensblume, auf der Karte des Spielers
         { 0.20, 0.20, 1 },   -- Silberblatt
     } } }
-    local DB = setup(points)
+    local DB = setup(points, nil, true)
     Locations().api = WorldApi(continents ~= false, world ~= false)
     Locations().GetPlayerPosition = function() return { map = 37, x = 0.68, y = 0.30 } end
-    DB.data.nodes[10] = nil
-    DB:RecordNode(10, { name = "Silberblatt", category = "herb" }, {}, { map = 37, x = 0.40, y = 0.50 })
+    DB:RecordNode(10, { name = "Silberblatt" }, {}, { map = 37, x = 0.40, y = 0.50 })
     DB:RecordNode(10, nil, { [100] = 1 }, { map = 37, x = 0.40, y = 0.50 })
-    DB:RecordNode(11, { name = "Kupfer", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.5, y = 0.5 })
-    DB:RecordNode(12, { name = "Friedensblume", category = "herb" }, { [100] = 1 })
-    DB:RecordNode(13, { name = "Unbekannt", category = "other" }, { [100] = 1 })
+    DB:RecordNode(11, { name = "Kupfer" }, { [100] = 1 }, { map = 38, x = 0.5, y = 0.5 })
+    DB:RecordNode(12, { name = "Friedensblume" }, { [100] = 1 })
+    DB:RecordNode(13, { name = "Unbekannt" }, { [100] = 1 })
     return DB
 end
 
@@ -584,24 +579,24 @@ test("Quellen: Stufe 2 nach Entfernung in Yards, Stufe 1 nach Chance", function(
     near(kupfer.spot.distance, math.sqrt((2500 - 680) ^ 2 + (500 - 300) ^ 2), "Luftlinie über die Weltpositionen")
 
     -- zweite Quelle auf Karte 38, näher am Spieler, aber schlechtere Chance: kommt trotzdem vor Kupfer
-    DB:RecordNode(14, { name = "Zink", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.1, y = 0.3 })
+    DB:RecordNode(14, { name = "Zink" }, { [100] = 1 }, { map = 38, x = 0.1, y = 0.3 })
     DB:RecordNode(14, nil, {}, { map = 38, x = 0.1, y = 0.3 })
     DB:RecordNode(14, nil, {}, { map = 38, x = 0.1, y = 0.3 }) -- 1 von 3
     eq(Ids(DB:GetLocatedItemSources(100)), "10,12,14,11,13", "Stufe 2: der nähere Ort zuerst")
 
     -- Stufe 1: höchste Chance zuerst
-    DB:RecordNode(15, { name = "Dritte", category = "other" }, { [100] = 1 }, { map = 37, x = 0.9, y = 0.9 }) -- 100 %
+    DB:RecordNode(15, { name = "Dritte" }, { [100] = 1 }, { map = 37, x = 0.9, y = 0.9 }) -- 100 %
     eq(Ids(DB:GetLocatedItemSources(100)), "15,10,12,14,11,13", "Stufe 1: 100 % vor 50 %")
     teardown()
 end)
 
 test("Quellen: Mindestchance gilt nur in Stufe 2", function()
     local DB = SourcesSetup()
-    DB:RecordNode(14, { name = "Zink", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.1, y = 0.3 })
+    DB:RecordNode(14, { name = "Zink" }, { [100] = 1 }, { map = 38, x = 0.1, y = 0.3 })
     for _ = 1, 9 do DB:RecordNode(14, nil, {}, { map = 38, x = 0.1, y = 0.3 }) end -- 1 von 10 = 10 %
-    DB:RecordNode(16, { name = "Eisen", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.2, y = 0.2 })
+    DB:RecordNode(16, { name = "Eisen" }, { [100] = 1 }, { map = 38, x = 0.2, y = 0.2 })
     for _ = 1, 3 do DB:RecordNode(16, nil, {}, { map = 38, x = 0.2, y = 0.2 }) end -- 1 von 4 = 25 %
-    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    DB:RecordNode(17, { name = "Fern" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
     for _ = 1, 9 do DB:RecordNode(17, nil, {}, { map = 39, x = 0.5, y = 0.5 }) end -- 10 %, anderer Kontinent
 
     eq(Ids(DB:GetLocatedItemSources(100)), "10,12,14,16,11,17,13", "ohne Mindestchance alle")
@@ -612,7 +607,7 @@ end)
 
 test("Quellen: anderer Kontinent und Instanzen sind Stufe 3, nach Chance", function()
     local DB = SourcesSetup()
-    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    DB:RecordNode(17, { name = "Fern" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
     local list = DB:GetLocatedItemSources(100)
     eq(Ids(list), "10,12,11,17,13", "Fern hinter dem gleichen Kontinent")
     eq(list[4].tier, 3, "Stufe 3")
@@ -623,8 +618,8 @@ end)
 
 test("Quellen: ohne Kontinentangaben gelten andere Karten als Stufe 2, nach Chance", function()
     local DB = SourcesSetup(false, false)
-    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
-    DB:RecordNode(18, { name = "Halb", category = "ore" }, { [100] = 1 }, { map = 38, x = 0.5, y = 0.5 })
+    DB:RecordNode(17, { name = "Fern" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    DB:RecordNode(18, { name = "Halb" }, { [100] = 1 }, { map = 38, x = 0.5, y = 0.5 })
     DB:RecordNode(18, nil, {}, { map = 38, x = 0.5, y = 0.5 }) -- 50 %
     local list = DB:GetLocatedItemSources(100)
     eq(Ids(list), "10,12,11,17,18,13", "Stufe 2: 100 % vor 50 %, ohne Entfernung nach Chance")
@@ -636,7 +631,7 @@ end)
 
 test("Quellen: Kontinent aus den Weltpositionen, wenn die Karten keine Typen liefern", function()
     local DB = SourcesSetup(false, true)
-    DB:RecordNode(17, { name = "Fern", category = "ore" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
+    DB:RecordNode(17, { name = "Fern" }, { [100] = 1 }, { map = 39, x = 0.5, y = 0.5 })
     local list = DB:GetLocatedItemSources(100)
     eq(list[3].tier, 2, "Karte 38: gleiche Welt")
     near(list[3].spot.distance, math.sqrt((2500 - 680) ^ 2 + (500 - 300) ^ 2), "Entfernung")
@@ -731,7 +726,7 @@ test("Quellen: Debug-Zeilen für ein Material", function()
     eq(combined[2][1], "Friedensblume (node 12, gather)", "andere Reihenfolge")
 
     -- höchstens 5 Quellen, 2 Orte je Quelle
-    for id = 20, 30 do DB:RecordNode(id, { name = "N" .. id, category = "other" }, { [100] = 1 }) end
+    for id = 20, 30 do DB:RecordNode(id, { name = "N" .. id }, { [100] = 1 }) end
     local many = DB:DebugItemLines(100)
     eq(many[#many][1], "... 10 more", "Rest der Quellen")
     teardown()
@@ -739,10 +734,10 @@ end)
 
 test("GatherMate2: jede Zone bleibt trotz Begrenzung erhalten", function()
     local DB = stub.newGlimpse():NewModule("GatheringDB")
-    DB.data = { version = 3, nodes = { [1] = { name = "Silberblatt", category = "herb", items = {} } }, npcs = {}, instances = {} }
+    DB.known = { nodes = { [1] = { name = "Silberblatt", category = "herb", items = {} } }, npcs = {}, instances = {} }
     DB.db = { profile = { useExternalSpots = true, externalSources = {} } }
     DB.SPOT_RADIUS = 100
-    DB.GetNode = function(self, id) return self.data.nodes[id] end
+    DB.GetNode = function(self, id) return self.known.nodes[id] end
     DB.GetNPC = function() return nil end
     DB.ReportError = function() end
     stub.load("Glimpse_GatheringDB/Core/Data/Providers.lua", "Glimpse_GatheringDB")

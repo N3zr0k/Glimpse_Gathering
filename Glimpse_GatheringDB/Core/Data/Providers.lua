@@ -3,12 +3,13 @@ local DB = Glimpse:GetModule("GatheringDB")
 local Locations = Glimpse:GetModule("Locations")
 
 -- Fundorte aus anderen Addons (z. B. GatherMate2). Nie gespeichert oder exportiert, nur bei
--- DB:GetSpots hinter die eigenen Orte gehängt.
+-- DB:GetSpots hinter die eigenen Orte gehängt. Kein Adapter von Glimpse: Database, weil die Orte eine Dichte
+-- tragen, je Anbieter abschaltbar sind und GatherMate2 die Knoten über den Namen statt über die Objekt-ID findet.
 --
 -- Ein Anbieter ist eine Tabelle mit:
 --   IsAvailable()                        true, wenn das andere Addon da und benutzbar ist
 --   GetSpots(kind, id, entry)            Liste { map, x, y, density } (x, y von 0 bis 1) oder nil;
---                                        entry = gespeicherter Knoten bzw. Kreatur
+--                                        entry = Knoten bzw. Kreatur aus GetNode/GetNPC (mit Name)
 --   GetInfo()  (optional)                { points = Zahl der Punkte, ... } für die Statistik
 -- Fehler eines Anbieters werden abgefangen, es fehlen dann nur dessen Orte.
 
@@ -112,7 +113,7 @@ end
 
 local function Near(list, map, x, y, radius2)
     for _, spot in ipairs(list) do
-        if spot.map == map then
+        if spot.map == map and spot.x then
             local dx, dy = spot.x - x, spot.y - y
             if dx * dx + dy * dy <= radius2 then return true end
         end
@@ -192,7 +193,8 @@ function DB:IsSpotHere(spot, area)
 end
 
 --- Nächste Fundorte einer Quelle, mit Stufe (tier) relativ zum Spieler:
---   1  eigenes Gebiet; auf Karten mit distance (Yards, wenn Kartengröße bekannt) und mapDistance (Anteil Kartenbreite)
+--   1  eigenes Gebiet; auf Karten mit distance (Yards, wenn Kartengröße bekannt) und mapDistance (Anteil Kartenbreite),
+--      eine Zone ohne Koordinaten ohne Entfernung (hinter den Orten)
 --   2  andere Karte desselben Kontinents, distance = Luftlinie (wenn Weltpositionen verfügbar). Ist der
 --      Kontinent unbekannt (keine Position, Instanz, keine Kartenfunktion), landen alle Karten hier
 --   3  anderer Kontinent oder andere Instanz
@@ -227,10 +229,12 @@ function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
                 tinsert(far, { spot = spot, index = index })
             end
         elseif position.map and spot.map == position.map then
-            local dx, dy = spot.x - position.x, spot.y - position.y
             spot.tier = 1
-            spot.mapDistance = math.sqrt(dx * dx + dy * dy)
-            spot.distance = Locations:GetMapDistance(spot.map, spot.x, spot.y, position.x, position.y)
+            if spot.x then
+                local dx, dy = spot.x - position.x, spot.y - position.y
+                spot.mapDistance = math.sqrt(dx * dx + dy * dy)
+                spot.distance = Locations:GetMapDistance(spot.map, spot.x, spot.y, position.x, position.y)
+            end
             tinsert(near, spot)
         elseif not currentMapOnly then
             -- andere Karte: derselbe Kontinent (Stufe 2) oder ein anderer (Stufe 3)
@@ -239,7 +243,8 @@ function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
                 local continent = Locations:GetContinent(spot.map)
                 if playerContinent and continent then same = playerContinent == continent end
 
-                local world, a, b = Locations:GetWorldPosition(spot.map, spot.x, spot.y)
+                local world, a, b
+                if spot.x then world, a, b = Locations:GetWorldPosition(spot.map, spot.x, spot.y) end
                 if playerWorld and world then
                     if same == nil then same = playerWorld == world end
                     if world == playerWorld then
@@ -252,10 +257,11 @@ function DB:GetNearestSpots(kind, id, limit, currentMapOnly)
             tinsert(far, { spot = spot, index = index })
         end
     end
-    -- auf einer Karte haben alle Orte Yards oder keiner, also immer vergleichbar
+    -- auf einer Karte haben alle Orte Yards oder keiner, also vergleichbar; Zonen ohne Koordinaten dahinter
     table.sort(near, function(a, b)
         local da, db = a.distance or a.mapDistance, b.distance or b.mapDistance
-        if da ~= db then return da < db end
+        if (da ~= nil) ~= (db ~= nil) then return da ~= nil end
+        if da and da ~= db then return da < db end
         return a.count > b.count
     end)
     table.sort(far, function(a, b)

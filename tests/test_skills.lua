@@ -7,13 +7,12 @@ local function setupDB(api)
     local Glimpse = stub.newGlimpse()
     local DB = Glimpse:NewModule("GatheringDB")
     DB.L = Glimpse.L
-    DB.data = { version = 5, nodes = {}, npcs = {} }
     DB.db = { profile = { recording = true } }
-    DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
     DB.api = api or {}
-    stub.load("Glimpse_GatheringDB/Core/Data/Spots.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Store.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Names.lua", "Glimpse_GatheringDB")
+    -- Knoten und Kreaturen statt Glimpse: Database, Aufbau wie GetNode/GetNPC
+    DB.known = { nodes = {}, npcs = {} }
+    function DB:GetNode(id) return self.known.nodes[id] end
+    function DB:GetNPC(id) return self.known.npcs[id] end
     stub.load("Glimpse_GatheringDB/Core/Data/SkillData.lua", "Glimpse_GatheringDB")
     stub.load("Glimpse_GatheringDB/Core/Data/Skills.lua", "Glimpse_GatheringDB")
     return DB, Glimpse
@@ -66,19 +65,19 @@ test("Skills: Knoten nach ID, sonst über das Material", function()
     eq(DB:GetNodeSkill(999999), nil, "unbekannt")
 
     -- unbekannte ID, aber das Material ist bekannt (Zinn, Item 2771)
-    DB.data.nodes[999999] = { name = "Zinnader?", category = "ore", attempts = 3, items = { [2771] = { hits = 3, amount = 3 } } }
+    DB.known.nodes[999999] = { name = "Zinnader?", category = "ore", attempts = 3, items = { [2771] = { hits = 3, amount = 3 } } }
     local p, r = DB:GetNodeSkill(999999)
     eq(p, "ore", "über das Material: Beruf"); eq(r, 65, "über das Material: Skill")
 
     -- widersprüchliche Materialien: keine Aussage
-    DB.data.nodes[999998] = { name = "?", category = "ore", attempts = 3, items = { [2771] = { hits = 1, amount = 1 }, [2775] = { hits = 1, amount = 1 } } }
+    DB.known.nodes[999998] = { name = "?", category = "ore", attempts = 3, items = { [2771] = { hits = 1, amount = 1 }, [2775] = { hits = 1, amount = 1 } } }
     eq(DB:GetNodeSkill(999998), nil, "uneinig")
 end)
 
 test("Skills: Kreaturen, bekannt oder nur vermutet", function()
     local DB = setupDB()
-    DB.data.npcs[100] = { name = "Wolf", level = 15, skinning = { attempts = 4, items = {} } }
-    DB.data.npcs[101] = { name = "Gnoll", level = 15 }
+    DB.known.npcs[100] = { name = "Wolf", level = 15, skinning = { attempts = 4, items = {} } }
+    DB.known.npcs[101] = { name = "Gnoll", level = 15 }
     local profession, required, known = DB:GetRequiredSkill("npc", 100)
     eq(profession, "skinning", "Beruf"); eq(required, 50, "Skill nach gespeicherter Stufe"); eq(known, true, "bekannt")
     eq(select(3, DB:GetRequiredSkill("npc", 101)), false, "nicht bekannt")
@@ -191,8 +190,8 @@ end)
 test("Tooltip: Skill-Zeile für Kreaturen, sicher und vermutet", function()
     local GT, DB = setupTooltip()
     stub.units.mouseover = { guid = "Creature-0-1-2-3-100-0000", level = 15 }
-    DB.data.npcs[100] = { name = "Wolf", level = 15, skinning = { attempts = 2, items = {} } }
-    DB.data.npcs[101] = { name = "Bär", level = 15 }
+    DB.known.npcs[100] = { name = "Wolf", level = 15, skinning = { attempts = 2, items = {} } }
+    DB.known.npcs[101] = { name = "Bär", level = 15 }
 
     local row = GT:UnitSkillRow(100, { guid = "Creature-0-1-2-3-100-0000" }, fakeTooltip({ "Wolf" }))
     eq(row[1], "Skill: |cffff1a1a40|r - requires Kürschnerei 50", "sicher kürschnerbar, Skill 40 reicht nicht")
@@ -208,14 +207,14 @@ test("Tooltip: Skill-Zeile für Kreaturen, sicher und vermutet", function()
 
     -- Boss
     stub.units.mouseover.level = -1
-    DB.data.npcs[101].level = nil
+    DB.known.npcs[101].level = nil
     eq(GT:UnitSkillRow(101, { guid = "Creature-0-1-2-3-101-0000" }, fakeTooltip({ "Boss" })), nil, "Boss ohne Angabe")
 end)
 
 test("Tooltip: Häutbar-Zeile des Clients macht sicher und liefert die Farbe", function()
     local GT, DB = setupTooltip()
     _G.UNIT_SKINNABLE_LEATHER = "Häutbar"
-    DB.data.npcs[102] = { name = "Leopard", level = 8 } -- nie gekürschnert, also nur Vermutung
+    DB.known.npcs[102] = { name = "Leopard", level = 8 } -- nie gekürschnert, also nur Vermutung
     stub.units.mouseover = { guid = "Creature-0-1-2-3-102-0000", level = 8 }
     local data = { guid = "Creature-0-1-2-3-102-0000" }
 

@@ -6,8 +6,7 @@ local Locations = Glimpse:GetModule("Locations")
 -- zählen. Er zählt erst nach KILL_FALLBACK ohne Fenster und nie, wenn CanLootUnit Beute meldet.
 
 local collect = DB.collect
-local Clean, ParseGUID, UnitInfo = collect.Clean, collect.ParseGUID, collect.UnitInfo
-local Remember, DebugOn = collect.Remember, collect.DebugOn
+local Clean, ParseGUID, UnitInfo, Remember = collect.Clean, collect.ParseGUID, collect.UnitInfo, collect.Remember
 local CREATURE_REPEAT = collect.CREATURE_REPEAT
 local pendingKills = collect.pendingKills
 
@@ -33,16 +32,14 @@ function DB:CommitKill(guid, position)
 
     collect.killCounted[guid] = true
     self:RecordNPC(id, "loot", UnitInfo(guid), {}, position)
-    if DebugOn() then
-        self:Debug("Gespeichert: Kreatur", tostring(id), "loot", "ohne Beutefenster (leere Leiche)")
-    end
+    self.debug:Log("kill", "Gespeichert: Kreatur %s ohne Beutefenster (leere Leiche)", tostring(id))
 end
 
 function DB:OnKill(guid)
     if not self.db.profile.recording then return end
     if type(guid) ~= "string" or ParseGUID(guid) ~= "Creature" then return end
 
-    if DebugOn() then self:Debug("Kill erkannt:", tostring(select(2, ParseGUID(guid)))) end
+    self.debug:Log("kill", "Kill erkannt: %s", tostring(select(2, ParseGUID(guid))))
 
     -- Schon gezählt (Fenster oder früherer Kill)
     local now = GetTime()
@@ -71,7 +68,7 @@ function DB:OnKill(guid)
 end
 
 -- PARTY_KILL meldet alle Kills (auch Gruppe/Pet, ohne Ziel). Gibt es das Event, entfällt
--- CheckTargetKill (collect.partyKillActive, gesetzt in StartCollecting).
+-- CheckTargetKill (collect.partyKillActive, gesetzt in LootEvents.lua).
 
 --- Zählt nur Kills von Spieler oder Pet
 function DB:OnPartyKill(killer, victim)
@@ -80,10 +77,10 @@ function DB:OnPartyKill(killer, victim)
 
     local mine = killer == Clean(UnitGUID("player")) or killer == Clean(UnitGUID("pet"))
     if not mine then
-        if DebugOn() then self:Debug("Kill-Erkennung: PARTY_KILL von jemand anderem, nicht gezählt") end
+        self.debug:Log("kill", "Kill-Erkennung: PARTY_KILL von jemand anderem, nicht gezählt")
         return
     end
-    if DebugOn() then self:Debug("Kill-Erkennung: PARTY_KILL", victim) end
+    self.debug:Log("kill", "Kill-Erkennung: PARTY_KILL %s", victim)
     self:OnKill(victim)
 end
 
@@ -107,7 +104,7 @@ function DB:CheckTargetKill()
     local ok, dead = pcall(UnitIsDead, "target")
     if not ok then return end
     if dead ~= nil and Glimpse:IsSecret(dead) then
-        if DebugOn() then self:Debug("Kill-Erkennung: UnitIsDead ist geschützt") end
+        self.debug:Log("kill", "Kill-Erkennung: UnitIsDead ist geschützt")
         return
     end
     if dead ~= true then return end
@@ -115,14 +112,14 @@ function DB:CheckTargetKill()
     local guid = Clean(UnitGUID("target"))
     if type(guid) ~= "string" then guid = targetGUID end
     if type(guid) ~= "string" then
-        if DebugOn() then self:Debug("Kill-Erkennung: Ziel ist tot, aber die GUID ist unbekannt") end
+        self.debug:Log("kill", "Kill-Erkennung: Ziel ist tot, aber die GUID ist unbekannt")
         return
     end
 
     if UnitIsTapDenied then
         local tapOK, denied = pcall(UnitIsTapDenied, "target")
         if tapOK and Clean(denied) == true then
-            if DebugOn() then self:Debug("Kill-Erkennung: Ziel gehört einem anderen Spieler (Tap)") end
+            self.debug:Log("kill", "Kill-Erkennung: Ziel gehört einem anderen Spieler (Tap)")
             return
         end
     end

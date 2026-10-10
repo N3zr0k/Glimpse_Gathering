@@ -130,7 +130,7 @@ end
 
 -- Fallback über GetSkillLineInfo: ohne IDs, Zuordnung per Name aus dem Berufszauber (GetSpellInfo), für
 -- Kräuterkunde zusätzlich der Locale-Name. Ob der Bonus in skillModifier oder numTempPoints steht, ist
--- ungeklärt; genutzt wird skillModifier (prüfen mit /gli gatheringdb skill).
+-- ungeklärt; genutzt wird skillModifier (prüfen mit /gli probe gathering skill).
 local function ScanSkillLines()
     local api = DB.api
     if not (api.GetNumSkillLines and api.GetSkillLineInfo) then return nil end
@@ -193,7 +193,7 @@ function DB:WatchSkills()
     self:RegisterEvent("PLAYER_EQUIPMENT_CHANGED", "OnSkillsChanged")
 end
 
---- Rohwerte zur Prüfung im Spiel (/gli gatheringdb skill): je Beruf Skill, Bonus und welcher Weg ihn geliefert hat.
+--- Rohwerte zur Prüfung im Spiel (/gli probe gathering skill): je Beruf Skill, Bonus und welcher Weg ihn geliefert hat.
 function DB:DescribeSkills()
     self.skillCache = nil -- frisch lesen
     local lines = {}

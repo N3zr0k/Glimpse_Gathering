@@ -1,23 +1,17 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
 
-    <!-- 0. Mitgelieferte Bibliothek (Kompression für Export und Import) -->
-    <Include file="Libs\LibDeflate\lib.xml"/>
-
     <!-- 1. Texte -->
     <Include file="Locales\Locales.xml"/>
 
-    <!-- 2. Modul, Datenbank, Optionen -->
+    <!-- 2. Modul, Anmeldung bei Glimpse: Database, Optionen -->
     <Include file="Core\Core.xml"/>
 
-    <!-- 3. Daten speichern und abfragen (öffentliche Schnittstelle) -->
+    <!-- 3. Daten lesen (öffentliche Schnittstelle) -->
     <Include file="Core\Data\Data.xml"/>
 
-    <!-- 4. Beute erfassen -->
+    <!-- 4. Beute erfassen und schreiben -->
     <Include file="Core\Loot\Loot.xml"/>
 
-    <!-- 5. Debug-Anzeige im Tooltip -->
+    <!-- 5. Debug-Anzeige im Tooltip und Probes -->
     <Include file="Modules\Debug\Debug.xml"/>
-
-    <!-- 6. Slash-Befehl -->
-    <Include file="Commands\Commands.xml"/>
 </Ui>

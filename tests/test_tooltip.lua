@@ -570,24 +570,13 @@ test("Tooltip: belegte Taste wird auch über die Liste aller Belegungen gefunden
     _G.GetBindingAction, _G.GetNumBindings, _G.GetBinding, _G.StaticPopupDialogs, _G.StaticPopup_Show = nil, nil, nil, nil, nil
 end)
 
-test("Tooltip: jedes Markierungs-Symbol hat einen Bildnachweis", function()
+test("Tooltip: jedes Markierungs-Symbol hat einen Bildnachweis in CREDITS.md", function()
     local GT = setup()
-    local credited = {}
-    for _, credit in ipairs(GT.IconCredits) do
-        eq(credit.author ~= nil and credit.url:find("^https://www.flaticon.com/") ~= nil, true, credit.key .. ": Autor und Link")
-        credited[credit.key] = true
-    end
-    for _, icon in ipairs(GT.MarkerIcons) do eq(credited[icon.key], true, icon.key .. " hat einen Nachweis") end
-end)
-
-test("Tooltip: Bildnachweis für die Credits der Optionsseite", function()
-    local GT = setup()
-    stub.load("Glimpse_GatheringTooltip/Core/Options.lua", "Glimpse_GatheringTooltip")
-    local credits = GT:BuildCredits()
-    eq(#credits.images, #GT.IconCredits, "ein Eintrag je Symbol")
-    eq(credits.images[1]:find("Karacis |cff66ccff(", 1, true) ~= nil, true, "Autor und Flaticon")
-    eq(credits.images[1]:find("|cff66ccff(https://www.flaticon.com/", 1, true) ~= nil, true, "Link blau in Klammern")
-    eq(credits.images[1]:sub(-3), ")|r", "Klammer und Farbe geschlossen")
+    local file = assert(io.open(stub.root .. "/Glimpse_GatheringTooltip/Media/Markers/CREDITS.md"))
+    local text = file:read("a")
+    file:close()
+    local _, links = text:gsub("| https://www%.flaticon%.com/", "")
+    eq(links, #GT.MarkerIcons, "ein Flaticon-Link je Symbol")
 end)
 
 test("Waypoint: im Kampf wird die Tastaturabfrage nicht angefasst (geschützte Aufrufe)", function()

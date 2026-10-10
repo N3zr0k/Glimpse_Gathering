@@ -206,7 +206,7 @@ function provider.GetInfo()
     return { points = points, nodes = nodes }
 end
 
---- Prüfausgabe für "/gli gatheringdb gm2": was GatherMate2 hat und was davon bei uns ankommt.
+--- Prüfausgabe für "/gli probe gathering gm2": was GatherMate2 hat und was davon bei uns ankommt.
 function DB:DiagnoseGatherMate2()
     local lines = {}
     local function Add(text) tinsert(lines, text) end
@@ -247,24 +247,25 @@ function DB:DiagnoseGatherMate2()
     end
 
     -- Wie viele unserer Knoten finden einen Partner
-    local ours, matched = 0, 0
-    for id, node in pairs(DB.data.nodes) do
-        ours = ours + 1
-        local list = provider.GetSpots("node", id, node)
+    local ids = {}
+    local reader = DB:Reader()
+    for id in pairs(reader and reader:GetCounts("node", DB.WORLD_SCOPE) or {}) do tinsert(ids, id) end
+    table.sort(ids)
+
+    local matched = 0
+    for _, id in ipairs(ids) do
+        local list = provider.GetSpots("node", id, DB:GetNode(id))
         if list and #list > 0 then matched = matched + 1 end
     end
-    Add(format("Own nodes with a match in GatherMate2: %d of %d", matched, ours))
+    Add(format("Own nodes with a match in GatherMate2: %d of %d", matched, #ids))
 
     -- Treffer und Fehlschläge je Knoten, mit Kategorie (bestimmt den GatherMate2-Typ)
-    local ids = {}
-    for id in pairs(DB.data.nodes) do tinsert(ids, id) end
-    table.sort(ids)
     for position, id in ipairs(ids) do
         if position > 30 then
             Add("... " .. (#ids - 30) .. " more")
             break
         end
-        local node = DB.data.nodes[id]
+        local node = DB:GetNode(id)
         local list = provider.GetSpots("node", id, node)
         if list and #list > 0 then
             Add(format("  %d %s [%s]: %d places in GatherMate2", id, tostring(node.name), tostring(node.category), #list))

@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.3.5] - 2026-10-10
+
+### Changed
+- Addon icon optimized for the game (64 x 64)
+
+## [0.3.4] - 2026-10-10
+
+### Changed
+- New addon icon
+
+## [0.3.3] - 2026-10-09
+
+### Changed
+- Requires Glimpse 0.3.14
+
+## [0.3.2] - 2026-10-09
+
+### Changed
+- GatheringTooltip: credits are shown only once, in the Glimpse overview
+
+## [0.3.1] - 2026-10-08
+
+### Added
+- Data sources shown in `/gli probe db sources`
+
+## [0.3.0] - 2026-10-08
+
+### Changed
+- Data is now stored in Glimpse: Database; old data is taken over on first start
+- Requires Glimpse 0.3 and Glimpse: Database
+- GatheringDB: fishing is no longer recorded here, it is read from Glimpse: Professions
+- GatheringDB: creature locations are kept per zone, without coordinates
+- GatheringDB: debug output uses the Glimpse debugger and probes (`/gli probe gathering`)
+
+### Removed
+- GatheringDB: own export, import and reset (now in the Glimpse options, tab Data)
+- GatheringDB: command `/gli gatheringdb`
+
 ## [0.2.10] - 2026-10-08
 
 ### Changed

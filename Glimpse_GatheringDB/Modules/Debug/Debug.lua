@@ -1,10 +1,11 @@
+local ADDON_NAME = ...
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local Locations = Glimpse:GetModule("Locations")
 local L = DB.L
 
--- Debug-Tooltip (/gli debug on): Rohdaten von GatheringDB, grau, ohne Icons und Berechnung:
---   [DEBUG] Glimpse(GatheringDB)
+-- Debug-Tooltip (/gli debug on, Kategorie GatheringDB tooltip): Daten aus Glimpse: Database, grau, ohne Icons:
+--   [Glimpse: GatheringDB]
 --   ID: 179891
 --   Name: Waldwolf
 --   Loot: 7 attempts
@@ -14,6 +15,7 @@ local L = DB.L
 --   Position: Elwynn Forest (37)  41.2 / 56.8
 --   Elwynn Forest (37)  41.0 / 55.0      3 finds, 25 yards away  [own]
 --   Elwynn Forest (37)  70.2 / 30.2      5 points  [GatherMate2]
+-- Dieselben Zeilen gibt es als Probe (DebugProbes.lua).
 
 -- Höchstzahl der Item-Zeilen je Liste
 local MAX_ITEMS = 5
@@ -53,11 +55,12 @@ local function Percent(value)
     return format("%.1f", value * 100)
 end
 
--- Ort eines Fundorts für die Anzeige: Karte mit Koordinaten oder Instanz ohne Koordinaten
+-- Ort eines Fundorts für die Anzeige: Karte mit Koordinaten, Zone ohne Ort oder Instanz
 local function PlaceLabel(spot)
     if spot.instance then
         return L["Instance"] .. ": " .. tostring(spot.name or "?") .. " (" .. spot.instance .. ")"
     end
+    if not spot.x then return MapLabel(spot.map) end
     return MapLabel(spot.map) .. "  " .. Percent(spot.x) .. " / " .. Percent(spot.y)
 end
 
@@ -75,9 +78,9 @@ local function SpotOrder(a, b)
     if ownA ~= ownB then return ownA end
     if a.count ~= b.count then return a.count > b.count end
     if (a.density or 0) ~= (b.density or 0) then return (a.density or 0) > (b.density or 0) end
-    if a.map ~= b.map then return a.map < b.map end
-    if a.x ~= b.x then return a.x < b.x end
-    return a.y < b.y
+    if (a.map or 0) ~= (b.map or 0) then return (a.map or 0) < (b.map or 0) end
+    if (a.x or 0) ~= (b.x or 0) then return (a.x or 0) < (b.x or 0) end
+    return (a.y or 0) < (b.y or 0)
 end
 
 -- Je Fundort: Karte und Koordinaten (%) links, Funde/Punkte, Entfernung und Quelle rechts
@@ -175,12 +178,13 @@ local function AddSpotLines(lines, kind, ids)
     for _, line in ipairs(DB:DebugSpotLines(kind, ids)) do tinsert(lines, line) end
 end
 
-local function Header(module)
-    return Line(format("|cff9d9d9d[DEBUG]|r %s(%s)", Glimpse.name, module:GetName()))
+-- Kennung wie bei allen Debug-Ausgaben der Suite: [Glimpse: GatheringDB]
+local function Header()
+    return Line(Glimpse:DebugTag(ADDON_NAME))
 end
 
-local function NodeLines(module, id)
-    local lines = { Header(module), Line(L["ID"] .. ": " .. id) }
+local function NodeLines(id)
+    local lines = { Header(), Line(L["ID"] .. ": " .. id) }
     local node = DB:GetNode(id)
 
     if not node then
@@ -198,8 +202,8 @@ local function NodeLines(module, id)
     return lines
 end
 
-local function UnitLines(module, id)
-    local lines = { Header(module), Line(L["ID"] .. ": " .. id) }
+local function UnitLines(id)
+    local lines = { Header(), Line(L["ID"] .. ": " .. id) }
     local npc = DB:GetNPC(id)
 
     if not npc then
@@ -239,8 +243,8 @@ end
 
 -- Knoten in der Welt haben im Tooltip keine ID, nur den Namen aus der ersten Zeile. Alle Knoten
 -- mit diesem Namen werden zusammengezählt.
-local function NodeNameLines(module, name, data, hidden)
-    local lines = { Header(module) }
+local function NodeNameLines(name, data, hidden)
+    local lines = { Header() }
 
     if not name then
         tinsert(lines, Line(L["No source ID in tooltip data"]))
@@ -271,45 +275,19 @@ local function NodeNameLines(module, name, data, hidden)
     return lines
 end
 
--- Schwimmer: Würfe und Fänge der aktuellen Zone, dazu Würfe gesamt
-local function BobberLines(module, name)
-    local lines = { Header(module), Line(L["Name"] .. ": " .. name .. " (" .. L["fishing bobber"] .. ")") }
-
-    local area = Locations:GetPlayerArea()
-    local map = type(area) == "table" and area.map
-    if not map then
-        tinsert(lines, Line(L["No zone known"]))
-        return lines
-    end
-
-    local drops, casts = DB:GetFishingDrops(map)
-    tinsert(lines, Line(L["Zone"] .. ": " .. MapLabel(map)))
-    tinsert(lines, Line(format(L["Casts in this zone: %d"], casts)))
-    AddItems(lines, drops)
-
-    local _, _, _, _, zones, total = DB:GetStats()
-    tinsert(lines, Line(format(L["Casts in total: %d (%d zones)"], total, zones)))
-    AddSpotLines(lines, "fishing", { map })
-    return lines
-end
-
-local function SourceLines(module, data, hidden, isObject, tooltip)
+local function SourceLines(data, hidden, isObject, tooltip)
     -- Bei jedem Tooltip prüfen, damit Debug live umschaltbar ist
-    if not Glimpse:IsDebug() then return nil end
+    if not DB.debug:IsOn("tooltip") then return nil end
 
     local kind, id = SourceOf(data, isObject)
-    if kind == "node" then return NodeLines(module, id) end
-    if kind == "npc" then return UnitLines(module, id) end
-    if isObject then
-        local name = DB:GetTooltipName(tooltip)
-        if DB:IsBobber(name) then return BobberLines(module, name) end
-        return NodeNameLines(module, name, data, hidden)
-    end
+    if kind == "node" then return NodeLines(id) end
+    if kind == "npc" then return UnitLines(id) end
+    if isObject then return NodeNameLines(DB:GetTooltipName(tooltip), data, hidden) end
 end
 
 -- Material: Quellen mit Fundorten, nur bei Debug und vorhandenen Quellen
-local function ItemLines(module, data)
-    if not Glimpse:IsDebug() then return nil end
+local function ItemLines(_, data)
+    if not DB.debug:IsOn("tooltip") then return nil end
 
     local itemID = tonumber(data.id)
     if not itemID then return nil end
@@ -321,7 +299,7 @@ local function ItemLines(module, data)
     local sources = DB:DebugItemLines(itemID, not profile or profile.externalSeparate ~= false)
     if #sources == 0 then return nil end
 
-    local lines = { Header(module), Line(L["ID"] .. ": " .. itemID) }
+    local lines = { Header(), Line(L["ID"] .. ": " .. itemID) }
     for _, line in ipairs(sources) do tinsert(lines, line) end
     return lines
 end
@@ -330,10 +308,15 @@ function DB:RegisterDebugTooltips()
     local types = Enum.TooltipDataType
 
     self:RegisterTooltipLine(types.Item, ItemLines)
-    self:RegisterTooltipLine(types.Object, function(module, data, tooltip, hidden)
-        return SourceLines(module, data, hidden, true, tooltip)
+    self:RegisterTooltipLine(types.Object, function(_, data, tooltip, hidden)
+        return SourceLines(data, hidden, true, tooltip)
     end)
-    self:RegisterTooltipLine(types.Unit, function(module, data, tooltip, hidden)
-        return SourceLines(module, data, hidden, false, tooltip)
+    self:RegisterTooltipLine(types.Unit, function(_, data, tooltip, hidden)
+        return SourceLines(data, hidden, false, tooltip)
     end)
+end
+
+--- Zeilen zu einem Knoten oder einer Kreatur (kind = "node" oder "npc"), auch für die Probes
+function DB:DebugSourceLines(kind, id)
+    return (kind == "npc" and UnitLines or NodeLines)(id)
 end

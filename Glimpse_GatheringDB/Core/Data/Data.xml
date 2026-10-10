@@ -1,10 +1,8 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
-    <Script file="Spots.lua"/>
-    <Script file="Store.lua"/>
+    <!-- Lesen aus Glimpse: Database (Fassade), Fundorte anderer Addons, Skills -->
     <Script file="Names.lua"/>
-    <Script file="Migrate.lua"/>
-    <Script file="Transfer.lua"/>
-    <Script file="TransferUI.lua"/>
+    <Script file="Drops.lua"/>
+    <Script file="Spots.lua"/>
     <Script file="Providers.lua"/>
     <Script file="GatherMate2.lua"/>
     <Script file="Sources.lua"/>

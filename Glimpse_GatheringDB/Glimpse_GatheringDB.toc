@@ -3,7 +3,7 @@
 ## Notes: Collects gathering nodes and creature loot while you play and provides the data to other addons.
 ## Notes-deDE: Sammelt Sammelknoten und Kreaturen-Beute beim Spielen und stellt die Daten anderen Addons zur Verfügung.
 
-## Version: 0.2.10-beta.3
+## Version: 0.3.5-alpha.1
 ## Author: N3zr0k
 ## X-License: MIT
 ## X-Website: https://github.com/N3zr0k/Glimpse_Gathering
@@ -12,9 +12,11 @@
 
 ## Category: Tooltip
 ## IconTexture: Interface\AddOns\Glimpse_GatheringDB\Media\Icon
-## X-Glimpse-MinVersion: 0.2.2
-## Dependencies: Glimpse
+## X-Glimpse-MinVersion: 0.3.14
+## Dependencies: Glimpse, Glimpse_Database
 ## OptionalDeps: GatherMate2
-## SavedVariables: GlimpseGatheringDB
+# GlimpseGatheringDB: alte Daten, nur noch für die Übernahme durch Glimpse: Database (nicht entfernen)
+# GlimpseGatheringNames: Namen von Knoten, Kreaturen und Instanzen (Database speichert nur IDs)
+## SavedVariables: GlimpseGatheringDB, GlimpseGatheringNames
 
 Glimpse_GatheringDB.xml

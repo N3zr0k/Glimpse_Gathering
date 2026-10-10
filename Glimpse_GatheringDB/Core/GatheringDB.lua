@@ -2,12 +2,22 @@ local ADDON_NAME = ...
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 
--- Glimpse: GatheringDB speichert account-weit, welche Handwerksmaterialien beim Sammeln und Looten
--- anfallen. Keine eigene Anzeige (außer Debug), das übernimmt z. B. GatheringTooltip.
+-- Glimpse: GatheringDB erfasst, welche Handwerksmaterialien beim Sammeln und Looten anfallen, und schreibt sie in
+-- den Namespace "gathering" von Glimpse: Database. Keine eigene Anzeige (außer Debug), das übernimmt z. B.
+-- GatheringTooltip. Die Lese-API unten ist eine Fassade über GlimpseDB:Get("gathering") und ("fishing").
 --
--- API (API_VERSION 10) über Glimpse.GatheringDB:
---   :GetNode(id)               Eintrag eines Sammelknotens oder nil
---   :GetNPC(id)                Eintrag einer Kreatur oder nil
+-- Namespace gathering (Bereich Gathering, Zähler auch je Zone; Zone = uiMapID, in Instanzen -instanceID):
+--   node / nodeloot:<Objekt> / nodedrop:<Objekt>   Abbau eines Knotens, Menge, Beutefenster mit dem Item (Weltwissen)
+--   npc / npcloot:<NPC> / npcdrop:<NPC>            geplünderte Leichen (auch leere), Menge, Fenster (Weltwissen)
+--   skinned / skinloot:<NPC> / skindrop:<NPC>      gekürschnerte Leichen, Menge, Fenster (Weltwissen)
+--   herb / ore / other [Objekt], skin [NPC]        eigene Sammelzähler (persönlich)
+--   Orte: Fundorte der Knoten (ID = Objekt)
+-- Arten wie in Glimpse_Database/Core/AlphaMigration.lua, damit übernommene und neue Daten zusammenpassen.
+-- Angeln schreibt Glimpse: Professions in den Namespace fishing, gelesen wird es hier nur.
+--
+-- API (API_VERSION 11) über Glimpse.GatheringDB:
+--   :GetNode(id)               Knoten { name, category, attempts, items = { [itemID] = { hits, amount } } } oder nil
+--   :GetNPC(id)                Kreatur { name, level, loot = { attempts, items }, skinning = { ... } } oder nil
 --   :GetNodeDrops(id)          Liste der Beute eines Knotens, dazu die Zahl der Versuche
 --   :GetNPCDrops(id, kind)     dasselbe für eine Kreatur, kind = "loot" oder "skinning"
 --   :GetTooltipName(tooltip)   Name aus der ersten Zeile eines Tooltips (für Knoten ohne ID)
@@ -15,65 +25,46 @@ local L = LibStub("AceLocale-3.0"):GetLocale(ADDON_NAME)
 --   :GetNodeDropsByName(name)  wie GetNodeDrops, über den Namen (mehrere IDs zusammengerechnet)
 --   :GetItemSources(itemID, minAttempts)
 --                              alle Quellen eines Items, die wahrscheinlichste zuerst
---   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster, Fundorte, Angelzonen und Würfe
+--   :GetStats()                Anzahl Knoten, Kreaturen, erfasster Beutefenster, Fundorte, Angelzonen und Fänge
 --   :GetSpots(kind, id, includeExternal)
---                              Fundorte (kind = "node", "npc" oder "fishing" mit id = Karte): { map, x, y, count, source },
---                              in Instanzen { instance, name, count, source }. Eigene zuerst, dann externe
---                              (source = "GatherMate2", count = 0); includeExternal = false nur eigene
---   :GetOwnSpots(kind, id)     nur die eigenen Fundorte
+--                              Fundorte (kind = "node", "npc" oder "fishing" mit id = Zone): { map, x, y, count, source },
+--                              Zone ohne Koordinaten { map, count, source }, Instanz { instance, name, count, source }.
+--                              Eigene zuerst, dann externe (source = "GatherMate2", count = 0)
+--   :GetOwnSpots(kind, id)     nur die Fundorte aus Glimpse: Database
 --   :GetNearestSpots(kind, id, limit, currentMapOnly)
 --                              Fundorte, die nächsten auf der Karte des Spielers zuerst (distance)
 --   :GetItemSpots(itemID, minAttempts, limit, includeExternal)
 --                              Fundorte aller Quellen eines Items, wahrscheinlichste Quelle zuerst
 --   :GetLocatedItemSources(itemID, minAttempts, externalSeparate, minChance)
---                              Orte der Quellen, je Quelle und Zone ein Eintrag. tier 1 eigenes Gebiet, 2 gleicher
---                              Kontinent (nach Entfernung, ab minChance), 3 sonst, 4 ohne Ort; bestätigte vor
---                              externen. Zusatzfelder tier, area, group, spot, spots, place
---   :GetRequiredSkill(kind, id, level)
---                              Beruf ("herb", "ore", "skinning") und benötigter Skill; bei kind = "npc" Stufe aus
---                              level oder gespeichert, dazu ob als kürschnerbar bekannt
---   :GetNodeSkill(id)          dasselbe für einen Knoten (Objekt-ID); :GetSkinningSkill(level) für eine Kreaturenstufe
---   :GetPlayerSkill(profession)  Skill des Spielers mit Bonus, Maximum, Name im Client, Skill ohne Bonus (nil: nicht gelernt)
---   :GetSkillColor(required, current)
---                              "red" (reicht nicht), "orange", "yellow", "green" oder "gray", dazu r, g, b
---   :HasProfession(profession), :IsKnownSkinnable(id), :GetCreatureTypeID(unit), :IsSkinnableType(typeID)
---   :GetFishing(map)           Eintrag einer Angelzone (uiMapID) oder nil: { attempts, items, spots }
---   :GetFishingDrops(map)      Liste der Fänge einer Zone, dazu die Zahl der Würfe (wie GetNodeDrops)
---   :IsFishing(), :IsBobber(name)  läuft ein Wurf; gehört der Objekt-Tooltip mit diesem Namen zum Schwimmer
+--                              Orte der Quellen, je Quelle und Zone ein Eintrag (Core/Data/Sources.lua)
+--   :GetRequiredSkill(kind, id, level), :GetNodeSkill(id), :GetSkinningSkill(level), :GetPlayerSkill(profession),
+--   :GetSkillColor(required, current), :HasProfession(profession), :IsKnownSkinnable(id),
+--   :GetCreatureTypeID(unit), :IsSkinnableType(typeID)       Skills (Core/Data/Skills.lua)
+--   :GetFishing(zone)          Angelzone aus dem Namespace fishing: { attempts, items } oder nil
+--   :GetFishingDrops(zone)     Liste der Fänge einer Zone, dazu die Zahl der Beutefenster
 --   :GetProviders()            Anbieter fremder Fundorte: { name, available, enabled }
 --   :RegisterProvider(name, provider)  weiteren Anbieter anmelden (siehe Core/Data/Providers.lua)
---   :GetMapName(map)           Name einer Karte (Zone) oder nil
---   :ExportData()              Exporttext aller Daten (komprimiert), dazu Zahlen
---   :ImportData(text, mode)    Import, mode = "merge" (Standard) oder "replace"
--- Nachricht GLIMPSE_GATHERING_UPDATED (kind, id), wenn sich Daten geändert haben:
---   DB:RegisterMessage("GLIMPSE_GATHERING_UPDATED", func)
--- Rückgabetabellen nur lesen.
--- Aufbau in Core/Data/ (Store.lua, Spots.lua, Names.lua), Erfassung in Core/Loot/, Debug-Anzeige in Modules/Debug/Debug.lua.
+--   :GetMapName(map), :GetInstanceName(id)
+-- Änderungen meldet Glimpse: Database (GlimpseDB.EVENT_CHANGED, Namespace "gathering" bzw. "fishing").
+-- Rückgabetabellen nur lesen. Aufbau: Core/Data/ (Lesen), Core/Loot/ (Erfassen), Modules/Debug/ (Debug, Probes).
 local DB = Glimpse:NewModule("GatheringDB", nil, "AceEvent-3.0")
 DB.L = L
-DB.API_VERSION = 10
-DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
+DB.API_VERSION = 11
 
--- Zugriff ohne GetModule
-Glimpse.GatheringDB = DB
+DB.NAMESPACE = "gathering"
+DB.FISHING_NAMESPACE = "fishing"
 
--- Account-weite SavedVariable. version = Datenformat, Umstellung in Core/Data/Migrate.lua:
---   1: Knoten und Kreaturen mit Beute
---   2: Fundorte (spots), importierte Exporte (imports)
---   3: Fundorte auch als Instanz ({ inst, n } statt { map, x, y, n }), instances = Instanznamen
---   4, 5: Kill-Zähler je Kreatur (kills), wird beim Prüfen entfernt
---   6: Angeln (fishing), je Zone { attempts, items, spots }
-local DATA_VERSION = 6
-DB.DATA_VERSION = DATA_VERSION
--- version absichtlich nicht in den Defaults: AceDB speichert keine Default-Werte, die Version wäre nach
--- dem Logout weg und Migrate liefe nie. Ohne Eintrag gilt 1, alle (wiederholbaren) Schritte laufen.
-local dataDefaults = {
-    global = {
-        nodes = {}, -- [objectID] = { name, category, attempts, items = { [itemID] = { hits, amount } }, spots }
-        npcs = {},  -- [npcID] = { name, level, loot = { attempts, items }, skinning = { attempts, items }, spots }
-        fishing = {}, -- [uiMapID der Zone] = { attempts, items = { [itemID] = { hits, amount } }, spots }
-        instances = {}, -- [instanceID] = Name der Instanz, für Fundorte in Instanzen
-        imports = {}, -- [Export-ID] = Zeitpunkt, gegen doppeltes Zusammenführen
+-- Weltwissen lesen: alle Charaktere, auch aus Importen und der Übernahme ("world")
+DB.WORLD_SCOPE = "all"
+
+-- Anmeldung beim Namespace. world muss zu TARGETS.gathering in AlphaMigration.lua passen.
+DB.NAMESPACE_OPTIONS = {
+    area = "Gathering",
+    zones = true,
+    world = {
+        node = true, nodeloot = true, nodedrop = true,
+        npc = true, npcloot = true, npcdrop = true,
+        skinned = true, skinloot = true, skindrop = true,
     },
 }
 
@@ -88,20 +79,35 @@ local settingsDefaults = {
 }
 
 function DB:OnInitialize()
-    self.store = LibStub("AceDB-3.0"):New("GlimpseGatheringDB", dataDefaults, true)
-    self.data = self.store.global
+    self.debug = Glimpse:NewDebugger("GatheringDB", { "node", "creature", "skinning", "kill", "area", "error", "tooltip" })
     self.db = Glimpse.db:RegisterNamespace("GatheringDB", settingsDefaults)
+    self:LoadNames()
 
-    -- Daten einer neueren Version nicht anfassen, nicht aufzeichnen
-    self.dataTooNew = not self:PrepareData(DATA_VERSION)
+    -- Früh anmelden, damit die Übernahme beim Login (PLAYER_LOGIN) die Angaben des Schreibers vorfindet
+    local Database = GlimpseDB
+    if type(Database) == "table" and Database.Register then
+        local ok, ns, reason = pcall(Database.Register, Database, self.NAMESPACE, self.NAMESPACE_OPTIONS)
+        if ok and ns then
+            self.ns = ns
+        else
+            self.registerError = ok and tostring(reason) or tostring(ns)
+        end
+        if Database.RegisterCallback then
+            Database.RegisterCallback(self, Database.EVENT_CHANGED, "OnDataChanged")
+        end
+    else
+        self.registerError = "MISSING"
+    end
 
     -- BuildOptions steht in Core/Options.lua
     Glimpse:RegisterAddonOptions(ADDON_NAME, self:BuildOptions())
 end
 
 function DB:OnEnable()
-    if self.dataTooNew then
+    if self.registerError == "NEWER_DATA" then
         Glimpse:Print(L["The saved gathering data comes from a newer version. Recording is paused."])
+    elseif not self.ns then
+        Glimpse:Print(format(L["Glimpse: Database is not available, recording is off (%s)."], tostring(self.registerError)))
     else
         local ok, missing = self:CheckAPI()
         if ok then
@@ -111,10 +117,26 @@ function DB:OnEnable()
         end
     end
     self:RegisterDebugTooltips()
+    self:RegisterProbes()
     self:WatchGatherMate2()
     self:WatchSkills()
 end
 
 function DB:OnDisable()
     self:StopCollecting()
+end
+
+--- Leser eines Namespace (Standard gathering), nil ohne Database oder ohne Daten
+function DB:Reader(name)
+    local Database = GlimpseDB
+    if type(Database) ~= "table" or type(Database.Get) ~= "function" then return nil end
+    local ok, reader = pcall(Database.Get, Database, name or self.NAMESPACE)
+    if ok and type(reader) == "table" then return reader end
+end
+
+--- Zwischenspeicher verwerfen, wenn sich gathering oder fishing ändert (nil = vieles auf einmal, z. B. Import)
+function DB:OnDataChanged(_, nsName)
+    if nsName == nil or nsName == self.NAMESPACE or nsName == self.FISHING_NAMESPACE then
+        self:ClearCaches()
+    end
 end

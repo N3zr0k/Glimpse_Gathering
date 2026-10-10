@@ -10,14 +10,6 @@ L["Statistics"] = true
 L["Gathering nodes: %d"] = true
 L["Creatures: %d"] = true
 L["Recorded loot windows: %d"] = true
-L["Reset data"] = true
-L["Deletes all collected gathering data."] = true
-L["Really delete all collected gathering data?"] = true
-
--- Slash-Befehl
-L["Shows statistics, exports, imports or resets the gathering data, checks GatherMate2 and your gathering skills (stats | export | import | reset | gm2 | skill)"] = true
-L["Usage: /gli gatheringdb stats | export | import | reset | gm2 | skill"] = true
-L["Gathering data deleted."] = true
 
 -- Debug-Anzeige im Tooltip
 L["ID"] = true
@@ -42,7 +34,6 @@ L["%d finds"] = true
 L["%d points"] = true
 L["%d yards away"] = true
 L["%s%% of the map away"] = true
-L["Sources"] = true
 L["Places"] = true
 L["here"] = true
 L["elsewhere"] = true
@@ -74,40 +65,12 @@ L["Reads the node locations saved by %s. They are not copied or exported."] = tr
 L["%s was not found or is not loaded."] = true
 L["%s: %d locations"] = true
 
--- Export und Import
-L["Export and import"] = true
-L["Export"] = true
-L["Import"] = true
-L["Shows all collected data as text to copy, for a backup or another account."] = true
-L["Paste exported data to merge it with yours or to replace it."] = true
-L["Export gathering data"] = true
-L["Import gathering data"] = true
-L["%d gathering nodes, %d creatures, %d characters"] = true
-L["Select the text (Ctrl+A), copy it (Ctrl+C) and paste it into the import window on the other account or computer."] = true
-L["Paste the exported text here. Merge adds the numbers to your data, Replace deletes your data first. Older data is converted automatically."] = true
-L["Merge"] = true
-L["Replace"] = true
-L["Replace ALL gathering data with the imported data? This cannot be undone."] = true
-L["Imported: %d gathering nodes, %d creatures."] = true
-L["Data converted from version %d."] = true
-L["Removed entries: %d."] = true
-L["Nothing to import. Paste the exported text first."] = true
-L["The text is too long."] = true
-L["This is not an export of Glimpse: GatheringDB."] = true
-L["The export was made by a newer version of the addon. Please update the addon."] = true
-L["The export is compressed, but the compression library is missing."] = true
-L["The text is damaged or incomplete. Was it copied completely?"] = true
-L["The data comes from a newer version of the addon. Please update the addon."] = true
-L["This export has already been imported."] = true
-
 -- Angeln
-L["Fishing: %d zones, %d casts"] = true
-L["Fishing zones: %d."] = true
-L["%d fishing zones"] = true
-L["Fishing this session: %d casts, %d loot windows, %d without catch"] = true
 L["Fishing"] = true
-L["fishing bobber"] = true
 L["Zone"] = true
 L["No zone known"] = true
-L["Casts in this zone: %d"] = true
-L["Casts in total: %d (%d zones)"] = true
+
+-- Glimpse: Database
+L["Fishing: %d zones, %d loot windows"] = true
+L["Glimpse: Database is not available, recording is off (%s)."] = true
+L["The data is stored in Glimpse: Database. Export, import and reset are in the Glimpse options, tab Data."] = true

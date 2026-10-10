@@ -12,40 +12,24 @@ local ITEMS = {
 }
 
 local function setup()
-    local Glimpse = stub.newGlimpse()
-    local DB = Glimpse:NewModule("GatheringDB")
-    DB.data = { version = 1, nodes = {}, npcs = {} }
-    DB.db = { profile = { recording = true } }
-    DB.MESSAGE_UPDATED = "GLIMPSE_GATHERING_UPDATED"
-    stub.load("Glimpse_GatheringDB/Core/Data/Spots.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Store.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Names.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Data/Migrate.lua", "Glimpse_GatheringDB")
-
     -- Aktuelles Beutefenster: Liste aus { itemID, guid, menge }
     local window = {}
-    DB.api = {
+    local DB = stub.newGatheringDB({ api = {
         GetItemInfoInstant = function(id) local c = ITEMS[id]; return id, "", "", "", "", c[1], c[2] end,
         GetNumLootItems = function() return #window end,
         GetLootSlotType = function() return 1 end,
         GetLootSlotLink = function(slot) return "|Hitem:" .. window[slot][1] .. ":0|h[x]|h" end,
         GetLootSourceInfo = function(slot) return window[slot][2], window[slot][3] or 1 end,
-    }
-    stub.load("Glimpse_GatheringDB/Core/Loot/Collect.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Loot/LootWindow.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Loot/Fishing.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Loot/Kills.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Loot/Area.lua", "Glimpse_GatheringDB")
-    stub.load("Glimpse_GatheringDB/Core/Loot/Events.lua", "Glimpse_GatheringDB")
-    DB:StartCollecting()
+    } })
+    DB.db.profile.trackLocations = false
 
     local frame = stub.frames[#stub.frames]
-    local env = { DB = DB, window = window }
+    local env = { DB = DB, window = window, frame = frame }
 
     -- Zauber erfolgreich, dann Beutefenster öffnen und auswerten
-    function env.cast(target)
+    function env.cast(target, spellID)
         if target then frame.onEvent(frame, "UNIT_SPELLCAST_SENT", "player", target, "x", 1) end
-        frame.onEvent(frame, "UNIT_SPELLCAST_SUCCEEDED", "player")
+        frame.onEvent(frame, "UNIT_SPELLCAST_SUCCEEDED", "player", "x", spellID)
     end
     function env.loot(entries)
         for i in ipairs(window) do window[i] = nil end
@@ -54,6 +38,8 @@ local function setup()
         stub.now = stub.now + 0.4
         stub.flush()
     end
+    -- Zähler dieses Charakters im Namespace gathering
+    function env.count(kind, id) return GlimpseDB:Get("gathering"):GetCount(kind, id) end
     return env
 end
 
@@ -143,18 +129,53 @@ test("Collect: Kürschnern wird nach dem Zauber erkannt", function()
     eq(npc.skinning.attempts, 1, "Kürschnern")
 end)
 
-test("Collect: zweites Looten derselben Leiche zählt als Kürschnern, drittes nicht doppelt", function()
+test("Collect: zweites Looten derselben Leiche nach einem Zauber zählt als Kürschnern, drittes nicht doppelt", function()
     local e = setup()
     stub.now = 100
     e.loot({ { 102, WOLF } })
     stub.now = 140
+    e.loot({ { 100, WOLF } })                 -- ohne Zauber: dieselbe Leiche erneut geöffnet
+    eq(e.DB:GetNPC(179891).skinning, nil, "ohne Zauber kein Kürschnern")
+    stub.now = 160
+    e.cast()
     e.loot({ { 100, WOLF } })
     stub.now = 180
+    e.cast()
     e.loot({ { 100, WOLF } })
 
     local npc = e.DB:GetNPC(179891)
     eq(npc.loot.attempts, 1, "Normalbeute einmal")
     eq(npc.skinning.attempts, 1, "Kürschnern einmal")
+end)
+
+test("Collect: der Zauber Kürschnern erkennt die Kürschnerbeute auch ohne vorheriges Looten", function()
+    local e = setup()
+    stub.now = 100
+    e.cast(nil, 8613)
+    e.loot({ { 100, WOLF, 2 } })
+
+    local npc = e.DB:GetNPC(179891)
+    eq(npc.loot, nil, "keine Normalbeute")
+    eq(npc.skinning.attempts, 1, "Kürschnern")
+    eq(npc.skinning.items[100].amount, 2, "Menge")
+    eq(e.count("skinned", 179891), 1, "Weltwissen skinned")
+    eq(e.count("skin", 179891), 1, "eigener Zähler skin")
+    eq(e.count("skinloot:179891", 100), 2, "skinloot")
+    eq(e.count("skindrop:179891", 100), 1, "skindrop")
+end)
+
+test("Collect: andere Ränge von Kürschnern über den Zaubernamen", function()
+    local e = setup()
+    e.DB.api.GetSpellName = function(id) return (id == 8613 or id == 99999) and "Kürschnern" or "Anderes" end
+    stub.now = 100
+    e.cast(nil, 99999)
+    e.loot({ { 100, WOLF } })
+    eq(e.DB:GetNPC(179891).skinning.attempts, 1, "unbekannte ID mit gleichem Namen")
+
+    stub.now = 200
+    e.cast(nil, 12345)
+    e.loot({ { 100, "Creature-0-3131-2552-14367-555-0000A5C2B1" } })
+    eq(e.DB:GetNPC(555).skinning, nil, "anderer Zauber ohne vorheriges Looten ist Normalbeute")
 end)
 
 test("Collect: Teilloot derselben Quelle zählt nicht doppelt", function()
@@ -219,7 +240,7 @@ test("Collect: Debug nennt den Grund, wenn ein Knoten übersprungen wird", funct
     local e = setup()
     stub.now = 500
     e.loot({ { 101, NODE } })
-    local text = table.concat(e.DB.debugLines, "\n")
+    local text = table.concat(stub.debugLines, "\n")
     eq(text:find("Knoten übersprungen: kein Zauber", 1, true) ~= nil, true, "Grund steht im Debug")
 end)
 
@@ -359,7 +380,7 @@ test("Collect: ohne Aufzeichnung kein Versuch durch Kills", function()
     stub.flush()
     stub.now = 230
     stub.flush()
-    eq(next(e.DB.data.npcs), nil, "nichts gespeichert")
+    eq(select(2, e.DB:GetStats()), 0, "nichts gespeichert")
 end)
 
 test("Collect: Kill wird auch beim Zielwechsel auf eine Leiche und am Kampfende erkannt", function()
@@ -414,7 +435,7 @@ test("Collect: geschützte GUID im Kampf: die zuletzt lesbare GUID des Ziels gil
     stub.now = 400
     stub.flush()
     eq(e.DB:GetNPC(179891).loot.attempts, 1, "kein zweiter Versuch durch die alte GUID")
-    local text = table.concat(e.DB.debugLines, "\n")
+    local text = table.concat(stub.debugLines, "\n")
     eq(text:find("GUID ist unbekannt", 1, true) ~= nil, true, "Debug nennt den Grund")
 end)
 
@@ -443,7 +464,7 @@ test("Collect: Kills nur von Kreaturen, nicht von Spielern", function()
     stub.flush()
     stub.now = 230
     stub.flush()
-    eq(next(e.DB.data.npcs), nil, "nichts gespeichert")
+    eq(select(2, e.DB:GetStats()), 0, "nichts gespeichert")
 end)
 
 test("Collect: Leiche, die nach langer Zeit mit gleicher GUID wiederkommt, ist neue Normalbeute", function()
@@ -616,7 +637,7 @@ test("Collect: in einer Instanz ist die Instanz der Fundort, ohne Koordinaten", 
     eq(spots[1].name, "Die Todesminen", "Name")
     eq(spots[1].map, nil, "keine Karte")
     eq(spots[1].x, nil, "keine Koordinaten")
-    eq(e.DB.data.instances[36], "Die Todesminen", "Name gemerkt")
+    eq(e.DB:GetInstanceName(36), "Die Todesminen", "Name gemerkt")
     eq(Locations():GetPlayerPosition(), nil, "in der Instanz keine Position")
 end)
 
@@ -673,18 +694,18 @@ test("Collect: Debug-Ausgabe nennt Position und gespeicherten Fundort", function
     e.cast("Silberblatt")
     e.loot({ { 100, NODE } })
 
-    local text = table.concat(e.DB.debugLines, "\n")
+    local text = table.concat(stub.debugLines, "\n")
     eq(text:find("Position: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Position")
-    eq(text:find("Gespeichert: Knoten 1731 Fundort: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Fundort des Knotens")
+    eq(text:find("Gespeichert: Knoten 1731, Fundort: Karte Elwynn (37) 41.2 / 56.8", 1, true) ~= nil, true, "Fundort des Knotens")
 
     -- in einer Instanz
-    e.DB.debugLines = {}
+    stub.debugLines = {}
     inInstance(e, "party", 36, "Die Todesminen")
     stub.now = 40
     e.loot({ { 100, WOLF } })
-    text = table.concat(e.DB.debugLines, "\n")
+    text = table.concat(stub.debugLines, "\n")
     eq(text:find("Position: Instanz Die Todesminen (36)", 1, true) ~= nil, true, "Instanz als Position")
-    eq(text:find("Gespeichert: Kreatur 179891 loot Fundort: Instanz Die Todesminen (36)", 1, true) ~= nil, true, "Fundort der Kreatur")
+    eq(text:find("Gespeichert: Kreatur 179891 loot, Fundort: Instanz Die Todesminen (36)", 1, true) ~= nil, true, "Fundort der Kreatur")
 end)
 
 test("Collect: Debug-Ausgabe erklärt fehlende Orte", function()
@@ -692,15 +713,15 @@ test("Collect: Debug-Ausgabe erklärt fehlende Orte", function()
     e.DB.db.profile.trackLocations = true
     stub.now = 5
     e.loot({ { 100, WOLF } })
-    local text = table.concat(e.DB.debugLines, "\n")
+    local text = table.concat(stub.debugLines, "\n")
     eq(text:find("Position: nicht bestimmbar", 1, true) ~= nil, true, "keine Position")
     eq(text:find("Fundort: keiner", 1, true) ~= nil, true, "kein Fundort")
 
-    e.DB.debugLines = {}
+    stub.debugLines = {}
     e.DB.db.profile.trackLocations = false
     stub.now = 40
     e.loot({ { 100, "Creature-0-3131-2552-14367-179892-0000A5C2B1" } })
-    eq(table.concat(e.DB.debugLines, "\n"):find("Aufzeichnung der Fundorte ist aus", 1, true) ~= nil, true, "Option aus")
+    eq(table.concat(stub.debugLines, "\n"):find("Aufzeichnung der Fundorte ist aus", 1, true) ~= nil, true, "Option aus")
 end)
 
 test("Collect: Debug-Ausgabe beim Gebietswechsel nennt Ort und Rohwerte", function()
@@ -710,23 +731,23 @@ test("Collect: Debug-Ausgabe beim Gebietswechsel nennt Ort und Rohwerte", functi
     stub.now = 5
     e.DB:OnAreaChanged("PLAYER_ENTERING_WORLD")
     e.DB:OnAreaChanged("ZONE_CHANGED_NEW_AREA") -- zusammengefasst
-    eq(#e.DB.debugLines, 0, "erst nach der Verzögerung")
+    eq(#stub.debugLines, 0, "erst nach der Verzögerung")
     stub.now = 7
     stub.flush()
 
-    local text = table.concat(e.DB.debugLines, "\n")
+    local text = table.concat(stub.debugLines, "\n")
     eq(text:find("Gebiet (PLAYER_ENTERING_WORLD): Instanz Die Todesminen (36)", 1, true) ~= nil, true, "Gebiet")
     eq(text:find("IsInInstance: true, party", 1, true) ~= nil, true, "IsInInstance roh")
     eq(text:find("GetInstanceInfo: Die Todesminen, party, 1, Normal, 5, 0, false, 36", 1, true) ~= nil, true, "GetInstanceInfo roh")
     eq(text:find("ZONE_CHANGED", 1, true), nil, "nur einmal ausgegeben")
 
     -- ohne Spielfunktionen oder mit Fehler
-    e.DB.debugLines = {}
+    stub.debugLines = {}
     Locations().api.IsInInstance = nil
     Locations().api.GetInstanceInfo = function() error("kaputt") end
     e.DB:OnAreaChanged("ZONE_CHANGED_NEW_AREA")
     stub.flush()
-    text = table.concat(e.DB.debugLines, "\n")
+    text = table.concat(stub.debugLines, "\n")
     eq(text:find("IsInInstance: nicht vorhanden", 1, true) ~= nil, true, "fehlende Funktion")
     eq(text:find("GetInstanceInfo: Fehler:", 1, true) ~= nil, true, "Fehler abgefangen")
 end)
@@ -772,9 +793,7 @@ test("Collect: PARTY_KILL zählt Kills von uns und dem Haustier, ohne Ziel und o
     eq(e.DB:GetNPC(179891).loot.attempts, 1, "Versuch ohne Beute, nur einer")
     eq(e.DB:GetNPC(555).loot.attempts, 1, "Kill des Haustiers als Versuch")
     eq(e.DB:GetNPC(777), nil, "fremder Kill zählt nicht")
-    local count = 0
-    for _ in pairs(e.DB.data.npcs) do count = count + 1 end
-    eq(count, 2, "nur die beiden eigenen Kreaturen gespeichert")
+    eq(select(2, e.DB:GetStats()), 2, "nur die beiden eigenen Kreaturen gespeichert")
 end)
 
 test("Collect: mit PARTY_KILL ist der Tod des Ziels nur Ersatz und zählt nicht", function()

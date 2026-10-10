@@ -12,9 +12,6 @@ move-folders:
 required-dependencies:
   - glimpse
 
-embedded-libraries:
-  - libdeflate
-
 manual-changelog:
   filename: CHANGELOG.md
   markup-type: markdown

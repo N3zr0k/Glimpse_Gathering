@@ -1,4 +1,3 @@
-local ADDON_NAME = ...
 local Glimpse = LibStub("AceAddon-3.0"):GetAddon("Glimpse")
 local DB = Glimpse:GetModule("GatheringDB")
 local L = DB.L
@@ -69,46 +68,22 @@ function DB:BuildOptions()
                     type = "description", order = 1, fontSize = "medium",
                     -- Funktion, damit die Zahlen beim Öffnen aktuell sind
                     name = function()
-                        local nodes, npcs, attempts, spots, zones, casts = self:GetStats()
+                        local nodes, npcs, attempts, spots, zones, catches = self:GetStats()
                         return table.concat({
                             format(L["Gathering nodes: %d"], nodes),
                             format(L["Creatures: %d"], npcs),
                             format(L["Recorded loot windows: %d"], attempts),
                             format(L["Locations: %d"], spots),
-                            format(L["Fishing: %d zones, %d casts"], zones, casts),
+                            format(L["Fishing: %d zones, %d loot windows"], zones, catches),
                             self:ProviderStatistics(),
                         }, "\n")
                     end,
                 },
             },
         },
-        transfer = {
-            type = "group", inline = true, order = 4, name = L["Export and import"],
-            args = {
-                export = {
-                    type = "execute", order = 1,
-                    name = L["Export"],
-                    desc = L["Shows all collected data as text to copy, for a backup or another account."],
-                    func = function() self:ShowExport() end,
-                },
-                import = {
-                    type = "execute", order = 2,
-                    name = L["Import"],
-                    desc = L["Paste exported data to merge it with yours or to replace it."],
-                    func = function() self:ShowImport() end,
-                },
-            },
-        },
-        reset = {
-            type = "execute", order = 5,
-            name = L["Reset data"],
-            desc = L["Deletes all collected gathering data."],
-            confirm = true,
-            confirmText = L["Really delete all collected gathering data?"],
-            func = function()
-                self:ResetData()
-                LibStub("AceConfigRegistry-3.0"):NotifyChange(Glimpse.name .. "_" .. ADDON_NAME)
-            end,
+        data = {
+            type = "description", order = 4,
+            name = L["The data is stored in Glimpse: Database. Export, import and reset are in the Glimpse options, tab Data."],
         },
     }
 end

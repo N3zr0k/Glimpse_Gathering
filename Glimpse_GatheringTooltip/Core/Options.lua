@@ -145,16 +145,6 @@ function GT:BuildWaypointOptions()
     }
 end
 
--- Bildnachweis für den Credits-Bereich (Glimpse:BuildCreditsArgs), Links in der README
-function GT:BuildCredits()
-    local images = {}
-    for _, credit in ipairs(self.IconCredits) do
-        -- Link blau in Klammern, zum Kopieren (in den Optionen nicht klickbar)
-        images[#images + 1] = (IconName(credit.key) or credit.key) .. " - " .. credit.author .. " |cff66ccff(" .. credit.url .. ")|r"
-    end
-    return { images = images }
-end
-
 function GT:BuildOptions()
     return {
         items = {

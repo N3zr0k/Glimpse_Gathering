@@ -106,15 +106,7 @@ GT.MarkerIcons = {
 }
 GT.MarkerColors = { "blue", "white", "yellow", "green", "red" }
 
--- Bildnachweis Media/Markers: Icons von Flaticon (frei mit Namensnennung), umgefärbt, als TGA.
--- Gleiche Angaben in README.md und Media/Markers/CREDITS.md.
-GT.IconCredits = {
-    { key = "pin", author = "Karacis", url = "https://www.flaticon.com/de/kostenloses-icon/ort_5338544" },
-    { key = "pinsolid", author = "Magnific", url = "https://www.flaticon.com/de/kostenloses-icon/standort_3699580" },
-    { key = "pinline", author = "Magnific", url = "https://www.flaticon.com/de/kostenloses-icon/ort_2794702" },
-    { key = "person", author = "kawalanicon", url = "https://www.flaticon.com/de/kostenloses-icon/weiblicher-benutzer_18851090" },
-    { key = "arrow", author = "Magnific", url = "https://www.flaticon.com/de/kostenloses-icon/navigation_3699548" },
-}
+-- Bildnachweis der Symbole (Flaticon, Namensnennung): Media/Markers/CREDITS.md und README.md.
 
 local DEFAULT_ICON = "pinsolid"
 

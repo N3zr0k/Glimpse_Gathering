@@ -10,7 +10,7 @@ ignore = {
 }
 
 -- Globale, die die Addons selbst setzen
-globals = { "Glimpse", "GlimpseDB", "GlimpseGatheringDB", "SLASH_GLIMPSE1", "StaticPopupDialogs" }
+globals = { "Glimpse", "GlimpseDB", "GlimpseGatheringDB", "GlimpseGatheringNames", "SLASH_GLIMPSE1", "StaticPopupDialogs" }
 
 -- Blizzard-API und Mixins (nur lesen)
 read_globals = {

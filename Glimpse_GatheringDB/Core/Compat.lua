@@ -14,12 +14,12 @@ DB.api = {
     GetLootSlotLink = (C_Loot and C_Loot.GetLootSlotLink) or GetLootSlotLink,
     GetLootSourceInfo = (C_Loot and C_Loot.GetLootSourceInfo) or GetLootSourceInfo,
 
-    -- Erkennt Angelbeute (https://warcraft.wiki.gg/wiki/API_IsFishingLoot). Nicht in NAMES: fehlt sie,
-    -- wird nur Angeln nicht erfasst.
+    -- Erkennt Angelbeute (https://warcraft.wiki.gg/wiki/API_IsFishingLoot), die hier nicht zählt (Angeln erfasst
+    -- Glimpse: Professions). Nicht in NAMES: fehlt sie, kann Angelbeute als Knoten zählen.
     IsFishingLoot = IsFishingLoot,
 
     -- Berufe/Skill (Core/Data/Skills.lua): GetProfessionInfo bzw. GetSkillLineInfo (Classic). Nicht in NAMES:
-    -- fehlen sie, entfällt nur die Skill-Anzeige.
+    -- fehlen sie, entfällt nur die Skill-Anzeige. Zaubernamen auch für die Erkennung des Kürschnerns.
     GetProfessions = GetProfessions,
     GetProfessionInfo = GetProfessionInfo,
     GetNumSkillLines = GetNumSkillLines,
