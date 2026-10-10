@@ -139,6 +139,7 @@ local function SourceLines(self, data, isObject, tooltip)
     waitingForNames = false
 
     local kind, id = SourceOf(data, isObject)
+    self.data:LearnTooltipName(kind, id, tooltip)
     if kind == "node" then return NodeLines(self, id, nil, tooltip) end
     if kind == "npc" then return UnitLines(self, id, data, tooltip) end
 
@@ -161,6 +162,7 @@ local function SourceItem(self, source)
     local name = source.name
     -- Angeln: Quelle ist die Zone (steht schon als Ort dahinter), vorn die Tätigkeit
     if source.kind == "fishing" then name = L["Fishing"] end
+    if not name and source.kind == "npc" then name = self.data:LookupNPCName(source.id) end
     if not name then
         name = format(source.kind == "node" and L["Node %d"] or L["Creature %d"], source.id)
     end

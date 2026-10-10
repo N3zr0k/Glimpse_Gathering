@@ -27,3 +27,22 @@ test("Addon: meldet alte Ordner von GatheringDB und GatheringTooltip", function(
     end
     eq(found, 1, "Hinweis auf den alten Ordner")
 end)
+
+test("Namen: Kreatur aus dem Client-Cache und aus dem Tooltip gelernt", function()
+    local cached = { [100] = "Waldwolf" }
+    local DB = stub.newGatheringDB({ api = {
+        GetItemInfoInstant = ItemInfo,
+        GetHyperlinkInfo = function(link)
+            local id = tonumber(link:match("Creature%-0%-0%-0%-0%-(%d+)%-"))
+            return cached[id] and { lines = { { leftText = cached[id] } } } or { lines = {} }
+        end,
+    } })
+    eq(DB:LookupNPCName(100), "Waldwolf", "aus dem Cache")
+    eq(DB:GetNPCName(100), "Waldwolf", "gemerkt")
+    eq(DB:LookupNPCName(200), nil, "unbekannt bleibt nil")
+
+    _G.GameTooltipTextLeft1 = { GetText = function() return "Kupferader" end }
+    DB:LearnTooltipName("node", 1731, { GetName = function() return "GameTooltip" end })
+    eq(DB:GetNodeName(1731), "Kupferader", "Knotenname vom Mouseover")
+    _G.GameTooltipTextLeft1 = nil
+end)

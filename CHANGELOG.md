@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.7] - 2026-10-10
+
+### Fixed
+- Creature names come from the game cache, node and creature names are learned on mouseover
+
 ## [0.3.6] - 2026-10-10
 
 ### Changed

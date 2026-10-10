@@ -27,13 +27,13 @@ früher, damit die Einstellungen bleiben).
 | `Locales/deDE.lua` | Deutsche Texte | – | AceLocale-3.0 |
 | `Core/Core.xml` | Lädt die Core-Dateien, `GatheringData.lua` zuerst | – | – |
 | `Core/GatheringData.lua` | Legt das Modul `GatheringData` an, Konstanten, Einstellungen, Anmeldung bei Database, Start der Erfassung, Beschreibung der Lese-API, Hinweis auf alte Addon-Ordner | schreibt: meldet `gathering` an (`Register`); liest: `Get("gathering")`, `Get("fishing")`, Callback `EVENT_CHANGED` | `GlimpseDB`, Glimpse (`NewModule`, `NewDebugger`), Namespace `GatheringDB` in `Glimpse.db` |
-| `Core/Compat.lua` | Alle Blizzard-Funktionen an einer Stelle, `CheckAPI` meldet fehlende | – | Blizzard: `C_Item`, `C_Loot`, `C_Spell`, `C_CreatureInfo`, `C_AddOns` |
+| `Core/Compat.lua` | Alle Blizzard-Funktionen an einer Stelle, `CheckAPI` meldet fehlende | – | Blizzard: `C_Item`, `C_Loot`, `C_Spell`, `C_CreatureInfo`, `C_AddOns`, `C_TooltipInfo` |
 | `Core/OptionsRecording.lua` | Tab Erfassen: Fundorte aufzeichnen, Schalter je Fremd-Anbieter, Übersicht | liest über `GetStats` | Namespace `GatheringDB`, GatherMate2 (nur Schalter) |
 | `Core/GatheringTooltip.lua` | Legt das Modul `GatheringTooltip` an, Einstellungen, meldet die Optionsseite an | – (nur über `GatheringData`) | Namespace `GatheringTooltip` in `Glimpse.db`, Glimpse (`RegisterAddonOptions`), AceEvent-3.0 |
 | `Core/Professions.lua` | Hat der Spieler den Beruf gelernt (Option "Nur gelernte Berufe") | – | Blizzard: Berufs-API |
 | `Core/Options.lua` | Optionsseite mit vier Tabs (Allgemein, Handwerksmaterial, Ziel, Erfassen) | – | Namespace `GatheringTooltip`, `OptionsRecording.lua`, Modul Locations (`HasTomTom`), AceConfigRegistry-3.0 |
 | `Core/Data/Data.xml` | Lädt die Lese-Dateien | – | – |
-| `Core/Data/Names.lua` | Namen von Knoten, NPCs und Instanzen, Suche über den Namen; neu gelernt seit 0.3.6 | – | liest und schreibt `GlimpseGatheringNames` |
+| `Core/Data/Names.lua` | Namen von Knoten, NPCs und Instanzen, Suche über den Namen; Kreaturnamen aus dem Client-Cache (Unit-Link), Namen vom Mouseover lernen | – | liest und schreibt `GlimpseGatheringNames` |
 | `Core/Data/Drops.lua` | Lese-API für Beute: Knoten, Kreaturen, Quellen eines Items, Statistik | liest: `gathering`, `fishing` (Weltwissen) | Modul Locations (Zonennamen) |
 | `Core/Data/Spots.lua` | Lese-API für Fundorte aus Zonen und Orten | liest: `gathering`, `fishing` | Modul Locations |
 | `Core/Data/Providers.lua` | Fundorte fremder Addons anhängen, Entfernung und Kontinent zum Spieler | – (nie gespeichert) | Modul Locations |

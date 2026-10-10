@@ -233,6 +233,7 @@ local function sourceRows(profile, kind, data)
     GT.data.FindNodeIDs = function() return {} end
     GT.data.GetNodeDrops = function() return drops, 22 end
     GT.data.GetNPCDrops = function() return drops, 22 end
+    GT.data.LearnTooltipName = function() end
 
     _G.C_Item = {
         GetItemNameByID = function(id) return "Item" .. id end,

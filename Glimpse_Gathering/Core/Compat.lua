@@ -29,6 +29,9 @@ DB.api = {
     UnitCreatureType = UnitCreatureType,
     GetCreatureTypeInfo = C_CreatureInfo and C_CreatureInfo.GetCreatureTypeInfo or nil,
 
+    -- Namen von Kreaturen aus dem Client-Cache (Core/Data/Names.lua). Fehlt sie, bleibt "Kreatur 123".
+    GetHyperlinkInfo = C_TooltipInfo and C_TooltipInfo.GetHyperlink or nil,
+
     -- Nur für den Hinweis auf alte Addon-Ordner
     IsAddOnLoaded = C_AddOns and C_AddOns.IsAddOnLoaded or IsAddOnLoaded,
 }

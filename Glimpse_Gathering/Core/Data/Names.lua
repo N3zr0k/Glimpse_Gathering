@@ -39,6 +39,7 @@ function DB:SetNodeName(id, name)
     if id and name and not names.nodes[id] then
         names.nodes[id] = name
         self.nameIndex = nil
+        self:ClearCaches() -- Quellen-Listen tragen den Namen mit
     end
 end
 
@@ -46,8 +47,40 @@ end
 function DB:SetNPCName(id, name, level)
     if not id then return end
     local names = Names()
-    names.npcs[id] = Text(name) or names.npcs[id]
+    name = Text(name)
+    if name and names.npcs[id] ~= name then
+        names.npcs[id] = name
+        self:ClearCaches()
+    end
     if type(level) == "number" and level ~= 0 then names.levels[id] = level end
+end
+
+-- Kreatur über einen Unit-Link nachschlagen. Klappt nur, wenn der Client die Kreatur schon kennt (Cache), sonst
+-- fragt er beim Server nach und ein späterer Aufruf findet den Namen.
+local NPC_LINK = "unit:Creature-0-0-0-0-%d-0000000000"
+
+--- Name einer Kreatur aus dem Client-Cache holen und merken, nil wenn unbekannt
+function DB:LookupNPCName(id)
+    id = tonumber(id)
+    local GetHyperlink = self.api.GetHyperlinkInfo
+    if not id or not GetHyperlink then return nil end
+
+    local ok, info = pcall(GetHyperlink, format(NPC_LINK, id))
+    local line = ok and type(info) == "table" and type(info.lines) == "table" and info.lines[1]
+    local name = line and Text(line.leftText)
+    if name then self:SetNPCName(id, name) end
+    return name
+end
+
+--- Namen aus dem Tooltip einer Kreatur oder eines Knotens lernen (Mouseover), falls noch keiner bekannt ist
+function DB:LearnTooltipName(kind, id, tooltip)
+    if not id then return end
+    local names = Names()
+    if kind == "npc" and not names.npcs[id] then
+        self:SetNPCName(id, self:GetTooltipName(tooltip))
+    elseif kind == "node" and not names.nodes[id] then
+        self:SetNodeName(id, self:GetTooltipName(tooltip))
+    end
 end
 
 --- Name einer Instanz merken

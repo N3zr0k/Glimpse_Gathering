@@ -1,6 +1,6 @@
 # Glimpse: Gathering – Funktionen
 
-Stand 0.3.6-alpha.1. Ein Addon, das erfasst und anzeigt (bis 0.3.5 zwei Addons: GatheringDB und GatheringTooltip).
+Stand 0.3.7-alpha.1. Ein Addon, das erfasst und anzeigt (bis 0.3.5 zwei Addons: GatheringDB und GatheringTooltip).
 Benötigt Glimpse (Core) 0.3.33 oder neuer mit Glimpse: Database.
 
 ## Erfassen
@@ -13,7 +13,7 @@ Benötigt Glimpse (Core) 0.3.33 oder neuer mit Glimpse: Database.
 | Eigene Sammelzähler | Kräuter, Erz, sonstige Knoten und Kürschnern je Charakter und Zone. | – |
 | Fundorte | Knoten mit Zone und Koordinaten (nahe Orte zusammengefasst), Kreaturen nur mit Zone, in Instanzen die Instanz. | Fundorte aufzeichnen (an) |
 | Fremde Fundorte | GatherMate2-Orte werden live hinter die eigenen gehängt, nie gespeichert. Je Anbieter abschaltbar. | Andere Addons (an) |
-| Namen | Namen von Knoten, Kreaturen und Instanzen in einer eigenen SavedVariable, weil Database nur IDs speichert. Seit 0.3.6 neu gelernt. | – |
+| Namen | Namen von Knoten, Kreaturen und Instanzen in einer eigenen SavedVariable, weil Database nur IDs speichert. Gelernt beim Looten und beim Mouseover, Kreaturen auch aus dem Client-Cache. | – |
 | Hinweis auf alte Ordner | Liegen `Glimpse_GatheringDB` oder `Glimpse_GatheringTooltip` noch im AddOns-Ordner, kommt beim Start ein Hinweis im Chat. | – |
 | Debug und Probes | Rohdaten im Tooltip (`/gli debug on`) und `/gli probe gathering stats\|skill\|gm2\|area\|names\|fishing\|node\|npc\|item`. | – |
 

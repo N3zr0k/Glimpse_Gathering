@@ -3,7 +3,7 @@
 ## Notes: Learns what gathering nodes and creatures drop while you play and shows it in their tooltips, with drop chances and the best places for each material.
 ## Notes-deDE: Lernt beim Spielen, was Sammelknoten und Kreaturen fallen lassen, und zeigt es in ihren Tooltips, mit Drop-Chancen und den besten Fundorten jedes Materials.
 
-## Version: 0.3.6-alpha.1
+## Version: 0.3.7-alpha.1
 ## Author: N3zr0k
 ## X-License: MIT
 ## X-Website: https://github.com/N3zr0k/Glimpse_Gathering
